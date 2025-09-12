@@ -13,7 +13,6 @@ This repo adapts the canonical [synesthetic-schemas](https://github.com/delk73/s
 - **Tools**: validation, diff (RFC6902 patch ops), backend population.  
 - **Guards**: enforce schema compliance before persistence.
 
-
 ## System Context
 
 ```mermaid
@@ -32,6 +31,29 @@ flowchart LR
   SSOT --> |Python models| BE
 
   style MCP fill:#444444,stroke:#ffffff,stroke-width:2px
+```
+
+## Quick Setup
+
+```bash
+# Enter reproducible Nix shell (Python + Poetry pre-installed)
+nix develop
+
+# Install deps into local .venv/
+poetry install
+
+# Optional: activate venv directly
+poetry shell
+
+# Run tests
+pytest
+
+Optional:
+
+```bash
+# Lint / type-check (if configured in pyproject.toml)
+ruff check .
+mypy mcp/
 ```
 
 ## Structure
@@ -62,10 +84,11 @@ synesthetic-mcp/
 
 ## Development
 
-* MCP server is written in **Python 3.11+**.
+* MCP server is written in **Python (>=3.11, tested on 3.11–3.13)**.
 * Depends on generated Python models from [`synesthetic-schemas`](https://github.com/delk73/synesthetic-schemas).
 * Use **FastAPI** for HTTP adapter, or run via **stdio** for direct agent integration.
 * Tests use **pytest** and golden fixtures.
+* Reproducible dev environment provided via **Nix flake**; Poetry for Python deps.
 
 ## Spec
 
@@ -75,4 +98,3 @@ See [docs/mcp\_spec.md](docs/mcp_spec.md) for the pinned v1 specification.
 
 ✅ Spec pinned in `docs/mcp_spec.md`
 🚧 Implementation scaffolding in progress
-

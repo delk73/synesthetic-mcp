@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual envs
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Poetry / Pip
+poetry.lock
+requirements.txt
+
+# Nix
+result/
+*.drv
+*.lock
+.nix-gc-roots/
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

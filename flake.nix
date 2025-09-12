@@ -10,21 +10,23 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        py = pkgs.python311;
+        pyPkgs = pkgs.python311Packages;
       in {
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            python311
-            python311Packages.poetry
-            python311Packages.pip
-            python311Packages.setuptools
-            python311Packages.wheel
-            # Add linters/test deps here if you want them in shell
-            python311Packages.pytest
+            py
+            poetry
+            pyPkgs.pip
+            pyPkgs.setuptools
+            pyPkgs.wheel
+            pyPkgs.pytest
           ];
 
           shellHook = ''
-            echo "🐍 Synesthetic MCP dev shell (Python 3.11 via Nix)"
-            echo "Use 'poetry install' to create a .venv/"
+            echo "🐍 Synesthetic MCP dev shell"
+            echo "Python: ${py.version}"
+            echo "Use 'poetry install' to set up a .venv/"
             echo "Run tests with 'pytest'"
           '';
         };
