@@ -1,8 +1,8 @@
-<!---
+---
 version: 0.1.0
 owner: delk73
 lastReviewed: 2025-09-12
---->
+---
 
 # Synesthetic MCP
 
