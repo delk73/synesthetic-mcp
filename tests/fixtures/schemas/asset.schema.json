@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/asset.schema.json",
+  "title": "SynestheticAsset",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "type", "data"],
+  "properties": {
+    "id": { "type": "string" },
+    "type": { "type": "string", "enum": ["Shader"] },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "uniforms"],
+      "properties": {
+        "name": { "type": "string" },
+        "uniforms": {
+          "type": "array",
+          "items": { "type": "number" }
+        }
+      }
+    }
+  }
+}
+
