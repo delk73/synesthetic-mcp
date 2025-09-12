@@ -13,14 +13,9 @@ ENV/
 env.bak/
 venv.bak/
 
-# Poetry / Pip
-poetry.lock
-requirements.txt
-
 # Nix
 result/
 *.drv
-*.lock
 .nix-gc-roots/
 
 # Test / coverage
