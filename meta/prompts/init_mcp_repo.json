@@ -2,9 +2,10 @@
   "task": "Initialize synesthetic-mcp repo",
   "objective": "Create a lightweight Python MCP server that adapts synesthetic-schemas into resources (schemas, examples) and tools (validate_asset, diff_assets, populate_backend) per the pinned spec.",
   "constraints": {
-    "language": "Python 3.11+",
+    "language": "Python (>=3.11, tested 3.11–3.13)",
     "style": "KISS, deterministic, minimal deps",
     "schemas": "Consume generated Python bindings from synesthetic-schemas",
+    "runtime": "Reproducible dev via Nix flake (matches synesthetic-schemas), with Poetry fallback for non-Nix users",
     "output_structure": "Match README.md layout with docs/, mcp/, tests/, meta/prompts/",
     "validation": "Use jsonschema + Pydantic v2 for schema validation",
     "diff": "Implement RFC6902 JSON Patch ops (minimal)",

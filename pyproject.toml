@@ -1,0 +1,31 @@
+[tool.poetry]
+name = "synesthetic-mcp"
+version = "0.1.0"
+description = "Lightweight Model Context Protocol (MCP) server for Synesthetic assets"
+authors = ["delk73 <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "mcp" }]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+pydantic = "^2.7"
+jsonschema = "^4.23"
+httpx = "^0.27"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+ruff = "^0.6"
+mypy = "^1.11"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-q"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
