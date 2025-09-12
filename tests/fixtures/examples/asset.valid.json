@@ -1,9 +1,0 @@
-{
-  "id": "asset-123",
-  "type": "Shader",
-  "data": {
-    "name": "example-shader",
-    "uniforms": [0.1, 1.5]
-  }
-}
-

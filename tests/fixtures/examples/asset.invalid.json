@@ -1,9 +1,0 @@
-{
-  "id": 42,
-  "type": "Shader",
-  "data": {
-    "name": 99,
-    "uniforms": ["x", 1.5]
-  }
-}
-
