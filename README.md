@@ -35,6 +35,8 @@ flowchart LR
 
 ## Quick Setup
 
+### Option A: Nix + Poetry (full dev shell)
+
 ```bash
 # Enter reproducible Nix shell (Python + Poetry pre-installed)
 nix develop
@@ -42,25 +44,37 @@ nix develop
 # Install deps into local .venv/
 poetry install
 
-# Optional: activate venv directly
-poetry shell
-
 # Run tests
 pytest
+```
 
-Optional:
+### Option B: Fast path (pinned requirements, no resolver rodeos)
 
 ```bash
-# Lint / type-check (if configured in pyproject.toml)
+# Clean and bootstrap fresh venv
+./install.sh
+
+# Activate venv
+source .venv/bin/activate
+
+# Run tests
+pytest -q
+
+# Lint / type-check
 ruff check .
 mypy mcp/
 ```
+
+> The `install.sh` script installs from `requirements.txt` with **exact pinned versions**
+> for deterministic, fast environment setup.
 
 ## Structure
 
 ```
 synesthetic-mcp/
   README.md
+  requirements.txt     # Pinned dependencies (single source of truth for pip)
+  install.sh           # Simple bootstrap script for reproducible env
   docs/
     mcp_spec.md        # Full spec for MCP v1 (resources, tools, error model)
   mcp/
@@ -88,7 +102,7 @@ synesthetic-mcp/
 * Depends on generated Python models from [`synesthetic-schemas`](https://github.com/delk73/synesthetic-schemas).
 * Use **FastAPI** for HTTP adapter, or run via **stdio** for direct agent integration.
 * Tests use **pytest** and golden fixtures.
-* Reproducible dev environment provided via **Nix flake**; Poetry for Python deps.
+* Reproducible dev environment provided via **Nix flake**; pip + `requirements.txt` for fast installs.
 
 ## Spec
 
@@ -98,3 +112,4 @@ See [docs/mcp\_spec.md](docs/mcp_spec.md) for the pinned v1 specification.
 
 ✅ Spec pinned in `docs/mcp_spec.md`
 🚧 Implementation scaffolding in progress
+
