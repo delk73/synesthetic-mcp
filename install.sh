@@ -1,15 +1,12 @@
+# install.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure we start clean
+# clean out stray venv
 rm -rf .venv
-python3 -m venv .venv
-source .venv/bin/activate
 
-# Always upgrade pip
-pip install --upgrade pip
-
-# Install from pinned requirements
+# install pinned deps
 pip install -r requirements.txt
 
-echo "✅ Environment ready. Activate with: source .venv/bin/activate"
+# install this repo editable
+pip install -e .

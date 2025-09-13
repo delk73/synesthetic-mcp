@@ -33,58 +33,31 @@ flowchart LR
   style MCP fill:#444444,stroke:#ffffff,stroke-width:2px
 ```
 
-## Quick Setup
+## Features
 
-### Option A: Nix + Poetry (full dev shell)
-
-```bash
-# Enter reproducible Nix shell (Python + Poetry pre-installed)
-nix develop
-
-# Install deps into local .venv/
-poetry install
-
-# Run tests
-pytest
-```
-
-### Option B: Fast path (pinned requirements, no resolver rodeos)
-
-```bash
-# Clean and bootstrap fresh venv
-./install.sh
-
-# Activate venv
-source .venv/bin/activate
-
-# Run tests
-pytest -q
-
-# Lint / type-check
-ruff check .
-mypy mcp/
-```
-
-> The `install.sh` script installs from `requirements.txt` with **exact pinned versions**
-> for deterministic, fast environment setup.
+* **Schema & example discovery** (via `mcp/core.py`)
+* **Validation** with `jsonschema` + Pydantic (see `mcp/validate.py`)
+* **Diffing** with RFC6902 JSON Patch ops (see `mcp/diff.py`)
+* **Backend proxy** to the API (see `mcp/backend.py`)
+* **Runtimes**: stdio JSON-RPC adapter and optional HTTP adapter
 
 ## Structure
 
 ```
 synesthetic-mcp/
   README.md
-  requirements.txt     # Pinned dependencies (single source of truth for pip)
-  install.sh           # Simple bootstrap script for reproducible env
+  requirements.txt
+  install.sh
   docs/
-    mcp_spec.md        # Full spec for MCP v1 (resources, tools, error model)
+    mcp_spec.md
   mcp/
     __init__.py
-    core.py            # schema/example discovery
-    validate.py        # validation helpers
-    diff.py            # JSON Patch generation
-    backend.py         # proxy client to backend
-    stdio_main.py      # MCP stdio adapter
-    http_main.py       # optional FastAPI adapter
+    core.py
+    validate.py
+    diff.py
+    backend.py
+    stdio_main.py
+    http_main.py
   tests/
     test_validate.py
     test_diff.py
@@ -93,16 +66,18 @@ synesthetic-mcp/
       valid_asset.json
       invalid_asset.json
   meta/
-    prompts/           # Canonical Codex/ChatGPT prompts used to spin up repo
+    prompts/
 ```
 
 ## Development
 
-* MCP server is written in **Python (>=3.11, tested on 3.11–3.13)**.
-* Depends on generated Python models from [`synesthetic-schemas`](https://github.com/delk73/synesthetic-schemas).
-* Use **FastAPI** for HTTP adapter, or run via **stdio** for direct agent integration.
-* Tests use **pytest** and golden fixtures.
-* Reproducible dev environment provided via **Nix flake**; pip + `requirements.txt` for fast installs.
+* Written in **Python (>=3.11, tested on 3.11–3.13)**
+* Depends on generated Python models from [`synesthetic-schemas`](https://github.com/delk73/synesthetic-schemas)
+* Tests use **pytest** and golden fixtures
+* Runtimes:
+
+  * `python -m mcp.stdio_main --stdio` (JSON-RPC stdio loop)
+  * `uvicorn 'mcp.http_main:create_app'` (HTTP adapter, FastAPI optional)
 
 ## Spec
 
@@ -112,4 +87,3 @@ See [docs/mcp\_spec.md](docs/mcp_spec.md) for the pinned v1 specification.
 
 ✅ Spec pinned in `docs/mcp_spec.md`
 🚧 Implementation scaffolding in progress
-
