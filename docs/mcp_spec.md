@@ -75,7 +75,7 @@ Keep the server lightweight, stateless, and strictly an adapter:
   ```json
   { "ok": false, "reason": "validation_failed",
     "errors": [{ "path":"/shader/uniforms/0", "msg":"expected number" }] }
-```
+  ```
 
 * **Backend errors**:
 
