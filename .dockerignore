@@ -1,0 +1,45 @@
+# VCS
+.git
+
+# Python bytecode and extensions
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Test / coverage caches
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Linters / type checkers
+.ruff_cache/
+.mypy_cache/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Packaging/build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Node (if present)
+node_modules/
+
