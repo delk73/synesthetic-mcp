@@ -8,14 +8,34 @@ from typing import Any, Dict, List
 
 DEFAULT_SCHEMAS_DIR = "tests/fixtures/schemas"
 DEFAULT_EXAMPLES_DIR = "tests/fixtures/examples"
+SUBMODULE_SCHEMAS_DIR = "libs/synesthetic-schemas/jsonschema"
+SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/examples"
 
 
 def _schemas_dir() -> Path:
-    return Path(os.environ.get("SYN_SCHEMAS_DIR", DEFAULT_SCHEMAS_DIR))
+    # Env override takes precedence
+    env = os.environ.get("SYN_SCHEMAS_DIR")
+    if env:
+        return Path(env)
+    # Prefer submodule if present
+    sub = Path(SUBMODULE_SCHEMAS_DIR)
+    if sub.is_dir():
+        return sub
+    # Fallback to local fixtures
+    return Path(DEFAULT_SCHEMAS_DIR)
 
 
 def _examples_dir() -> Path:
-    return Path(os.environ.get("SYN_EXAMPLES_DIR", DEFAULT_EXAMPLES_DIR))
+    # Env override takes precedence
+    env = os.environ.get("SYN_EXAMPLES_DIR")
+    if env:
+        return Path(env)
+    # Prefer submodule if present
+    sub = Path(SUBMODULE_EXAMPLES_DIR)
+    if sub.is_dir():
+        return sub
+    # Fallback to local fixtures
+    return Path(DEFAULT_EXAMPLES_DIR)
 
 
 def list_schemas() -> Dict[str, Any]:
@@ -47,13 +67,35 @@ def list_examples(component: str | None = None) -> Dict[str, Any]:
     d = _examples_dir()
     items: List[Dict[str, str]] = []
     if d.is_dir():
-        for p in sorted(d.glob("*.json")):
+        for p in sorted(d.rglob("*.json")):
+            if not p.is_file():
+                continue
             comp = p.name.split(".")[0]
             if component and component != "*" and comp != component:
                 continue
             items.append({"component": comp, "path": str(p)})
     items.sort(key=lambda x: (x["component"], x["path"]))
     return {"ok": True, "examples": items}
+
+
+def _infer_schema_name_from_example(p: Path, data: Dict[str, Any]) -> str:
+    # 1) Explicit field
+    schema = data.get("schema")
+    if isinstance(schema, str) and schema:
+        return schema
+    # 2) $schemaRef like 'jsonschema/synesthetic-asset.schema.json'
+    ref = data.get("$schemaRef")
+    if isinstance(ref, str) and ref:
+        name = Path(ref).name
+        if name.endswith(".schema.json"):
+            return name[: -len(".schema.json")]
+        if name.endswith(".json"):
+            return name[: -len(".json")]
+    # 3) Minimal filename fallback for canonical asset examples
+    if p.name.startswith("SynestheticAsset"):
+        return "synesthetic-asset"
+    # 4) Last resort: base filename without extension
+    return p.stem
 
 
 def get_example(path: str) -> Dict[str, Any]:
@@ -63,7 +105,7 @@ def get_example(path: str) -> Dict[str, Any]:
     if not p.exists():
         return {"ok": False, "example": None, "schema": "", "validated": False}
     data = json.loads(p.read_text())
-    schema_name = p.name.split(".")[0]
+    schema_name = _infer_schema_name_from_example(p, data)
     # validate lazily to avoid import cycles
     try:
         from .validate import validate_asset
@@ -73,4 +115,3 @@ def get_example(path: str) -> Dict[str, Any]:
     except Exception:
         validated = False
     return {"ok": True, "example": data, "schema": schema_name, "validated": validated}
-

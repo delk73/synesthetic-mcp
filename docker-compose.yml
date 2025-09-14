@@ -3,10 +3,11 @@ services:
     build: .
     image: synesthetic-mcp
     container_name: synesthetic-mcp
+    # Environment is passed through from host if set; no defaults here
     environment:
-      - SYN_SCHEMAS_DIR=${SYN_SCHEMAS_DIR:-/app/tests/fixtures/schemas}
-      - SYN_EXAMPLES_DIR=${SYN_EXAMPLES_DIR:-/app/tests/fixtures/examples}
-      - SYN_BACKEND_URL=${SYN_BACKEND_URL:-}
+      - SYN_SCHEMAS_DIR
+      - SYN_EXAMPLES_DIR
+      - SYN_BACKEND_URL
     volumes:
       - .:/app
     command: pytest -q

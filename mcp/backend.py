@@ -6,11 +6,19 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from pathlib import Path as _Path
 from .validate import validate_asset, MAX_BYTES
+from .core import _infer_schema_name_from_example as _infer_schema
 
 
 def _backend_url() -> Optional[str]:
     return os.environ.get("SYN_BACKEND_URL")
+
+def _assets_path() -> str:
+    p = os.environ.get("SYN_BACKEND_ASSETS_PATH", "/synesthetic-assets/")
+    if not p.startswith("/"):
+        p = "/" + p
+    return p
 
 
 def populate_backend(
@@ -31,7 +39,10 @@ def populate_backend(
         }
 
     if validate_first:
-        v = validate_asset(asset, schema=asset.get("schema", "asset"))
+        # Infer schema name using the same logic as examples ($schemaRef-aware)
+        dummy = _Path(".") / "example.json"
+        schema_name = _infer_schema(dummy, asset) or "synesthetic-asset"
+        v = validate_asset(asset, schema=schema_name)
         if not v.get("ok", False):
             return {"ok": False, "reason": "validation_failed", "errors": v["errors"]}
 
@@ -41,7 +52,7 @@ def populate_backend(
         need_close = True
 
     try:
-        resp = client.post("/assets", json=asset)
+        resp = client.post(_assets_path(), json=asset)
     except httpx.HTTPError as e:
         if need_close:
             client.close()
@@ -74,4 +85,3 @@ def populate_backend(
         "status": resp.status_code,
         "detail": detail,
     }
-

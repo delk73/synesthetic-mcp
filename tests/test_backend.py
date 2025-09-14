@@ -7,8 +7,10 @@ import httpx
 from mcp.backend import populate_backend
 
 
-def _client_for(status: int, payload: dict):
+def _client_for(status: int, payload: dict, *, expect_path: str | None = None):
     def handler(request: httpx.Request) -> httpx.Response:
+        if expect_path is not None:
+            assert request.url.path == expect_path
         return httpx.Response(status, json=payload)
 
     transport = httpx.MockTransport(handler)
@@ -23,8 +25,8 @@ def test_backend_disabled_without_env(monkeypatch):
 
 def test_backend_success(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
-    client = _client_for(201, {"id": "xyz"})
-    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client)
+    client = _client_for(201, {"id": "xyz"}, expect_path="/synesthetic-assets/")
+    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client, validate_first=False)
     assert res["ok"] is True
     assert res["asset_id"] == "xyz"
 
@@ -32,7 +34,6 @@ def test_backend_success(monkeypatch):
 def test_backend_error(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
     client = _client_for(500, {"error": "fail"})
-    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client)
+    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client, validate_first=False)
     assert res["ok"] is False
     assert res["reason"] == "backend_error"
-

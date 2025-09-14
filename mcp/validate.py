@@ -6,6 +6,11 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from jsonschema import Draft202012Validator
+try:
+    from referencing import Registry, Resource  # type: ignore
+except Exception:  # pragma: no cover
+    Registry = None  # type: ignore
+    Resource = None  # type: ignore
 
 from .core import _schemas_dir
 
@@ -38,6 +43,33 @@ def _load_schema(name: str) -> Dict[str, Any]:
     p = _schemas_dir() / f"{name}.schema.json"
     return json.loads(Path(p).read_text())
 
+_REGISTRY = None
+
+
+def _ensure_registry():
+    global _REGISTRY
+    if _REGISTRY is not None:
+        return _REGISTRY
+    if Registry is None or Resource is None:
+        _REGISTRY = None
+        return None
+    mapping = {}
+    d = _schemas_dir()
+    if d.is_dir():
+        for p in d.glob("*.schema.json"):
+            try:
+                obj = json.loads(Path(p).read_text())
+            except Exception:
+                continue
+            uri = obj.get("$id")
+            if isinstance(uri, str) and uri:
+                try:
+                    mapping[uri] = Resource.from_contents(obj)
+                except Exception:
+                    continue
+    _REGISTRY = Registry().with_resources(mapping) if mapping else Registry()
+    return _REGISTRY
+
 
 def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     if not _size_okay(asset):
@@ -63,7 +95,11 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     if base_uri and "$id" not in schema_copy:
         schema_copy["$id"] = base_uri
 
-    validator = Draft202012Validator(schema_copy)
+    registry = _ensure_registry()
+    if registry is not None:
+        validator = Draft202012Validator(schema_copy, registry=registry)
+    else:
+        validator = Draft202012Validator(schema_copy)
     errors = []
     for err in validator.iter_errors(asset):
         pointer = _pointer_from_path(err.absolute_path)
@@ -71,4 +107,3 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
 
     errors.sort(key=lambda e: (e["path"], e["msg"]))
     return {"ok": len(errors) == 0, "errors": errors}
-

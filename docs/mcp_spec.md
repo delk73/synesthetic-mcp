@@ -9,8 +9,11 @@ Expose schemas, examples, validation, diff, and optional persistence as determin
 
 ## Boundaries
 - Stateless: no durable storage; reads schemas/examples from filesystem.
-- Schema source: JSON Schemas on disk, defaulting to `tests/fixtures/schemas`.
-  - Env overrides: `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`.
+- Schema source: JSON Schemas and examples on disk.
+  - Lookup order:
+    1) Env overrides: `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`
+    2) Submodule: `libs/synesthetic-schemas/jsonschema`, `libs/synesthetic-schemas/examples`
+    3) Fallback: `tests/fixtures/schemas`, `tests/fixtures/examples`
   - Refresh by process restart; no polling.
 - Backend: optional via `SYN_BACKEND_URL`; 5s timeout; no retries.
 
