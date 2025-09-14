@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.test/asset.schema.json",
+  "version": "1.0.0",
+  "title": "Asset",
+  "type": "object",
+  "properties": {
+    "schema": {"type": "string", "const": "asset"},
+    "id": {"type": "string", "pattern": "^[a-z0-9_-]{3,32}$"},
+    "name": {"type": "string", "minLength": 1},
+    "tags": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "required": ["id", "name"],
+  "additionalProperties": false
+}
+

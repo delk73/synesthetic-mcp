@@ -1,0 +1,7 @@
+{
+  "schema": "asset",
+  "id": "asset_123",
+  "name": "Example Asset",
+  "tags": ["red", "blue"]
+}
+
