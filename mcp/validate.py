@@ -67,8 +67,9 @@ def _ensure_registry():
                     mapping[uri] = Resource.from_contents(obj)
                 except Exception:
                     continue
-    _REGISTRY = Registry().with_resources(mapping) if mapping else Registry()
+    _REGISTRY = Registry().with_resources(mapping.items()) if mapping else Registry()
     return _REGISTRY
+
 
 
 def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
