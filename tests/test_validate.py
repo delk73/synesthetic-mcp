@@ -12,7 +12,7 @@ def _load(path: str):
 
 
 def test_get_schema_and_validate_valid():
-    s = get_schema("asset")
+    s = get_schema("synesthetic-asset")
     assert s["ok"] is True
     assert s["version"] == "1.0.0"
 
