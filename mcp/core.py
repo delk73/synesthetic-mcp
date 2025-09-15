@@ -5,9 +5,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
-
-DEFAULT_SCHEMAS_DIR = "tests/fixtures/schemas"
-DEFAULT_EXAMPLES_DIR = "tests/fixtures/examples"
 SUBMODULE_SCHEMAS_DIR = "libs/synesthetic-schemas/jsonschema"
 SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/examples"
 
@@ -21,8 +18,8 @@ def _schemas_dir() -> Path:
     sub = Path(SUBMODULE_SCHEMAS_DIR)
     if sub.is_dir():
         return sub
-    # Fallback to local fixtures
-    return Path(DEFAULT_SCHEMAS_DIR)
+    # No local fixture fallback; return as-is for callers to handle
+    return sub
 
 
 def _examples_dir() -> Path:
@@ -34,8 +31,8 @@ def _examples_dir() -> Path:
     sub = Path(SUBMODULE_EXAMPLES_DIR)
     if sub.is_dir():
         return sub
-    # Fallback to local fixtures
-    return Path(DEFAULT_EXAMPLES_DIR)
+    # No local fixture fallback; return as-is for callers to handle
+    return sub
 
 
 def list_schemas() -> Dict[str, Any]:

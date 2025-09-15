@@ -28,10 +28,16 @@ def test_uses_submodule_when_present(monkeypatch):
     ls = list_schemas()
     assert ls["ok"] and len(ls["schemas"]) >= 1
     assert any(str(SUBMODULE_SCHEMAS_DIR) in s["path"] for s in ls["schemas"])
+    # deterministic ordering by name/version/path
+    schemas_sorted = sorted(ls["schemas"], key=lambda x: (x["name"], x["version"], x["path"]))
+    assert ls["schemas"] == schemas_sorted
 
     le = list_examples("*")
     assert le["ok"] and len(le["examples"]) >= 1
     assert any(str(SUBMODULE_EXAMPLES_DIR) in e["path"] for e in le["examples"])
+    # deterministic ordering by component/path
+    examples_sorted = sorted(le["examples"], key=lambda x: (x["component"], x["path"]))
+    assert le["examples"] == examples_sorted
 
     # Try loading and validating the first example found
     first = le["examples"][0]
@@ -39,4 +45,3 @@ def test_uses_submodule_when_present(monkeypatch):
     assert ex["ok"] is True and ex["example"] is not None
     res = validate_asset(ex["example"], ex["schema"])
     assert res["ok"] is True
-

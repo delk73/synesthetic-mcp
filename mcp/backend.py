@@ -29,7 +29,7 @@ def populate_backend(
 ) -> Dict[str, Any]:
     url = _backend_url()
     if not url:
-        return {"ok": False, "reason": "unsupported"}
+        return {"ok": False, "reason": "unsupported", "msg": "backend disabled"}
 
     if len(json.dumps(asset).encode("utf-8")) > MAX_BYTES:
         return {

@@ -28,7 +28,7 @@ def test_validate_invalid_sorted_errors():
     # Deliberately invalid object for nested-synesthetic-asset (alias)
     asset = {"name": "", "extra": True}
     res = validate_asset(asset, "nested-synesthetic-asset")
-    assert res["ok"] is False
+    assert res["ok"] is False and res.get("reason") == "validation_failed"
     # ensure deterministic order
     paths = [e["path"] for e in res["errors"]]
     assert paths == sorted(paths)

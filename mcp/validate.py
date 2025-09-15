@@ -82,6 +82,7 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     if not _size_okay(asset):
         return {
             "ok": False,
+            "reason": "validation_failed",
             "errors": [{"path": "/", "msg": "payload_too_large"}],
         }
 
@@ -98,6 +99,7 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     except Exception as e:
         return {
             "ok": False,
+            "reason": "validation_failed",
             "errors": [{"path": "/", "msg": f"schema_load_failed: {e}"}],
         }
 
@@ -122,4 +124,6 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
         errors.append({"path": pointer, "msg": err.message})
 
     errors.sort(key=lambda e: (e["path"], e["msg"]))
-    return {"ok": len(errors) == 0, "errors": errors}
+    if errors:
+        return {"ok": False, "reason": "validation_failed", "errors": errors}
+    return {"ok": True, "errors": []}

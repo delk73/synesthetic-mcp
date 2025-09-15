@@ -27,7 +27,7 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return populate_backend(
             params.get("asset", {}), bool(params.get("validate_first", True))
         )
-    return {"ok": False, "reason": "unsupported"}
+    return {"ok": False, "reason": "unsupported", "msg": "tool not implemented"}
 
 
 def main() -> None:
@@ -51,4 +51,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

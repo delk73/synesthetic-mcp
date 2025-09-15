@@ -39,7 +39,7 @@ Expose schemas, examples, validation, diff, and optional persistence as determin
   `{ ok: bool, example: object, schema: str, validated: bool }`
 
 * `validate_asset(asset, schema)`:
-  `{ ok: bool, errors: [{ path: str, msg: str }] }`
+  `{ ok: bool, errors: [{ path: str, msg: str }], reason?:'validation_failed' }`
 
 * `diff_assets(base, new)`:
   `{ ok: bool, patch: [{ op: 'add'|'remove'|'replace', path: str, value? }] }`

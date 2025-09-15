@@ -74,7 +74,6 @@ Authoritative schemas/examples live at `libs/synesthetic-schemas` (git submodule
 Order of discovery used by the adapter:
 1) `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` if set
 2) `libs/synesthetic-schemas/jsonschema` and `libs/synesthetic-schemas/examples` if present
-3) `tests/fixtures/schemas` and `tests/fixtures/examples` as fallback
 
 Initialize the submodule:
 
