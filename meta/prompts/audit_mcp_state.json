@@ -1,43 +1,49 @@
 {
-  "task": "Audit synesthetic-mcp repo state",
-  "objective": "Compare the current implementation of synesthetic-mcp against its founding prompt (meta/prompts/init_mcp_repo.json) and current spec (docs/mcp_spec.md). Identify alignment, gaps, and drift, then generate a clear audit report at meta/output/mcp_state.md.",
+  "task": "Audit synesthetic-mcp repo state from code",
+  "objective": "Examine the actual implementation files and tests to compare against the founding prompt (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report only what is present, missing, or intentionally divergent.",
   "constraints": {
-    "style": "deterministic, concise, structured in Markdown",
+    "style": "deterministic, concise, Markdown headings with bullet points",
+    "rules": [
+      "Base all findings directly on code and tests in scope",
+      "If functionality is not present in code, mark it explicitly as missing",
+      "Do not infer or speculate about behavior not visible in the repo",
+      "If the code intentionally diverges from the init prompt (e.g. local fixtures removed), mark it as intentionally divergent, not as a gap",
+      "All recommendations must be actionable adjustments to code, tests, or docs — no speculation or re-adding intentionally removed components"
+    ],
     "sections": [
       "Summary of repo state",
-      "Alignment with init prompt",
-      "Alignment with spec",
-      "Detected gaps or deviations",
-      "Recommendations (next steps)"
+      "Alignment with init prompt (evidence from code)",
+      "Alignment with spec (evidence from code)",
+      "Detected gaps or intentional divergences",
+      "Recommendations (concrete next steps)"
     ],
     "scope": {
       "files": [
         "README.md",
         "docs/mcp_spec.md",
-        "meta/prompts/init_mcp_repo.json",
         "requirements.txt",
         "mcp/*.py",
         "tests/*.py"
       ],
       "focus": [
-        "io_contracts implementation",
-        "error model compliance",
-        "determinism rules",
-        "schema/example discovery (submodule-first, no local fixtures)",
-        "nested-synesthetic-asset alias handling",
-        "backend env gating (SYN_BACKEND_URL)",
-        "test coverage vs prompt requirements",
-        "packaging (requirements.txt only, no drift)"
+        "implemented functions and modules",
+        "test assertions and coverage",
+        "schema/example discovery paths",
+        "validation logic and alias handling",
+        "backend env gating",
+        "error handling",
+        "diff implementation"
       ]
     },
     "output": {
       "path": "meta/output/mcp_state.md",
-      "format": "Markdown with headings and bullet lists"
+      "format": "Markdown"
     }
   },
   "exit_criteria": [
     "meta/output/mcp_state.md exists",
-    "Report compares repo against both init prompt and spec",
-    "Gaps and deviations are clearly marked with actionable notes"
+    "Report contains only evidence-based findings",
+    "Gaps are marked as missing or intentionally divergent, no speculation",
+    "Recommendations are limited to code/doc/test alignment with spec and prompt"
   ]
 }
