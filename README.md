@@ -19,9 +19,10 @@ flowchart LR
   MCP --> |"Consumes Python pkg (submodule)"| SSOT
   BE --> |"Consumes Python pkg (submodule)"| SSOT
 
-  style MCP fill:#333333,stroke:#ffffff,stroke-width:2px
-  style BE fill:#666666,stroke:#ffffff,stroke-width:2px
-  style SSOT fill:#222222,stroke:#ffffff,stroke-width:2px
+  %% Grayscale theme, MCP slightly lighter to highlight
+  style MCP fill:#555555,stroke:#ffffff,stroke-width:2px,color:#ffffff
+  style BE fill:#333333,stroke:#cccccc,stroke-width:1.5px,color:#ffffff
+  style SSOT fill:#222222,stroke:#cccccc,stroke-width:1.5px,color:#ffffff
 ```
 
 ## Features
