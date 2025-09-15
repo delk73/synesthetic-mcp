@@ -14,19 +14,21 @@ def _load(path: str):
 def test_get_schema_and_validate_valid():
     s = get_schema("synesthetic-asset")
     assert s["ok"] is True
-    assert s["version"] == "1.0.0"
+    # Canonical schema (from submodule) does not define a top-level version
+    assert s["version"] == ""
 
-    asset = _load("tests/fixtures/examples/asset.valid.json")
-    res = validate_asset(asset, "asset")
+    # Validate a canonical example from the submodule
+    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    res = validate_asset(asset, "nested-synesthetic-asset")
     assert res["ok"] is True
     assert res["errors"] == []
 
 
 def test_validate_invalid_sorted_errors():
-    asset = _load("tests/fixtures/examples/asset.invalid.json")
-    res = validate_asset(asset, "asset")
+    # Deliberately invalid object for nested-synesthetic-asset (alias)
+    asset = {"name": "", "extra": True}
+    res = validate_asset(asset, "nested-synesthetic-asset")
     assert res["ok"] is False
     # ensure deterministic order
     paths = [e["path"] for e in res["errors"]]
     assert paths == sorted(paths)
-

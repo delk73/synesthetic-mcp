@@ -92,8 +92,9 @@ def _infer_schema_name_from_example(p: Path, data: Dict[str, Any]) -> str:
         if name.endswith(".json"):
             return name[: -len(".json")]
     # 3) Minimal filename fallback for canonical asset examples
+    # Map SynestheticAsset_* examples to the nested alias for validation
     if p.name.startswith("SynestheticAsset"):
-        return "synesthetic-asset"
+        return "nested-synesthetic-asset"
     # 4) Last resort: base filename without extension
     return p.stem
 

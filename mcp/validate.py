@@ -14,6 +14,11 @@ except Exception:  # pragma: no cover
 
 from .core import _schemas_dir
 
+# Alias mapping: accept nested alias but validate against canonical schema
+_SCHEMA_ALIASES = {
+    "nested-synesthetic-asset": "synesthetic-asset",
+}
+
 
 MAX_BYTES = 1 * 1024 * 1024  # 1 MiB
 
@@ -40,7 +45,8 @@ def _size_okay(obj: Any) -> bool:
 
 
 def _load_schema(name: str) -> Dict[str, Any]:
-    p = _schemas_dir() / f"{name}.schema.json"
+    canonical = _SCHEMA_ALIASES.get(name, name)
+    p = _schemas_dir() / f"{canonical}.schema.json"
     return json.loads(Path(p).read_text())
 
 _REGISTRY = None
@@ -79,6 +85,14 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
             "errors": [{"path": "/", "msg": "payload_too_large"}],
         }
 
+    # Examples may carry a helper field not represented in JSON Schema.
+    # Ignore a top-level "$schemaRef" if present for validation purposes.
+    if isinstance(asset, dict) and "$schemaRef" in asset:
+        payload = dict(asset)
+        payload.pop("$schemaRef", None)
+    else:
+        payload = asset
+
     try:
         schema_obj = _load_schema(schema)
     except Exception as e:
@@ -89,7 +103,8 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
 
     # Establish base_uri for $ref resolution from file path if $id missing
     base_uri = None
-    p = _schemas_dir() / f"{schema}.schema.json"
+    canonical = _SCHEMA_ALIASES.get(schema, schema)
+    p = _schemas_dir() / f"{canonical}.schema.json"
     if p.exists():
         base_uri = p.resolve().as_uri()
     schema_copy = dict(schema_obj)
@@ -102,7 +117,7 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     else:
         validator = Draft202012Validator(schema_copy)
     errors = []
-    for err in validator.iter_errors(asset):
+    for err in validator.iter_errors(payload):
         pointer = _pointer_from_path(err.absolute_path)
         errors.append({"path": pointer, "msg": err.message})
 
