@@ -1,6 +1,6 @@
 {
   "task": "Audit synesthetic-mcp repo state",
-  "objective": "Compare the current implementation of synesthetic-mcp against its founding prompt (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Identify alignment, gaps, and drift. Produce a clear audit report at meta/output/mcp_state.md.",
+  "objective": "Compare the current implementation of synesthetic-mcp against its founding prompt (meta/prompts/init_mcp_repo.json) and current spec (docs/mcp_spec.md). Identify alignment, gaps, and drift, then generate a clear audit report at meta/output/mcp_state.md.",
   "constraints": {
     "style": "deterministic, concise, structured in Markdown",
     "sections": [
@@ -23,8 +23,9 @@
         "io_contracts implementation",
         "error model compliance",
         "determinism rules",
-        "schema/example discovery behavior",
-        "backend env gating",
+        "schema/example discovery (submodule-first, no local fixtures)",
+        "nested-synesthetic-asset alias handling",
+        "backend env gating (SYN_BACKEND_URL)",
         "test coverage vs prompt requirements",
         "packaging (requirements.txt only, no drift)"
       ]
@@ -36,7 +37,7 @@
   },
   "exit_criteria": [
     "meta/output/mcp_state.md exists",
-    "It reports repo state against both init prompt and spec",
-    "Any gaps are clearly marked with actionable notes"
+    "Report compares repo against both init prompt and spec",
+    "Gaps and deviations are clearly marked with actionable notes"
   ]
 }
