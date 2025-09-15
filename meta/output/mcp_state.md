@@ -1,87 +1,81 @@
 **Summary Of Repo State**
-- Files: `README.md`, `docs/mcp_spec.md`, `requirements.txt`, `mcp/*.py`, `tests/*.py`, `meta/prompts/init_mcp_repo.json` present. No `.github/workflows/` found.
-- Submodule: `libs/synesthetic-schemas` present; declared in `.gitmodules`.
-- Deps: `jsonschema`, `httpx`, `pytest` pinned. Optional extras documented in README/spec; not required at runtime.
-- Python: README and spec state >=3.11.
+- Files: `README.md`, `docs/mcp_spec.md`, `requirements.txt`, `mcp/*.py`, `tests/*.py`, `meta/prompts/init_mcp_repo.json` present.
+- CI: `.github/workflows/ci.yml` present and runs pytest on push/PR (`.github/workflows/ci.yml:3`).
+- Submodule content present under `libs/synesthetic-schemas/`.
+- Deps pinned: `jsonschema`, `httpx`, `pytest` (`requirements.txt:1`). Python >=3.11 documented (`README.md:60`).
 
 **Top Gaps & Fixes**
-- Missing CI: add GitHub Actions to run `pytest -q` on push/PR.
-- Missing payload-limit tests: assert 1 MiB rejection in `validate_asset` and `populate_backend`.
-- Missing adapter tests: smoke tests for `stdio_main` loop and optional `http_main` routes.
+- Add payload-limit tests for 1 MiB rejection in validate/backend.
+- Add smoke tests for `mcp/stdio_main.py` and optional `mcp/http_main.py`.
+- Document `SYN_BACKEND_ASSETS_PATH` in README to match spec/code.
 
 **Alignment With Init Prompt**
-- Language: Python >=3.11 — Present.
-- Deterministic KISS style — Present (sorting and minimal surface in `mcp/*`).
-- Schemas/examples from disk; env overrides — Present (`mcp/core.py`; `tests/test_env_discovery.py`).
-- Runtime environment-agnostic — Present (no sys.path hacks; stdio/http optional).
-- JSON Schema Draft 2020-12 w/ base-URI — Present (`mcp/validate.py`).
-- Diff RFC6902 add/remove/replace; deterministic lists — Present (`mcp/diff.py`).
-- Backend disabled unless `SYN_BACKEND_URL`; timeout 5s; no retries — Present (`mcp/backend.py`; `tests/test_backend.py`).
-- Tests via pytest; editable import works (`__version__`) — Present (`mcp/__init__.py`; README).
-- 1 MiB payload limit — Present in code, tests Missing.
-- Files scaffolded — Present without local fixtures; prompt updated to match.
+- Language ≥3.11: Present (`README.md:60`).
+- Deterministic KISS style: Present (sorted outputs in `mcp/core.py:50`, `mcp/validate.py:126`, `mcp/diff.py:50`).
+- Env-overridable discovery, submodule fallback only: Present (`mcp/core.py:12`, `mcp/core.py:25`).
+- JSON Schema Draft 2020-12 + base-URI: Present (`mcp/validate.py:8`, `mcp/validate.py:106`).
+- Diff RFC6902 add/remove/replace; list replace: Present (`mcp/diff.py:25`, `mcp/diff.py:33-39`).
+- Backend gated by env; 5s timeout; no retries: Present (`mcp/backend.py:14-21`, `mcp/backend.py:51`).
+- Tests via pytest; `__version__` exposed: Present (`mcp/__init__.py:5`).
+- 1 MiB limit: Present in code (`mcp/validate.py:23`, `mcp/backend.py:34`); tests Missing.
 
 **Alignment With Spec**
 | Spec Item | Status | Evidence |
 | - | - | - |
-| Env discovery order (env → submodule; no local fixture fallback) | Present | docs/mcp_spec.md; mcp/core.py; tests/test_submodule_integration.py |
-| list_schemas contract + sorted by name/version/path | Present | docs/mcp_spec.md; mcp/core.py |
-| get_schema contract | Present | docs/mcp_spec.md; mcp/core.py; tests/test_validate.py |
-| list_examples contract + sorted by component/path | Present | docs/mcp_spec.md; mcp/core.py; tests/test_submodule_integration.py |
-| get_example infers schema; returns validated flag | Present | docs/mcp_spec.md; mcp/core.py; tests/test_submodule_integration.py |
-| Validation: Draft 2020-12, base-URI if $id missing | Present | docs/mcp_spec.md; mcp/validate.py |
-| Validation errors: RFC6901 paths, sorted | Present | docs/mcp_spec.md; mcp/validate.py; tests/test_validate.py |
-| Alias: nested-synesthetic-asset → synesthetic-asset | Present | docs/mcp_spec.md; mcp/validate.py; tests/test_validate.py |
-| Ignore top-level $schemaRef in examples | Present | docs/mcp_spec.md; mcp/validate.py |
-| 1 MiB max payload | Present | docs/mcp_spec.md; mcp/validate.py; mcp/backend.py |
-| Diff: only add/remove/replace; lists replace; sorted output | Present | docs/mcp_spec.md; mcp/diff.py; tests/test_diff.py |
-| Backend: disabled without URL; timeout 5s; no retries | Present | docs/mcp_spec.md; mcp/backend.py; tests/test_backend.py |
-| Backend errors map to reason backend_error | Present | docs/mcp_spec.md; mcp/backend.py |
-| Unsupported tool/resource error | Present | docs/mcp_spec.md; mcp/stdio_main.py |
-| Deterministic ordering guarantees | Present | docs/mcp_spec.md; mcp/core.py; mcp/validate.py; mcp/diff.py |
-| Exit: `import mcp` exposes __version__ | Present | docs/mcp_spec.md; mcp/__init__.py |
+| Env discovery: env → submodule; no fixtures | Present | `docs/mcp_spec.md:18`, `mcp/core.py:12`, `tests/test_submodule_integration.py:7`
+| list_schemas contract + sorted | Present | `docs/mcp_spec.md:30`, `mcp/core.py:38`, `mcp/core.py:50`
+| get_schema contract | Present | `docs/mcp_spec.md:33`, `mcp/core.py:54`, `tests/test_validate.py:11`
+| list_examples + sorted | Present | `docs/mcp_spec.md:36`, `mcp/core.py:63`, `mcp/core.py:74`
+| get_example infers schema + validated | Present | `docs/mcp_spec.md:39`, `mcp/core.py:99`, `mcp/core.py:106`
+| Validation: Draft 2020-12 + base-URI | Present | `docs/mcp_spec.md:42`, `mcp/validate.py:8`, `mcp/validate.py:106`
+| Errors RFC6901, sorted | Present | `docs/mcp_spec.md:55`, `mcp/validate.py:26`, `mcp/validate.py:126`
+| Alias nested→canonical; ignore $schemaRef | Present | `docs/mcp_spec.md:116`, `mcp/validate.py:18-20`, `mcp/validate.py:89-95`
+| 1 MiB payload limit | Present | `docs/mcp_spec.md:115`, `mcp/validate.py:23`, `mcp/backend.py:34`
+| Diff ops add/remove/replace; lists replace; sorted | Present | `docs/mcp_spec.md:59-60`, `mcp/diff.py:21-39`, `mcp/diff.py:49-51`
+| Backend gating, timeout; error model | Present | `docs/mcp_spec.md:23`, `mcp/backend.py:30-33`, `mcp/backend.py:69-86`
+| Unsupported tool/resource error | Present | `docs/mcp_spec.md:79-83`, `mcp/stdio_main.py:30`
+| Exit: `import mcp` exposes __version__ | Present | `docs/mcp_spec.md:133`, `mcp/__init__.py:5`
 
 **Test Coverage And CI**
 | Feature | Tested? | Evidence |
 | - | - | - |
-| Env overrides for schema/example dirs | Yes | tests/test_env_discovery.py |
-| Use submodule when present; sorted listings | Yes | tests/test_submodule_integration.py |
-| Validate valid canonical example via alias | Yes | tests/test_validate.py |
-| Validation errors sorted deterministically | Yes | tests/test_validate.py |
-| Diff idempotence and list replacement | Yes | tests/test_diff.py |
-| Backend disabled without env | Yes | tests/test_backend.py |
-| Backend success and error handling | Yes | tests/test_backend.py |
-| Payload size limits (validate/backend) | Missing | No tests asserting `payload_too_large` |
-| Stdio loop behavior | Missing | No tests for `mcp/stdio_main.py` |
-| HTTP app behavior | Missing | No tests for `mcp/http_main.py` |
-| CI workflow | Missing | No `.github/workflows` directory |
+| Env overrides for dirs | Yes | `tests/test_env_discovery.py:6`
+| Submodule use; sorted listings | Yes | `tests/test_submodule_integration.py:1`
+| Validate canonical example via alias | Yes | `tests/test_validate.py:14`
+| Validation errors sorted | Yes | `tests/test_validate.py:20`
+| Diff idempotence; list replace | Yes | `tests/test_diff.py:1`
+| Backend disabled without env | Yes | `tests/test_backend.py:20`
+| Backend success/error handling | Yes | `tests/test_backend.py:27`, `tests/test_backend.py:35`
+| Payload size limits | Missing | No tests for `payload_too_large`
+| Stdio loop behavior | Missing | No tests for `mcp/stdio_main.py`
+| HTTP app behavior | Missing | No tests for `mcp/http_main.py`
+| CI workflow present | Yes | `.github/workflows/ci.yml:3`
 
 **Dependencies And Runtime**
 | Package | Used in | Required/Optional |
 | - | - | - |
-| jsonschema | mcp/validate.py | Required |
-| httpx | mcp/backend.py | Required |
-| pytest | tests/* | Required (tests) |
-| referencing | mcp/validate.py | Optional (guarded import) |
-| fastapi | mcp/http_main.py | Optional (HTTP adapter) |
-| uvicorn | README only | Optional (dev/runtime) |
+| jsonschema | `mcp/validate.py:8` | Required |
+| httpx | `mcp/backend.py:7` | Required |
+| pytest | `tests/*` | Required (tests) |
+| referencing | `mcp/validate.py:10` | Optional (guarded import) |
+| fastapi | `mcp/http_main.py:7-12` | Optional (HTTP adapter) |
+| uvicorn | `README.md:69` | Optional (dev/server)
 
 **Environment Variables**
-- SYN_SCHEMAS_DIR: default unset; if set, used as schemas dir. Fallback to submodule if present; no fixture fallback (`mcp/core.py`).
-- SYN_EXAMPLES_DIR: default unset; if set, used as examples dir. Fallback to submodule if present (`mcp/core.py`).
-- SYN_BACKEND_URL: enables backend when set; otherwise returns `unsupported` (`mcp/backend.py`; tests cover both states).
-- SYN_BACKEND_ASSETS_PATH: POST path override; default `/synesthetic-assets/` with leading slash normalization (`mcp/backend.py`).
+- SYN_SCHEMAS_DIR: unset by default; overrides schemas dir; else submodule if present; no fixtures (`mcp/core.py:12-22`).
+- SYN_EXAMPLES_DIR: unset by default; overrides examples dir; else submodule if present (`mcp/core.py:25-35`).
+- SYN_BACKEND_URL: enables backend; otherwise returns `unsupported` (`mcp/backend.py:14-33`).
+- SYN_BACKEND_ASSETS_PATH: POST path override; default `/synesthetic-assets/`; adds leading slash if missing (`mcp/backend.py:17-21`).
 
 **Documentation Accuracy**
-- README features match code: validation, diff, backend populate, stdio loop, optional HTTP app (README; `mcp/*`).
-- README and spec discovery notes match code: env → submodule; no fixture fallback; behavior when missing paths clarified (README; docs/mcp_spec.md; `mcp/core.py`).
-- Optional extras documented; not required in `requirements.txt`.
-- Version import instruction valid; `__version__` defined.
+- README matches features and discovery order (`README.md:78-91`).
+- README omits `SYN_BACKEND_ASSETS_PATH` which exists in code/spec (Add doc).
+- Version import guidance correct; `__version__` exported (`README.md:65`, `mcp/__init__.py:5`).
 
 **Detected Divergences**
-- None material. Prior prompt-vs-code differences (fixtures, pydantic, env defaults) were resolved by updating `meta/prompts/init_mcp_repo.json` and docs.
+- None functional. Minor doc gap: `SYN_BACKEND_ASSETS_PATH` not in README while present in code/spec.
 
 **Recommendations**
-- Add CI: create `.github/workflows/ci.yml` to run `pip install -r requirements.txt` and `pytest -q` on `push`/`pull_request`.
-- Add size-limit tests: generate >1 MiB asset to assert `payload_too_large` in `validate_asset` and via `populate_backend`.
-- Add adapter tests: one `stdio_main` request/response JSON-RPC smoke test; optional FastAPI route test guarded by `pytest.importorskip("fastapi")`.
+- Add tests for >1 MiB assets to assert `payload_too_large` in validate/backend paths.
+- Add one `stdio_main` round-trip test and optional FastAPI route smoke tests guarded by `importorskip`.
+- Update README to document `SYN_BACKEND_ASSETS_PATH` and CI link.
