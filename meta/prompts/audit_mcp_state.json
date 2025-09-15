@@ -1,6 +1,11 @@
 {
-  "task": "Audit synesthetic-mcp repo state from code",
-  "objective": "Compare the actual implementation and tests against the founding prompt (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report strictly what is present, missing, or intentionally divergent.",
+  "task": "Audit synesthetic-mcp repo",
+  "objective": "Compare actual implementation and tests against init reference (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report only what is present, missing, or intentionally divergent.",
+  "files": [
+    "README.md", "docs/mcp_spec.md",
+    "requirements.txt", "mcp/*.py",
+    "tests/*.py", ".github/workflows/*"
+  ],
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullet points or tables",
     "rules": [
@@ -8,7 +13,8 @@
       "Mark functionality not present as Missing",
       "Mark intentional design differences as Divergent",
       "No speculation about unseen behavior",
-      "Recommendations must be actionable code/test/doc changes only"
+      "Recommendations must be actionable code/test/doc changes only",
+      "Check functions, tests, schema discovery, validation, backend env gating, error handling, diff, entrypoints, deps"
     ],
     "sections": [
       "Summary of repo state (high-level files, deps, submodule presence)",
@@ -21,40 +27,13 @@
       "Documentation accuracy (bullets: README vs. code)",
       "Detected divergences (prompt vs. spec vs. code)",
       "Recommendations (concrete next steps)"
-    ],
-    "scope": {
-      "files": [
-        "README.md",
-        "docs/mcp_spec.md",
-        "requirements.txt",
-        "mcp/*.py",
-        "tests/*.py",
-        ".github/workflows/*"
-      ],
-      "focus": [
-        "implemented functions and modules",
-        "test assertions and coverage",
-        "schema/example discovery paths",
-        "validation logic and alias handling",
-        "backend env gating",
-        "error handling",
-        "diff implementation",
-        "entrypoint behavior",
-        "dependency usage"
-      ]
-    },
-    "output": {
-      "path": "meta/output/mcp_state.md",
-      "format": "Markdown"
-    }
+    ]
+  },
+  "output": {
+    "path": "meta/output/mcp_state.md",
+    "format": "Markdown"
   },
   "exit_criteria": [
-    "meta/output/mcp_state.md exists",
-    "Report uses bullets/tables consistently for scanability",
-    "Spec features mapped to Present / Missing / Divergent in a table",
-    "Test coverage summarized by feature in a table",
-    "Dependencies mapped to imports in a table",
-    "Env vars listed with defaults and fallbacks",
-    "README instructions verified against actual code"
+    "meta/output/mcp_state.md exists"
   ]
 }
