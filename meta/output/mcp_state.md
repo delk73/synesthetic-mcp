@@ -5,7 +5,6 @@
 - Deps pinned: `jsonschema`, `httpx`, `pytest` (`requirements.txt:1`). Python >=3.11 documented (`README.md:60`).
 
 **Top Gaps & Fixes**
-- Add payload-limit tests for 1 MiB rejection in validate/backend.
 - Add smoke tests for `mcp/stdio_main.py` and optional `mcp/http_main.py`.
 - Document `SYN_BACKEND_ASSETS_PATH` in README to match spec/code.
 
@@ -46,7 +45,7 @@
 | Diff idempotence; list replace | Yes | `tests/test_diff.py:1`
 | Backend disabled without env | Yes | `tests/test_backend.py:20`
 | Backend success/error handling | Yes | `tests/test_backend.py:27`, `tests/test_backend.py:35`
-| Payload size limits | Missing | No tests for `payload_too_large`
+| Payload size limits | Yes | `tests/test_validate.py:37`, `tests/test_backend.py:43`
 | Stdio loop behavior | Missing | No tests for `mcp/stdio_main.py`
 | HTTP app behavior | Missing | No tests for `mcp/http_main.py`
 | CI workflow present | Yes | `.github/workflows/ci.yml:3`
