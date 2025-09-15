@@ -53,9 +53,7 @@ tests/
   test_env_discovery.py
   test_http.py
   test_stdio.py
-  test_submodule_integration.py
-  meta/
-  prompts/
+  test_submodule_integration.py  
 ```
 
 ## Development

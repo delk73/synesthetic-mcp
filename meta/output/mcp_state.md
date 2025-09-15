@@ -1,85 +1,80 @@
 ## Summary of repo state
-- Pinned runtime/test deps limited to jsonschema, httpx, pytest (requirements.txt:1).
-- Core modules cover discovery, validation, diff, backend, and stdio/HTTP entrypoints (mcp/core.py:38; mcp/validate.py:81; mcp/diff.py:42; mcp/backend.py:24; mcp/stdio_main.py:13; mcp/http_main.py:6).
-- Tests exercise env overrides, validation paths, diff logic, backend flows, and wiring adapters (tests/test_env_discovery.py:7; tests/test_validate.py:14; tests/test_diff.py:4; tests/test_backend.py:20; tests/test_stdio.py:6; tests/test_http.py:4).
-- Synesthetic schemas submodule is present and used for fixtures (mcp/core.py:8; tests/test_submodule_integration.py:19).
-- CI runs pytest across Python 3.11–3.13 with submodules checked out (.github/workflows/ci.yml:15; .github/workflows/ci.yml:21).
+- Runtime/test deps pinned to jsonschema, httpx, pytest (requirements.txt:1).
+- Core modules cover discovery, validation, diff, backend, and stdio/HTTP adapters (mcp/core.py:38; mcp/validate.py:81; mcp/diff.py:42; mcp/backend.py:24; mcp/stdio_main.py:13; mcp/http_main.py:6).
+- Backend helper enforces env gating, alias-based validation, and payload limits (mcp/backend.py:30; mcp/backend.py:41; mcp/backend.py:34).
+- Tests exercise env overrides, validation paths, diff logic, backend flows, adapters, and submodule wiring (tests/test_env_discovery.py:7; tests/test_validate.py:14; tests/test_diff.py:4; tests/test_backend.py:20; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
+- Synesthetic schemas submodule tracked and consumed via constants and git config (.gitmodules:1; mcp/core.py:8; tests/test_submodule_integration.py:30).
+- CI runs pytest on Python 3.11–3.13 with submodules checked out (.github/workflows/ci.yml:15; .github/workflows/ci.yml:21).
 
 ## Top gaps & fixes (3-5 bullets up front)
-- Document `SYN_BACKEND_ASSETS_PATH` in README’s environment section to match spec/backend behavior (docs/mcp_spec.md:24; mcp/backend.py:17; README.md:80).
-- Refresh README structure/tests list so listed files match the actual suite (README.md:36; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
-- Replace the CI `PYTHONPATH=.` override with an editable install per the “no sys.path hacks; require editable install” constraint (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- Remove or explicitly justify `pyproject.toml` to align with the “pin requirements only” phase directive (meta/prompts/init_mcp_repo.json:69; pyproject.toml:1).
+- Divergent – CI sets `PYTHONPATH=.` instead of performing an editable install as required; switch to `pip install -e .` (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
+- Missing – No test leaves `validate_first` at the default `True` to confirm schema failures short-circuit backend calls; add a case without forcing `validate_first=False` (mcp/backend.py:41; tests/test_backend.py:22; tests/test_backend.py:30; tests/test_backend.py:40; tests/test_backend.py:49; tests/test_backend.py:59).
 
 ## Alignment with init prompt (bullet list, file:line evidence)
-- Present – Python ≥3.11 requirement declared (pyproject.toml:8).
-- Present – Requirements limited to jsonschema/httpx/pytest as specified (requirements.txt:1; meta/prompts/init_mcp_repo.json:49).
-- Present – Env overrides precede submodule discovery with no fixture fallback (mcp/core.py:12; mcp/core.py:25; tests/test_submodule_integration.py:19).
-- Present – Draft 2020-12 validation with base URI injection and sorted RFC6901 errors (mcp/validate.py:8; mcp/validate.py:106; mcp/validate.py:122).
-- Present – RFC6902 diff restricted to add/remove/replace with deterministic ordering (mcp/diff.py:16; mcp/diff.py:49).
-- Present – Backend gated on `SYN_BACKEND_URL`, 5s timeout, and mockable client (mcp/backend.py:24; mcp/backend.py:51; tests/test_backend.py:27).
-- Present – 1 MiB payload guards enforced in validation and backend (mcp/validate.py:23; mcp/backend.py:34; tests/test_validate.py:37; tests/test_backend.py:54).
-- Present – Stdio loop and optional FastAPI app exposed with smoke tests (mcp/stdio_main.py:13; mcp/http_main.py:6; tests/test_stdio.py:6; tests/test_http.py:4).
-- Divergent – CI relies on `PYTHONPATH=.` despite the “no sys.path hacks; require editable install” constraint (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- Divergent – `pyproject.toml` adds packaging metadata contrary to the “no other packaging metadata” phase directive (meta/prompts/init_mcp_repo.json:69; pyproject.toml:1).
+- Present – Minimal dependencies pinned to jsonschema/httpx/pytest as specified (requirements.txt:1; meta/prompts/init_mcp_repo.json:49).
+- Present – Package exposes `__version__` per spec (mcp/__init__.py:1; meta/prompts/init_mcp_repo.json:50).
+- Present – Env overrides precede submodule discovery with no fixture fallback (mcp/core.py:12; mcp/core.py:25; meta/prompts/init_mcp_repo.json:22).
+- Present – Schema/example listings provide deterministic sorting (mcp/core.py:50; mcp/core.py:74; tests/test_submodule_integration.py:32).
+- Present – Validation uses Draft 2020-12 with base-URI injection, alias mapping, and sorted RFC6901 errors (mcp/validate.py:8; mcp/validate.py:112; mcp/validate.py:126; meta/prompts/init_mcp_repo.json:16).
+- Present – Diff restricts to add/remove/replace with deterministic ordering (mcp/diff.py:16; mcp/diff.py:50; meta/prompts/init_mcp_repo.json:17).
+- Present – Backend gated on `SYN_BACKEND_URL`, enforces 5s timeout, and remains mockable (mcp/backend.py:24; mcp/backend.py:51; tests/test_backend.py:27; meta/prompts/init_mcp_repo.json:18).
+- Present – 1 MiB payload guards enforced across validation and backend (mcp/validate.py:23; mcp/backend.py:34; tests/test_validate.py:37; meta/prompts/init_mcp_repo.json:20).
+- Present – Stdio loop and optional FastAPI app expose all tools (mcp/stdio_main.py:13; mcp/http_main.py:6; tests/test_stdio.py:6; tests/test_http.py:4).
+- Divergent – CI relies on `PYTHONPATH=.` rather than editable install (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
 
 ## Alignment with spec (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |
 | - | - | - |
-| Env discovery order env → submodule → empty | Present | docs/mcp_spec.md:18; mcp/core.py:12; tests/test_submodule_integration.py:19 |
-| `list_schemas` contract and sorted output | Present | docs/mcp_spec.md:30; mcp/core.py:38; mcp/core.py:50 |
-| `get_schema` returns schema/version | Present | docs/mcp_spec.md:33; mcp/core.py:54; tests/test_validate.py:14 |
-| `list_examples` sorted by component/path | Present | docs/mcp_spec.md:36; mcp/core.py:63; tests/test_env_discovery.py:35 |
-| `get_example` infers schema and validated flag | Present | docs/mcp_spec.md:39; mcp/core.py:78; mcp/core.py:106 |
-| Validation Draft 2020-12 with sorted RFC6901 errors | Present | docs/mcp_spec.md:42; mcp/validate.py:8; mcp/validate.py:122 |
-| Nested alias ignoring `$schemaRef` | Present | docs/mcp_spec.md:116; mcp/validate.py:18; mcp/validate.py:89 |
-| 1 MiB payload limit enforced | Present | docs/mcp_spec.md:115; mcp/validate.py:23; mcp/backend.py:34 |
-| Diff limited to add/remove/replace with deterministic order | Present | docs/mcp_spec.md:59; mcp/diff.py:16; mcp/diff.py:49 |
-| Backend gating, timeout, error handling, assets path override | Present | docs/mcp_spec.md:23; mcp/backend.py:24; mcp/backend.py:55 |
-| Unsupported tool/resource error response | Present | docs/mcp_spec.md:79; mcp/stdio_main.py:30 |
+| Env discovery order env → submodule → empty | Present | docs/mcp_spec.md:18; mcp/core.py:12; tests/test_env_discovery.py:29 |
+| Schema listing sorted deterministically | Present | docs/mcp_spec.md:57; mcp/core.py:50; tests/test_submodule_integration.py:32 |
+| `get_example` returns schema + validated flag | Present | docs/mcp_spec.md:39; mcp/core.py:99; tests/test_submodule_integration.py:43 |
+| Validation alias, Draft 2020-12, RFC6901 errors | Present | docs/mcp_spec.md:42; mcp/validate.py:18; mcp/validate.py:126 |
+| 1 MiB payload limit shared by validation/backend | Present | docs/mcp_spec.md:115; mcp/validate.py:23; mcp/backend.py:34 |
+| Diff limited to add/remove/replace, deterministic order | Present | docs/mcp_spec.md:59; mcp/diff.py:16; tests/test_diff.py:11 |
+| Backend gating, timeout, assets path override | Present | docs/mcp_spec.md:23; mcp/backend.py:30; tests/test_backend.py:35 |
+| Error model includes `unsupported` responses | Present | docs/mcp_spec.md:79; mcp/stdio_main.py:30 |
 
 ## Test coverage and CI (table: Feature → Tested? → Evidence)
 | Feature | Tested? | Evidence |
 | - | - | - |
-| Env overrides for schema/example dirs | Yes | tests/test_env_discovery.py:7 |
-| Submodule discovery and deterministic ordering | Yes | tests/test_submodule_integration.py:19 |
-| Canonical example validation via alias | Yes | tests/test_validate.py:14 |
+| Env overrides for schema/example dirs | Yes | tests/test_env_discovery.py:29 |
+| Submodule discovery and ordering | Yes | tests/test_submodule_integration.py:32 |
+| Canonical example validation via alias | Yes | tests/test_validate.py:20 |
 | Validation error sorting | Yes | tests/test_validate.py:27 |
 | 1 MiB payload guard (validate/backend) | Yes | tests/test_validate.py:37; tests/test_backend.py:54 |
 | Diff idempotence and list replacement | Yes | tests/test_diff.py:4 |
-| Backend success/error/path override | Yes | tests/test_backend.py:27; tests/test_backend.py:35; tests/test_backend.py:46 |
+| Backend success/error/path override handling | Yes | tests/test_backend.py:27; tests/test_backend.py:35; tests/test_backend.py:46 |
+| Backend validation-first short-circuit | No | mcp/backend.py:41; tests/test_backend.py:22; tests/test_backend.py:30; tests/test_backend.py:40; tests/test_backend.py:49; tests/test_backend.py:59 |
 | HTTP adapter smoke | Yes | tests/test_http.py:4 |
 | Stdio loop round-trip | Yes | tests/test_stdio.py:6 |
-| Editable install enforced in CI | No | .github/workflows/ci.yml:34 |
+| CI enforces editable install path | No | .github/workflows/ci.yml:34 |
 
 ## Dependencies and runtime (table: Package → Used in → Required/Optional)
 | Package | Used in | Required/Optional |
 | - | - | - |
 | jsonschema | mcp/validate.py:8 | Required |
 | httpx | mcp/backend.py:7 | Required |
-| pytest | tests/test_validate.py:4 | Required (tests) |
+| pytest | tests/test_http.py:1 | Required (tests) |
 | referencing | mcp/validate.py:10 | Optional |
 | fastapi | mcp/http_main.py:8 | Optional |
-| uvicorn | README.md:68 | Optional |
+| uvicorn | README.md:71 | Optional |
 
 ## Environment variables (bullets: name, default, fallback behavior)
-- SYN_SCHEMAS_DIR – overrides schema directory; otherwise use submodule path (mcp/core.py:12).
-- SYN_EXAMPLES_DIR – overrides example directory; otherwise use submodule path (mcp/core.py:25).
-- SYN_BACKEND_URL – enables backend populate; missing env yields unsupported response (mcp/backend.py:14; mcp/backend.py:31).
-- SYN_BACKEND_ASSETS_PATH – overrides backend POST path, default `/synesthetic-assets/`, auto-prefixes slash (mcp/backend.py:17).
+- SYN_SCHEMAS_DIR – Overrides schema directory; else fall back to submodule path (mcp/core.py:12).
+- SYN_EXAMPLES_DIR – Overrides example directory; else fall back to submodule path (mcp/core.py:25).
+- SYN_BACKEND_URL – Enables backend population; absent returns `unsupported` (mcp/backend.py:14; mcp/backend.py:32).
+- SYN_BACKEND_ASSETS_PATH – Overrides POST path, default `/synesthetic-assets/`, ensures leading slash (mcp/backend.py:17).
 
 ## Documentation accuracy (bullets: README vs. code)
-- README correctly lists core tools exposed by the adapter (README.md:26; mcp/stdio_main.py:13).
-- README env discovery text matches env→submodule ordering (README.md:80; mcp/core.py:12).
-- README omits `SYN_BACKEND_ASSETS_PATH` even though spec and backend support it (README.md:80; docs/mcp_spec.md:24; mcp/backend.py:17).
-- README structure section lacks newer tests such as HTTP, stdio, and submodule integration (README.md:36; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
+- README feature list mirrors implemented tools (README.md:28; mcp/stdio_main.py:13).
+- README environment discovery description matches env→submodule order (README.md:83; mcp/core.py:12).
+- Divergent – README structure block nests `meta/` and `prompts/` under `tests/` despite those directories living at repo root (README.md:49; README.md:58; meta/prompts/audit_mcp_state.json:1).
 
 ## Detected divergences (prompt vs. spec vs. code)
-- CI job uses `PYTHONPATH=.` instead of an editable install despite the “no sys.path hacks” constraint (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- `pyproject.toml` retains packaging metadata contrary to the “no other packaging metadata” phase directive (meta/prompts/init_mcp_repo.json:69; pyproject.toml:1).
+- CI uses `PYTHONPATH=.` rather than an editable install despite the init constraint (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
+- README structure misstates directory layout for `meta/` and `prompts/` (README.md:49; README.md:58; meta/prompts/audit_mcp_state.json:1).
 
 ## Recommendations (concrete next steps)
-- Update README to document `SYN_BACKEND_ASSETS_PATH` alongside other env knobs (README.md:80; mcp/backend.py:17).
-- Extend README structure/tests listing to include `test_http.py`, `test_stdio.py`, and `test_submodule_integration.py` (README.md:36; tests/test_http.py:4).
-- Revise CI to install the project (e.g., `pip install -e .`) and drop the `PYTHONPATH` override (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- Remove `pyproject.toml` (or relocate metadata outside the repo) to satisfy the “no other packaging metadata” directive if strict adherence is required (meta/prompts/init_mcp_repo.json:69; pyproject.toml:1).
+- Install the project (e.g., `pip install -e .`) in CI before running pytest and drop the `PYTHONPATH` override (.github/workflows/ci.yml:34).
+- Add a backend test that leaves `validate_first=True` and asserts validation failure blocks network calls (mcp/backend.py:41; tests/test_backend.py:22).
+- Update README structure listing to show `meta/` and `prompts/` at repo root (README.md:49; README.md:58).
