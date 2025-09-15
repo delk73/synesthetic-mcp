@@ -1,0 +1,32 @@
+{
+  "task": "Finalize synesthetic-mcp documentation",
+  "objective": "Validate and update docs/ and README.md to ensure they are fresh, accurate, and aligned with current implementation and spec.",
+  "changes": {
+    "docs/mcp_spec.md": {
+      "validate": [
+        "Discovery order is env → submodule only; no fixture fallback",
+        "Error shapes include reason:'validation_failed' and msg for unsupported/backend disabled",
+        "Nested alias behavior documented",
+        "Minimal deps explicit (jsonschema, httpx, pytest)"
+      ]
+    },
+    "README.md": {
+      "validate": [
+        "Discovery order text matches spec (no fixtures)",
+        "Nested alias documented",
+        "Minimal deps shown in install instructions",
+        "Error model section matches spec (reason + msg included)"
+      ]
+    }
+  },
+  "constraints": {
+    "style": "deterministic, concise, no stale references",
+    "baseline": "Docs must match code and spec as of current passing state"
+  },
+  "exit_criteria": [
+    "docs/mcp_spec.md matches current implementation and spec",
+    "README.md matches current implementation and spec",
+    "No references to fixture fallback remain",
+    "Error shapes and alias handling documented correctly"
+  ]
+}

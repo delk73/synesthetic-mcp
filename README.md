@@ -53,14 +53,15 @@ tests/
   test_env_discovery.py
   fixtures/
     schemas/asset.schema.json
-meta/
+  meta/
   prompts/
 ```
 
 ## Development
 
 * Python >= 3.11
-* Install deps (minimal): `pip install -r requirements.txt`
+* Install deps (minimal): `pip install -r requirements.txt`  
+  Minimal deps: `jsonschema`, `httpx`, `pytest`
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
@@ -90,6 +91,13 @@ git submodule update --init --recursive
 * Examples `SynestheticAsset_Example*.json` are treated as `nested-synesthetic-asset`.
 * `$schemaRef` in examples is ignored during validation.
 * Tests use the nested alias; submodule is the single source of truth.
+
+## Error Model
+
+- Validation failed: `{ ok:false, reason:'validation_failed', errors:[{ path, msg }] }`
+- Backend error: `{ ok:false, reason:'backend_error', status, detail }`
+- Unsupported tool/resource: `{ ok:false, reason:'unsupported', msg }`
+- Network errors map to backend_error with `status:503` and a brief `detail`.
 
 ### Docker
 
