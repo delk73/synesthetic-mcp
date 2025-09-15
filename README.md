@@ -84,19 +84,13 @@ git submodule update --init --recursive
 
 ### Schema Aliases (Nested Assets)
 
-Some downstream APIs accept a nested variant of the synesthetic asset shape. To keep validation simple and deterministic while preserving the canonical JSON Schema as the single source of truth, the adapter supports a lightweight alias:
-
-- Alias: `nested-synesthetic-asset`
-- Canonical schema: `synesthetic-asset`
-
-Behavior in this repo:
-- When validating with `schema="nested-synesthetic-asset"`, the adapter loads the canonical `synesthetic-asset` JSON Schema from the submodule and validates against it.
-- For examples from `libs/synesthetic-schemas/examples/SynestheticAsset_Example*.json`, the adapter infers the schema name `nested-synesthetic-asset` automatically.
-- During validation, a top-level `$schemaRef` key present in examples is ignored. This avoids false positives with `additionalProperties: false` in the canonical schema while retaining deterministic validation.
-
-Notes for contributors:
-- `get_schema("synesthetic-asset")` returns the canonical schema object; the canonical schema currently does not define a top-level `version` field, so the helper `get_schema(...)["version"]` will be an empty string.
-- Tests validate submodule examples using the nested alias. Local, non-canonical example fixtures were removed to ensure the submodule remains the single source of truth.
+* **`synesthetic-asset`** → canonical schema (flat).
+* **`nested-synesthetic-asset`** → alias for assets with components inlined.
+* All component types may be embedded (shader, tone, haptic, control, modulation, rule bundle).
+* Alias validation loads the canonical `synesthetic-asset` schema.
+* Examples `SynestheticAsset_Example*.json` are treated as `nested-synesthetic-asset`.
+* `$schemaRef` in examples is ignored during validation.
+* Tests use the nested alias; submodule is the single source of truth.
 
 ### Docker
 
