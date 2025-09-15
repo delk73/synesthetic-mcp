@@ -1,0 +1,12 @@
+{
+  "task": "Add backend assets path override test",
+  "objective": "Ensure SYN_BACKEND_ASSETS_PATH environment variable correctly overrides the backend POST path.",
+  "rules": [
+    "Add test_backend_assets_path_override in tests/test_backend.py",
+    "Patch httpx.AsyncClient.post or inject dummy client to capture requested URL",
+    "Set SYN_BACKEND_ASSETS_PATH to a custom path (e.g. '/custom-assets/')",
+    "Call populate_backend with a minimal payload",
+    "Assert that the request path matches the override and not the default",
+    "Keep test deterministic and minimal, no new deps"
+  ]
+}

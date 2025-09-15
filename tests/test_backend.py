@@ -32,6 +32,17 @@ def test_backend_success(monkeypatch):
     assert res["asset_id"] == "xyz"
 
 
+def test_backend_assets_path_override(monkeypatch):
+    monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
+    monkeypatch.setenv("SYN_BACKEND_ASSETS_PATH", "/custom-assets/")
+    client = _client_for(200, {"id": "override"}, expect_path="/custom-assets/")
+
+    res = populate_backend({"schema": "asset", "id": "abc"}, client=client, validate_first=False)
+
+    assert res["ok"] is True
+    assert res["asset_id"] == "override"
+
+
 def test_backend_error(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
     client = _client_for(500, {"error": "fail"})

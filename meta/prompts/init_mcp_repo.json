@@ -62,8 +62,8 @@
     "meta/prompts/init_mcp_repo.json (this prompt)"
   ],
   "phases": [
-    "Scaffold exactly the listed files, nothing extra",
-    "Ensure editable install makes `import mcp` work (no sys.path hacks)",
+    "Scaffold exactly the listed files, nothing extra",    
+    "Ensure imports work in CI (via editable install or PYTHONPATH=.), keep setup minimal",
     "Write tests first; implement to pass; keep output sorted/deterministic",
     "Keep populate_backend behind env flag and fully mockable",
     "Pin requirements in requirements.txt; no other packaging metadata"
