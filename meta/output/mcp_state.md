@@ -2,13 +2,13 @@
 - Runtime/test deps pinned to jsonschema, httpx, pytest (requirements.txt:1).
 - Core modules cover discovery, validation, diff, backend, and stdio/HTTP adapters (mcp/core.py:38; mcp/validate.py:81; mcp/diff.py:42; mcp/backend.py:24; mcp/stdio_main.py:13; mcp/http_main.py:6).
 - Backend helper enforces env gating, alias-based validation, and payload limits (mcp/backend.py:30; mcp/backend.py:41; mcp/backend.py:34).
-- Tests exercise env overrides, validation paths, diff logic, backend flows, adapters, and submodule wiring (tests/test_env_discovery.py:7; tests/test_validate.py:14; tests/test_diff.py:4; tests/test_backend.py:20; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
+- Tests exercise env overrides, validation paths, diff logic, backend flows, adapters, submodule wiring, and the default backend validation path (tests/test_env_discovery.py:7; tests/test_validate.py:14; tests/test_diff.py:4; tests/test_backend.py:20; tests/test_backend.py:95; tests/test_backend.py:128; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
 - Synesthetic schemas submodule tracked and consumed via constants and git config (.gitmodules:1; mcp/core.py:8; tests/test_submodule_integration.py:30).
 - CI runs pytest on Python 3.11–3.13 with submodules checked out (.github/workflows/ci.yml:15; .github/workflows/ci.yml:21).
 
 ## Top gaps & fixes (3-5 bullets up front)
 - Divergent – CI sets `PYTHONPATH=.` instead of performing an editable install as required; switch to `pip install -e .` (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- Missing – No test leaves `validate_first` at the default `True` to confirm schema failures short-circuit backend calls; add a case without forcing `validate_first=False` (mcp/backend.py:41; tests/test_backend.py:22; tests/test_backend.py:30; tests/test_backend.py:40; tests/test_backend.py:49; tests/test_backend.py:59).
+
 
 ## Alignment with init prompt (bullet list, file:line evidence)
 - Present – Minimal dependencies pinned to jsonschema/httpx/pytest as specified (requirements.txt:1; meta/prompts/init_mcp_repo.json:49).
@@ -44,7 +44,7 @@
 | 1 MiB payload guard (validate/backend) | Yes | tests/test_validate.py:37; tests/test_backend.py:54 |
 | Diff idempotence and list replacement | Yes | tests/test_diff.py:4 |
 | Backend success/error/path override handling | Yes | tests/test_backend.py:27; tests/test_backend.py:35; tests/test_backend.py:46 |
-| Backend validation-first short-circuit | No | mcp/backend.py:41; tests/test_backend.py:22; tests/test_backend.py:30; tests/test_backend.py:40; tests/test_backend.py:49; tests/test_backend.py:59 |
+| Backend validation-first short-circuit | Yes | mcp/backend.py:41; tests/test_backend.py:95; tests/test_backend.py:128 |
 | HTTP adapter smoke | Yes | tests/test_http.py:4 |
 | Stdio loop round-trip | Yes | tests/test_stdio.py:6 |
 | CI enforces editable install path | No | .github/workflows/ci.yml:34 |
@@ -76,5 +76,5 @@
 
 ## Recommendations (concrete next steps)
 - Install the project (e.g., `pip install -e .`) in CI before running pytest and drop the `PYTHONPATH` override (.github/workflows/ci.yml:34).
-- Add a backend test that leaves `validate_first=True` and asserts validation failure blocks network calls (mcp/backend.py:41; tests/test_backend.py:22).
-- Update README structure listing to show `meta/` and `prompts/` at repo root (README.md:49; README.md:58).
+- Fix the README structure block so `meta/` and `prompts/` sit at repo root (README.md:49; README.md:58).
+- Extend README Development instructions to mention the required editable install (meta/prompts/init_mcp_repo.json:14; README.md:64).
