@@ -1,0 +1,12 @@
+{
+  "task": "Add GitHub Actions CI workflow",
+  "objective": "Create a minimal GitHub Actions workflow to run pytest on push and pull_request events.",
+  "rules": [
+    "Use ubuntu-latest runner",
+    "Matrix over Python versions: 3.11, 3.12, 3.13",
+    "Steps: checkout, set up Python, install deps with pip, run pytest -q",
+    "Use requirements.txt for dependencies",
+    "Keep workflow minimal and deterministic (no cache, no extras)",
+    "Save file as .github/workflows/ci.yml"
+  ]
+}
