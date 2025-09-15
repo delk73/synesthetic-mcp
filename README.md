@@ -51,8 +51,6 @@ tests/
   test_diff.py
   test_backend.py
   test_env_discovery.py
-  fixtures/
-    schemas/asset.schema.json
   meta/
   prompts/
 ```
@@ -60,13 +58,28 @@ tests/
 ## Development
 
 * Python >= 3.11
-* Install deps (minimal): `pip install -r requirements.txt`  
-  Minimal deps: `jsonschema`, `httpx`, `pytest`
+* Install deps (minimal): `pip install -r requirements.txt`
+  - Minimal deps: `jsonschema`, `httpx`, `pytest`
+  - Optional extras: `fastapi` (HTTP app), `uvicorn` (dev server), `referencing` (enhanced JSON Schema refs; import is optional)
+  - Dev (optional): `ruff`, `mypy`
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
   - `python -m mcp.stdio_main` (newline-delimited JSON requests)
   - `uvicorn 'mcp.http_main:create_app'` (FastAPI optional)
+
+## Dependencies
+
+- Runtime: `jsonschema`, `httpx`
+- Tests: `pytest`
+- Dev (optional): `ruff`, `mypy`
+- Extras (optional): `fastapi`, `uvicorn` (HTTP adapter), `referencing` (ref handling performance/behavior)
+
+### Environment Discovery
+
+- `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` override paths when set.
+- Otherwise, schemas/examples are loaded from the `libs/synesthetic-schemas` submodule.
+- If neither is available, listings are empty and get operations return not found (no fixture fallback).
 
 ### Submodule (SSOT)
 
@@ -75,6 +88,7 @@ Authoritative schemas/examples live at `libs/synesthetic-schemas` (git submodule
 Order of discovery used by the adapter:
 1) `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` if set
 2) `libs/synesthetic-schemas/jsonschema` and `libs/synesthetic-schemas/examples` if present
+3) If neither exists, listings are empty and get operations return not found
 
 Initialize the submodule:
 

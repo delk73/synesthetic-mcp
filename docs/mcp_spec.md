@@ -17,6 +17,7 @@ Expose schemas, examples, validation, diff, and optional persistence as determin
 
     1. Env overrides: `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`
     2. Submodule: `libs/synesthetic-schemas/jsonschema`, `libs/synesthetic-schemas/examples`
+  * If neither exists, listings may be empty and get operations return not found.
   * No local fixture fallback; the submodule is the single source of truth.
   * Refresh by process restart; no polling.
 * Backend: optional via `SYN_BACKEND_URL`; 5s timeout; no retries.
@@ -93,6 +94,22 @@ Expose schemas, examples, validation, diff, and optional persistence as determin
 
 * Language: Python >= 3.11.
 * Minimal deps in `requirements.txt`: `jsonschema`, `httpx`, `pytest`.
+* Optional extras: `fastapi` (HTTP app), `uvicorn` (dev server), `referencing` (enhanced JSON Schema refs; import is optional).
+
+---
+
+## Discovery Order (Authoritative)
+
+1. Env overrides first: `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`.
+2. Submodule second: `libs/synesthetic-schemas/` paths (`jsonschema/`, `examples/`).
+3. No fixture fallback: if neither exists, listings are empty and get operations return not found.
+
+## Dependencies (Scope)
+
+- Runtime: `jsonschema`, `httpx`
+- Tests: `pytest`
+- Dev (optional): `ruff`, `mypy`
+- Extras (optional): `fastapi`, `uvicorn`, `referencing`
 * JSON Schema: Draft 2020-12; base-URI set from file path when `$id` missing.
 * Backend: disabled unless `SYN_BACKEND_URL` set; `httpx` timeout 5s; no retries.
 * Limits: 1 MiB max payload; read-only FS except reading schemas/examples.
