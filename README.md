@@ -11,16 +11,17 @@ Minimal, deterministic MCP-style adapter exposing schemas, examples, validation,
 ## System Context
 ```mermaid
 flowchart LR
-  FE["sdfk_fe_ts\n(TypeScript Frontend)"]
-  BE["sdfk-backend\n(Python API & CRUD)"]
-  MCP["synesthetic-mcp\n(Python MCP Adapter)"]
-  SSOT["synesthetic-schemas\n(SSOT: Schemas + Examples)"]
+  MCP["synesthetic-mcp\n(MCP Adapter: discovery, validation, diff, backend proxy)"]
+  BE["sdfk-backend\n(Python API & CRUD store)"]
+  SSOT["synesthetic-schemas\n(SSOT: JSON Schemas + Python bindings)"]
 
-  MCP --> |Validates + Persists| BE
-  SSOT --> |Submodule| MCP
-  SSOT --> |Types| FE
+  MCP --> |"Validates assets (Protobuf/JSON)"| BE
+  MCP --> |"Consumes Python pkg (submodule)"| SSOT
+  BE --> |"Consumes Python pkg (submodule)"| SSOT
 
-  style MCP fill:#444444,stroke:#ffffff,stroke-width:2px
+  style MCP fill:#333333,stroke:#ffffff,stroke-width:2px
+  style BE fill:#666666,stroke:#ffffff,stroke-width:2px
+  style SSOT fill:#222222,stroke:#ffffff,stroke-width:2px
 ```
 
 ## Features
