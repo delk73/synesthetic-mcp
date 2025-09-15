@@ -49,32 +49,57 @@ def _load_schema(name: str) -> Dict[str, Any]:
     p = _schemas_dir() / f"{canonical}.schema.json"
     return json.loads(Path(p).read_text())
 
-_REGISTRY = None
-
-
-def _ensure_registry():
-    global _REGISTRY
-    if _REGISTRY is not None:
-        return _REGISTRY
+def _build_local_registry():
     if Registry is None or Resource is None:
-        _REGISTRY = None
         return None
-    mapping = {}
-    d = _schemas_dir()
-    if d.is_dir():
-        for p in d.glob("*.schema.json"):
-            try:
-                obj = json.loads(Path(p).read_text())
-            except Exception:
-                continue
-            uri = obj.get("$id")
-            if isinstance(uri, str) and uri:
-                try:
-                    mapping[uri] = Resource.from_contents(obj)
-                except Exception:
-                    continue
-    _REGISTRY = Registry().with_resources(mapping.items()) if mapping else Registry()
-    return _REGISTRY
+
+    base_dir = Path("libs/synesthetic-schemas")
+    version_path = base_dir / "version.json"
+    version: str | None = None
+    try:
+        version_data = json.loads(version_path.read_text())
+        candidate = version_data.get("schemaVersion")
+        if isinstance(candidate, str) and candidate:
+            version = candidate
+    except Exception:
+        version = None
+
+    schema_dir = base_dir / "schemas"
+    if not schema_dir.is_dir():
+        alt = base_dir / "jsonschema"
+        if alt.is_dir():
+            schema_dir = alt
+        else:
+            schema_dir = None
+
+    registry = Registry()
+    if schema_dir is None or not schema_dir.is_dir():
+        return registry
+
+    resources = {}
+    for path in sorted(schema_dir.glob("*.json")):
+        try:
+            contents = json.loads(path.read_text())
+        except Exception:
+            continue
+        if version:
+            url = f"https://schemas.synesthetic.dev/{version}/{path.name}"
+        else:
+            url = None
+        try:
+            resource = Resource.from_contents(contents)
+        except Exception:
+            continue
+        if url:
+            resources[url] = resource
+        schema_id = contents.get("$id")
+        if isinstance(schema_id, str) and schema_id:
+            resources.setdefault(schema_id, resource)
+
+    if resources:
+        registry = registry.with_resources(resources.items())
+
+    return registry
 
 
 
@@ -113,7 +138,7 @@ def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
     if base_uri and "$id" not in schema_copy:
         schema_copy["$id"] = base_uri
 
-    registry = _ensure_registry()
+    registry = _build_local_registry()
     if registry is not None:
         validator = Draft202012Validator(schema_copy, registry=registry)
     else:
