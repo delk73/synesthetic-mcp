@@ -51,6 +51,9 @@ tests/
   test_diff.py
   test_backend.py
   test_env_discovery.py
+  test_http.py
+  test_stdio.py
+  test_submodule_integration.py
   meta/
   prompts/
 ```
@@ -80,6 +83,7 @@ tests/
 - `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` override paths when set.
 - Otherwise, schemas/examples are loaded from the `libs/synesthetic-schemas` submodule.
 - If neither is available, listings are empty and get operations return not found (no fixture fallback).
+- `SYN_BACKEND_ASSETS_PATH` overrides the backend POST path (default `/synesthetic-assets/`).
 
 ### Submodule (SSOT)
 
