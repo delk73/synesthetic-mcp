@@ -38,3 +38,15 @@ def test_backend_error(monkeypatch):
     res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client, validate_first=False)
     assert res["ok"] is False
     assert res["reason"] == "backend_error"
+
+
+def test_backend_payload_limit(monkeypatch):
+    # Enable backend so payload size check is evaluated
+    monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
+    oversized = {"blob": "y" * (1_200_000)}
+    # No client needed; size check happens before any network calls
+    res = populate_backend(oversized, validate_first=False)
+    assert res["ok"] is False
+    # Consistent with validate path: reason is validation_failed and error indicates payload_too_large
+    assert res.get("reason") == "validation_failed"
+    assert any(e.get("msg") == "payload_too_large" for e in res.get("errors", []))

@@ -32,3 +32,13 @@ def test_validate_invalid_sorted_errors():
     # ensure deterministic order
     paths = [e["path"] for e in res["errors"]]
     assert paths == sorted(paths)
+
+
+def test_validate_payload_limit():
+    # Construct an object with a string payload well over 1 MiB
+    oversized = {"blob": "x" * (1_200_000)}
+    res = validate_asset(oversized, "nested-synesthetic-asset")
+    assert res["ok"] is False
+    # Spec/code use reason 'validation_failed' with a payload_too_large error
+    assert res.get("reason") == "validation_failed"
+    assert any(e.get("msg") == "payload_too_large" for e in res.get("errors", []))

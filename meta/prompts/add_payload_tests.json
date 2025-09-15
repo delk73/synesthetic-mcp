@@ -1,0 +1,12 @@
+{
+  "task": "Add payload-limit tests",
+  "objective": "Ensure validation and backend reject payloads larger than 1 MiB with reason payload_too_large.",
+  "rules": [
+    "Add test_validate_payload_limit in tests/test_validate.py",
+    "Add test_backend_payload_limit in tests/test_backend.py",
+    "Use a generated JSON object >1 MiB (e.g. long string field)",
+    "Call validate_asset and populate_backend with oversized payload",
+    "Assert response contains ok == False and reason == 'payload_too_large'",
+    "Keep tests deterministic and minimal, no new fixtures or deps"
+  ]
+}
