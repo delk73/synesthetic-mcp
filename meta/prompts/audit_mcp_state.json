@@ -7,13 +7,17 @@
       "Base all findings directly on code and tests in scope",
       "If functionality is not present in code, mark it explicitly as missing",
       "Do not infer or speculate about behavior not visible in the repo",
-      "If the code intentionally diverges from the init prompt (e.g. local fixtures removed), mark it as intentionally divergent, not as a gap",
-      "All recommendations must be actionable adjustments to code, tests, or docs — no speculation or re-adding intentionally removed components"
+      "If the code intentionally diverges from the init prompt, mark it as intentionally divergent",
+      "All recommendations must be actionable adjustments to code, tests, or docs"
     ],
     "sections": [
       "Summary of repo state",
       "Alignment with init prompt (evidence from code)",
-      "Alignment with spec (evidence from code)",
+      "Alignment with spec (traceability table: each spec item → Present / Missing / Divergent)",
+      "Test coverage and CI (features with/without tests, current pass/fail state)",
+      "Dependencies and runtime (requirements vs. imports, server entrypoints)",
+      "Environment variables (list, defaults, fallback behaviors)",
+      "Documentation accuracy (README instructions vs. actual code/tools)",
       "Detected gaps or intentional divergences",
       "Recommendations (concrete next steps)"
     ],
@@ -23,7 +27,8 @@
         "docs/mcp_spec.md",
         "requirements.txt",
         "mcp/*.py",
-        "tests/*.py"
+        "tests/*.py",
+        ".github/workflows/*"
       ],
       "focus": [
         "implemented functions and modules",
@@ -32,7 +37,9 @@
         "validation logic and alias handling",
         "backend env gating",
         "error handling",
-        "diff implementation"
+        "diff implementation",
+        "entrypoint behavior",
+        "dependency usage"
       ]
     },
     "output": {
@@ -43,7 +50,10 @@
   "exit_criteria": [
     "meta/output/mcp_state.md exists",
     "Report contains only evidence-based findings",
-    "Gaps are marked as missing or intentionally divergent, no speculation",
-    "Recommendations are limited to code/doc/test alignment with spec and prompt"
+    "Spec features are mapped to Present / Missing / Divergent",
+    "Test coverage and CI state are summarized",
+    "Dependencies are checked against actual imports",
+    "Environment variables are listed with defaults/fallbacks",
+    "README instructions are verified against code"
   ]
 }
