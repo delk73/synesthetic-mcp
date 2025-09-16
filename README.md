@@ -69,6 +69,7 @@ tests/
 * Run tests: `pytest -q`
 * Runtimes:
   - `python -m mcp.stdio_main` (newline-delimited JSON requests)
+  - `python -m mcp --validate path/to/asset.json` (prints validation result JSON; exits 0 on success, >0 on failure)
   - `uvicorn 'mcp.http_main:create_app'` (FastAPI optional)
 
 ## Dependencies
@@ -84,6 +85,8 @@ tests/
 - Otherwise, schemas/examples are loaded from the `libs/synesthetic-schemas` submodule.
 - If neither is available, listings are empty and get operations return not found (no fixture fallback).
 - `SYN_BACKEND_ASSETS_PATH` overrides the backend POST path (default `/synesthetic-assets/`).
+- `MCP_HOST`/`MCP_PORT` drive the blocking server entrypoint; defaults are `0.0.0.0` and `7000` respectively.
+- `.env.example` documents the supported variables and can be copied or sourced locally.
 
 ### Submodule (SSOT)
 
@@ -128,6 +131,12 @@ Build and run tests in a container:
 Notes:
 - `docker-compose.yml` passes through env if set; there are no defaults to fixtures. The adapter’s own discovery logic picks the right source.
 - No backend service is started by compose; backend calls are disabled unless `SYN_BACKEND_URL` is set.
+
+### Serving Locally
+
+- `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for a health check on `/healthz`, and tails logs.
+- The service binds `http://localhost:7000` by default; override with `MCP_PORT=7100 docker compose up serve` or `MCP_PORT=7100 ./serve.sh`.
+- `MCP_HOST` defaults to `0.0.0.0` for container networking and can be tightened for local-only usage.
 
 ## Spec
 

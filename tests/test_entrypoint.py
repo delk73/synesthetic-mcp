@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import signal
 import subprocess
@@ -60,3 +61,84 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
     combined = "\n".join(filter(None, [ready_line, output]))
     assert "mcp:shutdown" in combined
     assert proc.returncode == 0
+
+
+def _run_mcp(args, env):
+    return subprocess.run(
+        [sys.executable, "-m", "mcp", *args],
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+
+
+def test_invalid_schema_dir(tmp_path):
+    env = os.environ.copy()
+    env.update({
+        "SYN_SCHEMAS_DIR": str(tmp_path / "missing"),
+        "PYTHONUNBUFFERED": "1",
+    })
+
+    proc = _run_mcp([], env)
+    combined = (proc.stdout or "") + (proc.stderr or "")
+
+    assert proc.returncode == 2
+    assert "mcp:error reason=setup_failed" in combined
+
+
+def test_bad_port(tmp_path):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "MCP_PORT": "not-an-int",
+            "PYTHONUNBUFFERED": "1",
+        }
+    )
+
+    proc = _run_mcp([], env)
+    combined = (proc.stdout or "") + (proc.stderr or "")
+
+    assert proc.returncode == 2
+    assert "mcp:error reason=setup_failed" in combined
+
+
+def test_validate_flag_failure(tmp_path):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    (schemas_dir / "asset.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {
+                    "schema": {"type": "string", "const": "asset"},
+                    "id": {"type": "string", "minLength": 1},
+                },
+                "required": ["schema", "id"],
+                "additionalProperties": False,
+            }
+        )
+    )
+
+    asset_path = tmp_path / "invalid.json"
+    asset_path.write_text(json.dumps({"schema": "asset", "id": ""}))
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "PYTHONUNBUFFERED": "1",
+        }
+    )
+
+    proc = _run_mcp(["--validate", str(asset_path)], env)
+
+    assert proc.returncode != 0
+    assert proc.stdout
+    payload = json.loads(proc.stdout.strip().splitlines()[-1])
+    assert payload["ok"] is False
+    assert payload["schema"] == "asset"

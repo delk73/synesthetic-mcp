@@ -11,3 +11,21 @@ services:
     volumes:
       - .:/app
     command: pytest -q
+  serve:
+    build: .
+    image: synesthetic-mcp
+    environment:
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
+      MCP_PORT: ${MCP_PORT:-7000}
+      SYN_SCHEMAS_DIR: ${SYN_SCHEMAS_DIR:-}
+      SYN_EXAMPLES_DIR: ${SYN_EXAMPLES_DIR:-}
+      SYN_BACKEND_URL: ${SYN_BACKEND_URL:-}
+    command: ["python", "-m", "mcp"]
+    ports:
+      - "${MCP_PORT:-7000}:${MCP_PORT:-7000}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:${MCP_PORT:-7000}/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s

@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import contextlib
+import json
 import logging
 import os
 import signal
 import sys
+from pathlib import Path
 
-from .core import SUBMODULE_SCHEMAS_DIR
+from .core import SUBMODULE_SCHEMAS_DIR, _infer_schema_name_from_example
+from .validate import validate_asset
 
 
 def _resolve_schemas_dir() -> str:
@@ -26,7 +31,7 @@ def _resolve_schemas_dir() -> str:
 
 def _resolve_host_port() -> tuple[str, int]:
     host = os.environ.get("MCP_HOST", "0.0.0.0")
-    port_value = os.environ.get("MCP_PORT", "8000")
+    port_value = os.environ.get("MCP_PORT", "7000")
     try:
         port = int(port_value)
     except ValueError as exc:
@@ -34,6 +39,38 @@ def _resolve_host_port() -> tuple[str, int]:
     if port < 0 or port > 65535:
         raise RuntimeError(f"MCP_PORT '{port}' must be between 0 and 65535")
     return host, port
+
+
+async def _http_health_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    try:
+        data = await reader.read(1024)
+        request_line = ""
+        if data:
+            try:
+                request_line = data.splitlines()[0].decode("latin1")
+            except Exception:
+                request_line = ""
+        if request_line.startswith("GET /healthz"):
+            body = b"ok\n"
+            headers = (
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Type: text/plain; charset=utf-8\r\n"
+                f"Content-Length: {len(body)}\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii")
+            writer.write(headers + body)
+        else:
+            writer.write(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+        await writer.drain()
+    finally:
+        try:
+            writer.close()
+            await writer.wait_closed()
+        except Exception:
+            pass
 
 
 async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
@@ -61,12 +98,16 @@ async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
             signal.signal(sig, _signal_handler)
             handlers.append(("signal", sig, previous))
 
+    server = await asyncio.start_server(_http_health_handler, host=host, port=port)
     logging.info("mcp:ready host=%s port=%s schemas_dir=%s", host, port, schemas_dir)
     ready = True
 
     try:
         await stop_event.wait()
     finally:
+        server.close()
+        with contextlib.suppress(Exception):
+            await server.wait_closed()
         for kind, sig, previous in handlers:
             try:
                 if kind == "loop":
@@ -79,8 +120,73 @@ async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
             logging.info("mcp:shutdown")
 
 
-def main() -> None:
+def _run_validation(path: str) -> int:
+    target = Path(path)
+    try:
+        contents = target.read_text()
+    except FileNotFoundError:
+        result = {
+            "ok": False,
+            "reason": "io_error",
+            "errors": [{"path": "/", "msg": f"file_not_found: {target}"}],
+        }
+        print(json.dumps(result))
+        return 2
+    except Exception as exc:
+        result = {
+            "ok": False,
+            "reason": "io_error",
+            "errors": [{"path": "/", "msg": f"read_failed: {exc}"}],
+        }
+        print(json.dumps(result))
+        return 2
+
+    try:
+        asset = json.loads(contents)
+    except json.JSONDecodeError as exc:
+        result = {
+            "ok": False,
+            "reason": "parse_error",
+            "errors": [
+                {"path": "/", "msg": f"json_decode_error: line {exc.lineno} column {exc.colno}"}
+            ],
+        }
+        print(json.dumps(result))
+        return 2
+
+    schema = _infer_schema_name_from_example(target, asset)
+    try:
+        validation = validate_asset(asset, schema)
+    except Exception as exc:  # pragma: no cover - defensive guard
+        result = {
+            "ok": False,
+            "reason": "validation_error",
+            "errors": [{"path": "/", "msg": f"unexpected_error: {exc}"}],
+        }
+        print(json.dumps(result))
+        return 2
+
+    payload = dict(validation)
+    payload.setdefault("schema", schema)
+    print(json.dumps(payload))
+    return 0 if validation.get("ok", False) else 1
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Synesthetic MCP server")
+    parser.add_argument(
+        "--validate",
+        metavar="PATH",
+        help="Validate a JSON asset file and print the result",
+    )
+    args = parser.parse_args(argv)
+
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    if args.validate:
+        code = _run_validation(args.validate)
+        sys.exit(code)
+
     try:
         schemas_dir = _resolve_schemas_dir()
         host, port = _resolve_host_port()

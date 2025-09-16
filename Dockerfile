@@ -7,6 +7,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Install lightweight tooling required for health checks
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies first for better layer caching
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
@@ -15,6 +20,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN pip install -e .
 
-# Default to running tests quietly
-CMD ["pytest", "-q"]
-
+# Default to the blocking MCP server; callers may override for tests
+CMD ["python", "-m", "mcp"]

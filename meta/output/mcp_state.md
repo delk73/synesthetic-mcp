@@ -1,80 +1,105 @@
-## Summary of repo state
-- Runtime/test deps pinned to jsonschema, httpx, pytest (requirements.txt:1).
-- Core modules cover discovery, validation, diff, backend, and stdio/HTTP adapters (mcp/core.py:38; mcp/validate.py:81; mcp/diff.py:42; mcp/backend.py:24; mcp/stdio_main.py:13; mcp/http_main.py:6).
-- Backend helper enforces env gating, alias-based validation, and payload limits (mcp/backend.py:30; mcp/backend.py:41; mcp/backend.py:34).
-- Tests exercise env overrides, validation paths, diff logic, backend flows, adapters, submodule wiring, and the default backend validation path (tests/test_env_discovery.py:7; tests/test_validate.py:14; tests/test_diff.py:4; tests/test_backend.py:20; tests/test_backend.py:95; tests/test_backend.py:128; tests/test_http.py:4; tests/test_stdio.py:6; tests/test_submodule_integration.py:19).
-- Synesthetic schemas submodule tracked and consumed via constants and git config (.gitmodules:1; mcp/core.py:8; tests/test_submodule_integration.py:30).
-- CI runs pytest on Python 3.11–3.13 with submodules checked out (.github/workflows/ci.yml:15; .github/workflows/ci.yml:21).
+## Summary of repo state (files, deps, schema discovery presence)
+- Core modules implement discovery (`mcp/core.py:38`), validation (`mcp/validate.py:106`), diff (`mcp/diff.py:42`), backend proxy (`mcp/backend.py:24`), stdio loop (`mcp/stdio_main.py:13`), and optional HTTP app (`mcp/http_main.py:6`).
+- Blocking server entrypoint resolves schema dirs, host/port, and runs an asyncio health server (`mcp/__main__.py:15`; `mcp/__main__.py:72`).
+- Schema discovery honours env overrides before submodule fallbacks and keeps deterministic ordering (`mcp/core.py:12`; `mcp/core.py:18`; `tests/test_submodule_integration.py:28`).
+- Requirements pin jsonschema/httpx/pytest with optional imports kept lazy (`requirements.txt:1`; `mcp/http_main.py:6`; `mcp/validate.py:10`).
+- Tests span env overrides, validation, diff, backend flows, stdio, HTTP, and entrypoint readiness (`tests/test_env_discovery.py:29`; `tests/test_validate.py:14`; `tests/test_diff.py:4`; `tests/test_backend.py:21`; `tests/test_stdio.py:6`; `tests/test_http.py:4`; `tests/test_entrypoint.py:30`).
 
-## Top gaps & fixes (3-5 bullets up front)
-- Divergent – CI sets `PYTHONPATH=.` instead of performing an editable install as required; switch to `pip install -e .` (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
+## Top gaps & fixes (3–5 bullets)
+- Missing – No CLI/agent wiring turns validation failures into non-zero exits; `python -m mcp` only serves the health loop (mcp/__main__.py:119). Add a command (or flag) that invokes `validate_asset` and exits >0 on failure.
+- Missing – Entrypoint failure paths (bad schema dir/port) lack automated coverage; only the happy SIGINT shutdown is tested (tests/test_entrypoint.py:30). Add tests that assert setup errors emit `mcp:error` and non-zero exit codes.
+- Missing – Provide a checked-in env sample for documented knobs used by compose and server (`docker-compose.yml:7`; `README.md:83`). Add `.env.example` enumerating MCP_HOST/MCP_PORT/SYN_* defaults.
 
-
-## Alignment with init prompt (bullet list, file:line evidence)
-- Present – Minimal dependencies pinned to jsonschema/httpx/pytest as specified (requirements.txt:1; meta/prompts/init_mcp_repo.json:49).
-- Present – Package exposes `__version__` per spec (mcp/__init__.py:1; meta/prompts/init_mcp_repo.json:50).
-- Present – Env overrides precede submodule discovery with no fixture fallback (mcp/core.py:12; mcp/core.py:25; meta/prompts/init_mcp_repo.json:22).
-- Present – Schema/example listings provide deterministic sorting (mcp/core.py:50; mcp/core.py:74; tests/test_submodule_integration.py:32).
-- Present – Validation uses Draft 2020-12 with base-URI injection, alias mapping, and sorted RFC6901 errors (mcp/validate.py:8; mcp/validate.py:112; mcp/validate.py:126; meta/prompts/init_mcp_repo.json:16).
-- Present – Diff restricts to add/remove/replace with deterministic ordering (mcp/diff.py:16; mcp/diff.py:50; meta/prompts/init_mcp_repo.json:17).
-- Present – Backend gated on `SYN_BACKEND_URL`, enforces 5s timeout, and remains mockable (mcp/backend.py:24; mcp/backend.py:51; tests/test_backend.py:27; meta/prompts/init_mcp_repo.json:18).
-- Present – 1 MiB payload guards enforced across validation and backend (mcp/validate.py:23; mcp/backend.py:34; tests/test_validate.py:37; meta/prompts/init_mcp_repo.json:20).
-- Present – Stdio loop and optional FastAPI app expose all tools (mcp/stdio_main.py:13; mcp/http_main.py:6; tests/test_stdio.py:6; tests/test_http.py:4).
-- Divergent – CI relies on `PYTHONPATH=.` rather than editable install (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
+## Alignment with init prompt (bullets: Item → Status → Evidence)
+- Minimal dependencies → Present → requirements.txt:1; meta/prompts/init_mcp_repo.json:49.
+- Package version export → Present → mcp/__init__.py:5; meta/prompts/init_mcp_repo.json:50.
+- Discovery order env→submodule→none → Present → mcp/core.py:12; mcp/core.py:18; meta/prompts/init_mcp_repo.json:22.
+- Deterministic schema/example listings → Present → mcp/core.py:50; mcp/core.py:74; tests/test_submodule_integration.py:32.
+- Validation alias & RFC6901 errors → Present → mcp/validate.py:18; mcp/validate.py:148; tests/test_validate.py:27; meta/prompts/init_mcp_repo.json:16.
+- Diff limited to add/remove/replace → Present → mcp/diff.py:16; mcp/diff.py:45; tests/test_diff.py:11; meta/prompts/init_mcp_repo.json:17.
+- Backend env gating with 5s timeout → Present → mcp/backend.py:30; mcp/backend.py:51; tests/test_backend.py:21; meta/prompts/init_mcp_repo.json:18.
+- 1 MiB payload guard → Present → mcp/validate.py:23; mcp/backend.py:34; tests/test_validate.py:37; meta/prompts/init_mcp_repo.json:20.
+- StdIO + HTTP adapters → Present → mcp/stdio_main.py:13; mcp/http_main.py:6; tests/test_stdio.py:6; tests/test_http.py:4.
 
 ## Alignment with spec (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |
 | - | - | - |
-| Env discovery order env → submodule → empty | Present | docs/mcp_spec.md:18; mcp/core.py:12; tests/test_env_discovery.py:29 |
-| Schema listing sorted deterministically | Present | docs/mcp_spec.md:57; mcp/core.py:50; tests/test_submodule_integration.py:32 |
-| `get_example` returns schema + validated flag | Present | docs/mcp_spec.md:39; mcp/core.py:99; tests/test_submodule_integration.py:43 |
-| Validation alias, Draft 2020-12, RFC6901 errors | Present | docs/mcp_spec.md:42; mcp/validate.py:18; mcp/validate.py:126 |
-| 1 MiB payload limit shared by validation/backend | Present | docs/mcp_spec.md:115; mcp/validate.py:23; mcp/backend.py:34 |
-| Diff limited to add/remove/replace, deterministic order | Present | docs/mcp_spec.md:59; mcp/diff.py:16; tests/test_diff.py:11 |
-| Backend gating, timeout, assets path override | Present | docs/mcp_spec.md:23; mcp/backend.py:30; tests/test_backend.py:35 |
-| Error model includes `unsupported` responses | Present | docs/mcp_spec.md:79; mcp/stdio_main.py:30 |
+| Env overrides precede submodule | Present | docs/mcp_spec.md:18; mcp/core.py:12; tests/test_env_discovery.py:29 |
+| Listings sorted deterministically | Present | docs/mcp_spec.md:57; mcp/core.py:50; tests/test_submodule_integration.py:32 |
+| `get_example` returns schema & validated flag | Present | docs/mcp_spec.md:39; mcp/core.py:99; tests/test_submodule_integration.py:43 |
+| Validation alias + RFC6901 errors | Present | docs/mcp_spec.md:42; mcp/validate.py:18; mcp/validate.py:148 |
+| 1 MiB payload cap enforced | Present | docs/mcp_spec.md:115; mcp/validate.py:106; mcp/backend.py:34 |
+| Diff limited to add/remove/replace | Present | docs/mcp_spec.md:59; mcp/diff.py:16; tests/test_diff.py:11 |
+| Backend error model & timeout | Present | docs/mcp_spec.md:23; mcp/backend.py:55; tests/test_backend.py:47 |
+| Unsupported tool response | Present | docs/mcp_spec.md:79; mcp/stdio_main.py:30 |
 
-## Test coverage and CI (table: Feature → Tested? → Evidence)
+## Server entrypoint & process model (bullets: blocking loop, signals, logging, exit codes)
+- Blocking loop → Present → `_serve_forever` awaits a stop event until signalled (mcp/__main__.py:72; mcp/__main__.py:102).
+- Signal handling → Present → installs SIGINT/SIGTERM handlers and restores previous ones on exit (mcp/__main__.py:81; mcp/__main__.py:107).
+- Startup/shutdown logging → Present → logs `mcp:ready` with host/port/schemas_dir and `mcp:shutdown` on teardown (mcp/__main__.py:98; mcp/__main__.py:116).
+- Fatal setup exit → Present → startup errors log `mcp:error reason=setup_failed` and exit with code 2 (mcp/__main__.py:119; mcp/__main__.py:125).
+- Runtime error exit → Present → unexpected exceptions log `mcp:error reason=runtime_failure` and exit 1 (mcp/__main__.py:134).
+
+## Container & health (table: Aspect → Present/Missing/Divergent → Evidence)
+| Aspect | Status | Evidence |
+| - | - | - |
+| Compose `serve` service | Present | docker-compose.yml:14 |
+| Foreground server command | Present | docker-compose.yml:23 |
+| Port exposure | Present | docker-compose.yml:24 |
+| Healthcheck (`/healthz`) | Present | docker-compose.yml:26; mcp/__main__.py:40 |
+| Serve script traps & tails logs | Present | serve.sh:16; serve.sh:45 |
+
+## Schema discovery & validation (table: Source → Mechanism → Evidence)
+| Source | Mechanism | Evidence |
+| - | - | - |
+| Env overrides | Present – `SYN_SCHEMAS_DIR`/`SYN_EXAMPLES_DIR` override before submodule usage | mcp/core.py:12; mcp/core.py:27 |
+| Submodule fallback | Present – uses `libs/synesthetic-schemas` when dirs exist | mcp/core.py:18; tests/test_submodule_integration.py:28 |
+| Missing directory handling | Present – startup raises when no schema directory available | mcp/__main__.py:21; mcp/__main__.py:25 |
+| Validation aliasing | Present – nested assets map to canonical schema | mcp/validate.py:18; mcp/validate.py:123 |
+| Validation wiring (CriticAgent-equivalent) | Missing – server only runs health loop; no CLI exits on validation failure | mcp/__main__.py:119 |
+
+## Test coverage & CI (table: Feature → Tested? → Evidence)
 | Feature | Tested? | Evidence |
 | - | - | - |
-| Env overrides for schema/example dirs | Yes | tests/test_env_discovery.py:29 |
-| Submodule discovery and ordering | Yes | tests/test_submodule_integration.py:32 |
-| Canonical example validation via alias | Yes | tests/test_validate.py:20 |
-| Validation error sorting | Yes | tests/test_validate.py:27 |
-| 1 MiB payload guard (validate/backend) | Yes | tests/test_validate.py:37; tests/test_backend.py:54 |
-| Diff idempotence and list replacement | Yes | tests/test_diff.py:4 |
-| Backend success/error/path override handling | Yes | tests/test_backend.py:27; tests/test_backend.py:35; tests/test_backend.py:46 |
-| Backend validation-first short-circuit | Yes | mcp/backend.py:41; tests/test_backend.py:95; tests/test_backend.py:128 |
-| HTTP adapter smoke | Yes | tests/test_http.py:4 |
-| Stdio loop round-trip | Yes | tests/test_stdio.py:6 |
-| CI enforces editable install path | No | .github/workflows/ci.yml:34 |
+| Env overrides | Present | tests/test_env_discovery.py:7 |
+| Submodule integration | Present | tests/test_submodule_integration.py:23 |
+| Validation success/error/payload | Present | tests/test_validate.py:14; tests/test_validate.py:27; tests/test_validate.py:37 |
+| Diff determinism | Present | tests/test_diff.py:4 |
+| Backend success/error/path/limits | Present | tests/test_backend.py:21; tests/test_backend.py:47; tests/test_backend.py:55 |
+| Backend validation guard | Present | tests/test_backend.py:95 |
+| HTTP adapter smoke | Present | tests/test_http.py:4 |
+| Stdio loop round-trip | Present | tests/test_stdio.py:6 |
+| Entrypoint ready/shutdown | Present | tests/test_entrypoint.py:30 |
+| Entrypoint failure exits | Missing | tests/test_entrypoint.py:30 |
+| CI runs pytest on 3.11–3.13 with submodules | Present | .github/workflows/ci.yml:15; .github/workflows/ci.yml:21; .github/workflows/ci.yml:37 |
 
-## Dependencies and runtime (table: Package → Used in → Required/Optional)
+## Dependencies & runtime (table: Package → Used in → Required/Optional)
 | Package | Used in | Required/Optional |
 | - | - | - |
-| jsonschema | mcp/validate.py:8 | Required |
-| httpx | mcp/backend.py:7 | Required |
-| pytest | tests/test_http.py:1 | Required (tests) |
-| referencing | mcp/validate.py:10 | Optional |
-| fastapi | mcp/http_main.py:8 | Optional |
-| uvicorn | README.md:71 | Optional |
+| jsonschema | Validation via Draft 2020-12 | Required | requirements.txt:1; mcp/validate.py:8 |
+| httpx | Backend client and tests | Required | requirements.txt:2; mcp/backend.py:7 |
+| pytest | Test suite | Required-for-tests | requirements.txt:3; tests/test_backend.py:1 |
+| referencing | Local registry support | Optional | mcp/validate.py:10 |
+| fastapi | HTTP adapter factory | Optional | mcp/http_main.py:8 |
+| uvicorn | Runtime suggested in docs | Optional | README.md:72 |
 
-## Environment variables (bullets: name, default, fallback behavior)
-- SYN_SCHEMAS_DIR – Overrides schema directory; else fall back to submodule path (mcp/core.py:12).
-- SYN_EXAMPLES_DIR – Overrides example directory; else fall back to submodule path (mcp/core.py:25).
-- SYN_BACKEND_URL – Enables backend population; absent returns `unsupported` (mcp/backend.py:14; mcp/backend.py:32).
-- SYN_BACKEND_ASSETS_PATH – Overrides POST path, default `/synesthetic-assets/`, ensures leading slash (mcp/backend.py:17).
+## Environment variables (bullets: name, default, fallback, error behavior)
+- `SYN_SCHEMAS_DIR` – Overrides schema directory; missing or non-dir causes startup error (mcp/core.py:12; mcp/__main__.py:21).
+- `SYN_EXAMPLES_DIR` – Overrides examples directory with submodule fallback when unset (mcp/core.py:27; mcp/core.py:31).
+- `SYN_BACKEND_URL` – Enables backend POSTs; absent returns `unsupported` (mcp/backend.py:30; mcp/backend.py:32).
+- `SYN_BACKEND_ASSETS_PATH` – Customizes POST path, defaulting to `/synesthetic-assets/` (mcp/backend.py:17; mcp/backend.py:55).
+- `MCP_HOST` – Defaults to `0.0.0.0`; configurable via env (mcp/__main__.py:29).
+- `MCP_PORT` – Defaults to `7000`; validated as int within 0–65535 (mcp/__main__.py:30; mcp/__main__.py:35).
 
-## Documentation accuracy (bullets: README vs. code)
-- README feature list mirrors implemented tools (README.md:28; mcp/stdio_main.py:13).
-- README environment discovery description matches env→submodule order (README.md:83; mcp/core.py:12).
-- Divergent – README structure block nests `meta/` and `prompts/` under `tests/` despite those directories living at repo root (README.md:49; README.md:58; meta/prompts/audit_mcp_state.json:1).
+## Documentation accuracy (bullets: README vs. code/spec)
+- README lists minimal dependencies and optional extras consistent with requirements and imports (README.md:63; mcp/validate.py:10; mcp/http_main.py:8).
+- README describes env override order matching implementation (README.md:83; mcp/core.py:12).
+- README’s serving instructions align with compose/serve script behavior (README.md:135; docker-compose.yml:23; serve.sh:23).
 
-## Detected divergences (prompt vs. spec vs. code)
-- CI uses `PYTHONPATH=.` rather than an editable install despite the init constraint (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
-- README structure misstates directory layout for `meta/` and `prompts/` (README.md:49; README.md:58; meta/prompts/audit_mcp_state.json:1).
+## Detected divergences
+- None beyond noted missing items.
 
 ## Recommendations (concrete next steps)
-- Install the project (e.g., `pip install -e .`) in CI before running pytest and drop the `PYTHONPATH` override (.github/workflows/ci.yml:34).
-- Fix the README structure block so `meta/` and `prompts/` sit at repo root (README.md:49; README.md:58).
-- Extend README Development instructions to mention the required editable install (meta/prompts/init_mcp_repo.json:14; README.md:64).
+- Add a CLI/flag to `python -m mcp` (or sibling script) that validates assets and exits non-zero on failure to satisfy validation wiring expectations (mcp/__main__.py:119).
+- Extend entrypoint tests to cover misconfiguration errors (invalid `SYN_SCHEMAS_DIR`, bad `MCP_PORT`) and assert `mcp:error` logs with exit codes (mcp/__main__.py:21; mcp/__main__.py:35; tests/test_entrypoint.py:30).
+- Check in `.env.example` enumerating MCP_HOST/MCP_PORT and SYN_* variables referenced by compose and docs (`docker-compose.yml:18`; README.md:83).
