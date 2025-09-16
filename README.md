@@ -33,6 +33,14 @@ flowchart LR
 - Backend population (optional via `SYN_BACKEND_URL`)
 - Minimal stdio loop; optional HTTP app factory
 
+## Quickstart
+
+1. Install deps: `pip install -r requirements.txt && pip install -e .`
+2. Initialize schemas/examples: `git submodule update --init --recursive`.
+3. Serve via Compose: `docker compose up serve` (binds `http://localhost:7000` and exposes `/healthz`).
+4. Or run the helper: `./serve.sh` builds the image, waits for a healthy container, then tails logs.
+5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
+
 ## Structure
 
 ```
@@ -68,8 +76,8 @@ tests/
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
+  - `python -m mcp` (blocking server with `/healthz` HTTP probe)
   - `python -m mcp.stdio_main` (newline-delimited JSON requests)
-  - `python -m mcp --validate path/to/asset.json` (prints validation result JSON; exits 0 on success, >0 on failure)
   - `uvicorn 'mcp.http_main:create_app'` (FastAPI optional)
 
 ## Dependencies
@@ -79,14 +87,24 @@ tests/
 - Dev (optional): `ruff`, `mypy`
 - Extras (optional): `fastapi`, `uvicorn` (HTTP adapter), `referencing` (ref handling performance/behavior)
 
+## Environment
+
+| Variable | Default | Behaviour |
+| - | - | - |
+| `MCP_HOST` | `0.0.0.0` | Bind address for `python -m mcp`; edit for local-only usage. |
+| `MCP_PORT` | `7000` | TCP port for the HTTP health server (`/healthz`) and Compose port mapping. |
+| `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
+| `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
+| `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
+| `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | Custom path for backend POST requests. |
+
+`.env.example` captures these defaults for quick copying into local shells or Compose.
+
 ### Environment Discovery
 
 - `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` override paths when set.
 - Otherwise, schemas/examples are loaded from the `libs/synesthetic-schemas` submodule.
 - If neither is available, listings are empty and get operations return not found (no fixture fallback).
-- `SYN_BACKEND_ASSETS_PATH` overrides the backend POST path (default `/synesthetic-assets/`).
-- `MCP_HOST`/`MCP_PORT` drive the blocking server entrypoint; defaults are `0.0.0.0` and `7000` respectively.
-- `.env.example` documents the supported variables and can be copied or sourced locally.
 
 ### Submodule (SSOT)
 
@@ -119,6 +137,17 @@ git submodule update --init --recursive
 - Backend error: `{ ok:false, reason:'backend_error', status, detail }`
 - Unsupported tool/resource: `{ ok:false, reason:'unsupported', msg }`
 - Network errors map to backend_error with `status:503` and a brief `detail`.
+
+## CLI Usage
+
+```
+$ python -m mcp --validate path/to/asset.json
+{"ok": true, "errors": [], "schema": "nested-synesthetic-asset"}
+```
+
+- Exit code `0`: validation succeeded.
+- Exit code `1`: validation failed (payload includes `reason: validation_failed`).
+- Exit code `2`: input errors (file missing, unreadable, or invalid JSON).
 
 ### Docker
 
