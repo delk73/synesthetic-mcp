@@ -1,0 +1,28 @@
+{
+  "task": "Implement MCP server entrypoint loop",
+  "objective": "Add a blocking, signal-aware main entrypoint in mcp/__main__.py that starts the MCP server and logs readiness until shutdown.",
+  "constraints": {
+    "style": "KISS, deterministic, minimal deps",
+    "language": "Python (>=3.11)",
+    "rules": [
+      "Entrypoint must log a single 'mcp:ready' line after startup with host/port/schemas_dir",
+      "Must block on an asyncio loop until SIGINT/SIGTERM is received",
+      "Must exit non-zero if setup fails (e.g., SYN_SCHEMAS_DIR missing/invalid)",
+      "Must handle clean shutdown on signal and log 'mcp:shutdown'",
+      "Do not modify canon files (meta/prompts/init_mcp_repo.json, docs/mcp_spec.md)",
+      "Add code only in mcp/__main__.py; do not change other files",
+      "Keep dependencies to stdlib only (asyncio, os, signal, sys, logging)"
+    ]
+  },
+  "scope": {
+    "files": [
+      "mcp/__main__.py",
+      "mcp/server.py"
+    ]
+  },
+  "exit_criteria": [
+    "python -m mcp prints 'mcp:ready ...' and blocks",
+    "Ctrl+C (SIGINT) logs 'mcp:shutdown' and exits 0",
+    "If SYN_SCHEMAS_DIR is missing, exit code 2 and log error"
+  ]
+}

@@ -1,10 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
 set -euo pipefail
 
-echo 'Building MCP container image...'
-docker compose build
+echo "🧪 Building MCP test image..."
+docker compose build app
 
-echo 'Running pytest (container will remain)...'
-docker compose up --build --exit-code-from app
+echo "🧪 Running pytest..."
+docker compose run --rm app
 
-echo '✅ MCP tests passed'

@@ -1,39 +1,58 @@
 {
   "task": "Audit synesthetic-mcp repo",
-  "objective": "Compare actual implementation and tests against init reference (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report only what is present, missing, or intentionally divergent.",
-  "files": [
-    "README.md", "docs/mcp_spec.md",
-    "requirements.txt", "mcp/*.py",
-    "tests/*.py", ".github/workflows/*"
-  ],
+  "objective": "Compare implementation and tests against init reference (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report only what is Present, Missing, or Divergent, and persist the audit.",
+  "scope": {
+    "files": [
+      "README.md",
+      "docs/mcp_spec.md",
+      "requirements.txt",
+      "docker-compose.yml",
+      "serve.sh",
+      "mcp/*.py",
+      "mcp/**/__main__.py",
+      "mcp/**/server.py",
+      "tests/*.py",
+      ".github/workflows/*"
+    ]
+  },
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullet points or tables",
     "rules": [
-      "Ground all findings in visible code or tests",
-      "Mark functionality not present as Missing",
-      "Mark intentional design differences as Divergent",
-      "No speculation about unseen behavior",
-      "Recommendations must be actionable code/test/doc changes only",
-      "Check functions, tests, schema discovery, validation, backend env gating, error handling, diff, entrypoints, deps"
+      "Ground all findings in visible code or tests (file:line evidence).",
+      "Mark functionality not present as Missing; intentional differences as Divergent.",
+      "No speculation about unseen behavior.",
+      "Recommendations must be actionable code/test/doc changes only.",
+      "Verify ENTRYPOINT behavior: the server must block (long-running), handle SIGINT/SIGTERM, exit non-zero on fatal setup, and log a ready line.",
+      "Verify containerization: a compose 'serve' service (not the test runner) runs the server in the foreground with an HTTP/TCP port and a HEALTHCHECK (compose or code-level).",
+      "If docker is available, optionally perform a 5s smoke: 'docker compose up -d serve', wait, confirm container is healthy/running, then 'docker compose down'. If docker is unavailable, mark as Skipped with explanation.",
+      "Check schema discovery and MCP validation wiring: discovery path/env (e.g., SYN_SCHEMAS_DIR) honored, failure surfaces a clear error.",
+      "Check error handling (bad env, missing schemas, port in use) returns non-zero and readable log/exception.",
+      "Check tests: entrypoint unit/integration tests exist; CI runs them.",
+      "Persist the full audit to meta/output/mcp_state.md (overwrite). Do not only print to stdout."
     ],
     "sections": [
-      "Summary of repo state (high-level files, deps, submodule presence)",
-      "Top gaps & fixes (3-5 bullets up front)",
-      "Alignment with init prompt (bullet list, file:line evidence)",
+      "Summary of repo state (high-level files, deps, submodule/discovery presence)",
+      "Top gaps & fixes (3–5 bullets)",
+      "Alignment with init prompt (bullets: Item → Status → Evidence)",
       "Alignment with spec (table: Spec item → Status → Evidence)",
-      "Test coverage and CI (table: Feature → Tested? → Evidence)",
-      "Dependencies and runtime (table: Package → Used in → Required/Optional)",
-      "Environment variables (bullets: name, default, fallback behavior)",
-      "Documentation accuracy (bullets: README vs. code)",
-      "Detected divergences (prompt vs. spec vs. code)",
+      "Server entrypoint & process model (bullets: blocking loop, signals, logging, exit codes)",
+      "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
+      "Schema discovery & validation (table: Source → Mechanism → Evidence)",
+      "Test coverage & CI (table: Feature → Tested? → Evidence)",
+      "Dependencies & runtime (table: Package → Used in → Required/Optional)",
+      "Environment variables (bullets: name, default, fallback/behavior on missing)",
+      "Documentation accuracy (bullets: README vs. code/spec)",
+      "Detected divergences",
       "Recommendations (concrete next steps)"
     ]
   },
   "output": {
     "path": "meta/output/mcp_state.md",
-    "format": "Markdown"
+    "format": "Markdown",
+    "must_write": true
   },
   "exit_criteria": [
-    "meta/output/mcp_state.md exists"
+    "meta/output/mcp_state.md exists and is non-empty",
+    "Audit explicitly states Present/Missing/Divergent for: blocking entrypoint, signal handling, compose 'serve' target, healthcheck, schema discovery, validation wiring, tests, and CI"
   ]
 }
