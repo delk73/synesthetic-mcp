@@ -1,25 +1,33 @@
 {
   "task": "Audit synesthetic-mcp repo state",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.3) and init_mcp_repo.json. Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.3). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
+      "Present = implementation matches spec and is covered by tests/docs",
+      "Missing = spec requires the feature but implementation does not provide it",
+      "Divergent = implementation exists but differs in shape, naming, or behavior from spec",
+      "Spec errors (validation_failed, not_found, etc.) must be inside result; JSON-RPC error is only for malformed frames",
       "Ground all findings in visible code/tests/docs",
-      "Mark functionality not present as Missing",
-      "Mark intentional design differences as Divergent",
       "No speculation about unseen behavior",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes only",
       "Always write the full audit report directly to meta/output/mcp_state.md (overwrite if exists, non-empty)",
       "Always write the updated agent snapshot directly to AGENTS.md (overwrite if exists, non-empty)",
       "MCP must implement STDIO JSON-RPC only; any HTTP/TCP listener is a non-compliant divergence",
+      "Audit must verify the 1 MiB per-request payload cap is enforced at the STDIO transport layer across all methods",
+      "Audit must verify validate_asset rejects missing schema param per spec",
+      "Audit must verify stdout carries JSON-RPC frames only and all logs/diagnostics go to stderr",
       "Audit is incomplete unless both output files are created or overwritten with non-empty content"
     ],
     "sections": [
       "Summary of repo state",
       "Top gaps & fixes (3-5 bullets)",
-      "Alignment with mcp_spec.md and init_mcp_repo.json (table: Spec item → Status → Evidence)",
+      "Alignment with mcp_spec.md (table: Spec item → Status → Evidence)",
       "STDIO server entrypoint & process model (bullets: NDJSON framing, blocking loop, signals, readiness file, shutdown semantics)",
-      "Golden request/response example (table: Aspect → Present/Missing/Divergent → Evidence)",
+      "Golden request/response example (table: Success frame, Error frame → Present/Missing/Divergent → Evidence)",
+      "Payload size guard (table: Method → Present/Missing/Divergent → Evidence)",
+      "Schema validation contract (bullets: required schema param, alias handling, error ordering)",
+      "Logging hygiene (bullets: stdout vs stderr separation)",
       "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
       "Schema discovery & validation (table: Source → Mechanism → Evidence)",
       "Test coverage (table: Feature → Tested? → Evidence)",
@@ -63,10 +71,13 @@
     "AGENTS.md snapshot updated with current audit findings",
     "Spec features mapped to Present / Missing / Divergent in table form",
     "STDIO entrypoint behavior explicitly verified (framing, ready file, shutdown semantics)",
-    "Golden request/response example checked and status recorded",
+    "Golden request/response example verified with evidence from docs and tests",
+    "Payload size guard behavior verified with explicit failing test case",
+    "Validation contract verified including required schema param, alias mapping, error ordering",
+    "Logging hygiene verified (stdout only frames, stderr for logs)",
     "Test coverage summarized in a table with evidence",
     "Dependencies mapped to imports in a table with evidence",
     "Environment variables listed with defaults and clear behavior when invalid/missing",
-    "README cross-checked against docs/mcp_spec.md and init_mcp_repo.json"
+    "README cross-checked against docs/mcp_spec.md"
   ]
 }
