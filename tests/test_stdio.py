@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -72,6 +73,14 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
         if not ready_file.exists():
             pytest.fail("ready file not created by stdio entrypoint")
 
+        contents = ready_file.read_text().strip()
+        parts = contents.split(" ", 1)
+        assert len(parts) == 2, f"unexpected ready file contents: {contents!r}"
+        pid_str, timestamp = parts
+        assert pid_str == str(proc.pid)
+        # Ensure the timestamp is valid ISO8601
+        datetime.fromisoformat(timestamp)
+
         asset_path = (
             repo_root
             / "libs"
@@ -110,3 +119,29 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
             proc.terminate()
             with contextlib.suppress(subprocess.TimeoutExpired):
                 proc.wait(timeout=5)
+
+
+def test_stdio_error_includes_request_id(monkeypatch):
+    request: Dict[str, Any] = {
+        "id": 7,
+        "method": "get_schema",
+        "params": "not-a-dict",
+    }
+    stdin = io.StringIO(json.dumps(request) + "\n")
+    stdout = io.StringIO()
+
+    import mcp.stdio_main as stdio
+
+    monkeypatch.setattr(stdio.sys, "stdin", stdin)
+    monkeypatch.setattr(stdio.sys, "stdout", stdout)
+
+    stdio.main()
+
+    out_line = stdout.getvalue().strip().splitlines()[0]
+    payload = json.loads(out_line)
+
+    assert payload.get("jsonrpc") == "2.0"
+    assert payload.get("id") == 7
+    error = payload.get("error")
+    assert isinstance(error, dict)
+    assert error.get("code") == -32603

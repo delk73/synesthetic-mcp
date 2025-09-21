@@ -32,12 +32,15 @@ def test_uses_submodule_when_present(monkeypatch):
     schemas_sorted = sorted(ls["schemas"], key=lambda x: (x["name"], x["version"], x["path"]))
     assert ls["schemas"] == schemas_sorted
 
-    le = list_examples("*")
+    le = list_examples("all")
     assert le["ok"] and len(le["examples"]) >= 1
     assert any(str(SUBMODULE_EXAMPLES_DIR) in e["path"] for e in le["examples"])
     # deterministic ordering by component/path
     examples_sorted = sorted(le["examples"], key=lambda x: (x["component"], x["path"]))
     assert le["examples"] == examples_sorted
+
+    legacy = list_examples("*")
+    assert legacy == le
 
     # Try loading and validating the first example found
     first = le["examples"][0]

@@ -31,16 +31,15 @@ flowchart LR
 - JSON Schema validation (Draft 2020-12)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
-- Canonical STDIO JSON-RPC loop; optional HTTP app factory
+- Canonical STDIO JSON-RPC loop (transport locked to STDIO)
 
 ## Quickstart
 
 1. Install deps: `pip install -r requirements.txt && pip install -e .`
 2. Initialize schemas/examples: `git submodule update --init --recursive`.
 3. Serve via Compose: `docker compose up serve` (runs the STDIO JSON-RPC loop, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
-4. Optional HTTP/TCP: `MCP_ENDPOINT=http://0.0.0.0:7000 docker compose up serve` (reuses the same image but enables the legacy HTTP health server on `MCP_PORT`).
-5. Or run the helper: `./serve.sh` builds the image, waits for a ready container, then tails logs.
-6. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
+4. Or run the helper: `./serve.sh` builds the image, waits for a ready container, then tails logs.
+5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
 
 ## Structure
 
@@ -72,31 +71,28 @@ tests/
 * Python >= 3.11
 * Install deps (minimal): `pip install -r requirements.txt`
   - Minimal deps: `jsonschema`, `httpx`, `pytest`
-  - Optional extras: `fastapi` (HTTP app), `uvicorn` (dev server), `referencing` (enhanced JSON Schema refs; import is optional)
+  - Optional extras: `fastapi` (non-spec HTTP app), `uvicorn` (dev server), `referencing` (enhanced JSON Schema refs; import is optional)
   - Dev (optional): `ruff`, `mypy`
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
   - `python -m mcp` (canonical STDIO JSON-RPC loop; logs `mcp:ready mode=stdio` and blocks on stdin/stdout).
-  - `MCP_ENDPOINT=http://0.0.0.0:7000 python -m mcp` (optional HTTP health server on `MCP_HOST`/`MCP_PORT`).
   - `python -m mcp.stdio_main` (invoke the loop directly when embedding).
-  - `uvicorn 'mcp.http_main:create_app'` (FastAPI optional)
+  - `uvicorn 'mcp.http_main:create_app'` (FastAPI adapter for non-spec experimentation)
 
 ## Dependencies
 
 - Runtime: `jsonschema`, `httpx`
 - Tests: `pytest`
 - Dev (optional): `ruff`, `mypy`
-- Extras (optional): `fastapi`, `uvicorn` (HTTP adapter), `referencing` (ref handling performance/behavior)
+- Extras (optional): `fastapi`, `uvicorn` (non-spec HTTP adapter), `referencing` (ref handling performance/behavior)
 
 ## Environment
 
 | Variable | Default | Behaviour |
 | - | - | - |
-| `MCP_ENDPOINT` | `stdio` | Transport selector: `stdio` (canonical newline-delimited JSON-RPC). Set to `http`/`tcp` or a URL like `http://0.0.0.0:7000` to enable the optional HTTP health server. |
-| `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
-| `MCP_HOST` | `0.0.0.0` | Only used when `MCP_ENDPOINT` requests HTTP/TCP; bind address for the optional health server. |
-| `MCP_PORT` | `7000` | Only used when `MCP_ENDPOINT` requests HTTP/TCP; port for the optional health server and Compose port mapping. |
+| `MCP_ENDPOINT` | `stdio` | Transport selector fixed to STDIO. Any other value raises a setup failure. |
+| `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup with `<pid> <ISO8601>` and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
 | `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
@@ -168,8 +164,7 @@ Notes:
 ### Serving Locally
 
 - `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and then tails logs.
-- To expose the optional HTTP health server, export `MCP_ENDPOINT=http://0.0.0.0:${MCP_PORT:-7000}` before running compose (keep the port mapping if you need external access).
-- `MCP_HOST`/`MCP_PORT` only apply when the HTTP/TCP endpoint is enabled; otherwise the process blocks on STDIO.
+- Transport remains STDIO-only; any alternate `MCP_ENDPOINT` value fails fast during startup.
 
 ## Spec
 

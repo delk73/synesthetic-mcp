@@ -3,12 +3,17 @@ from pathlib import Path
 
 import pytest
 
-from mcp.core import get_schema
+from mcp.core import get_example, get_schema
 from mcp.validate import validate_asset
 
 
 def _load(path: str):
     return json.loads(Path(path).read_text())
+
+
+def test_get_schema_not_found():
+    res = get_schema("missing-schema")
+    assert res == {"ok": False, "reason": "not_found"}
 
 
 def test_get_schema_and_validate_valid():
@@ -22,6 +27,11 @@ def test_get_schema_and_validate_valid():
     res = validate_asset(asset, "nested-synesthetic-asset")
     assert res["ok"] is True
     assert res["errors"] == []
+
+
+def test_get_example_not_found(tmp_path):
+    res = get_example("no-such-example.json")
+    assert res == {"ok": False, "reason": "not_found"}
 
 
 def test_validate_invalid_sorted_errors():

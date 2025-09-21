@@ -36,6 +36,7 @@ def main() -> None:
         line = line.strip()
         if not line:
             continue
+        rid = None
         try:
             req = json.loads(line)
             rid = req.get("id")
@@ -44,7 +45,11 @@ def main() -> None:
             result = _handle(method, params)
             out = {"jsonrpc": "2.0", "id": rid, "result": result}
         except Exception as e:
-            out = {"jsonrpc": "2.0", "error": {"code": -32603, "message": str(e)}}
+            out = {
+                "jsonrpc": "2.0",
+                "id": rid,
+                "error": {"code": -32603, "message": str(e)},
+            }
         sys.stdout.write(json.dumps(out) + "\n")
         sys.stdout.flush()
 

@@ -89,7 +89,7 @@ def test_invalid_schema_dir(tmp_path):
     assert "mcp:error reason=setup_failed" in combined
 
 
-def test_bad_port(tmp_path):
+def test_non_stdio_endpoint_rejected(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
 
@@ -98,7 +98,6 @@ def test_bad_port(tmp_path):
         {
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "MCP_ENDPOINT": "http",
-            "MCP_PORT": "not-an-int",
             "PYTHONUNBUFFERED": "1",
         }
     )
@@ -108,6 +107,7 @@ def test_bad_port(tmp_path):
 
     assert proc.returncode == 2
     assert "mcp:error reason=setup_failed" in combined
+    assert "Only STDIO transport is supported" in combined
 
 
 def test_validate_flag_failure(tmp_path):

@@ -54,7 +54,7 @@ def list_schemas() -> Dict[str, Any]:
 def get_schema(name: str) -> Dict[str, Any]:
     p = _schemas_dir() / f"{name}.schema.json"
     if not p.exists():
-        return {"ok": False, "schema": None, "version": ""}
+        return {"ok": False, "reason": "not_found"}
     data = json.loads(p.read_text())
     version = str(data.get("version", ""))
     return {"ok": True, "schema": data, "version": version}
@@ -63,12 +63,17 @@ def get_schema(name: str) -> Dict[str, Any]:
 def list_examples(component: str | None = None) -> Dict[str, Any]:
     d = _examples_dir()
     items: List[Dict[str, str]] = []
+    target = None
+    if component:
+        normalized = component.strip()
+        if normalized not in {"*", "all"}:
+            target = normalized
     if d.is_dir():
         for p in sorted(d.rglob("*.json")):
             if not p.is_file():
                 continue
             comp = p.name.split(".")[0]
-            if component and component != "*" and comp != component:
+            if target is not None and comp != target:
                 continue
             items.append({"component": comp, "path": str(p)})
     items.sort(key=lambda x: (x["component"], x["path"]))
@@ -101,7 +106,7 @@ def get_example(path: str) -> Dict[str, Any]:
     if not p.is_absolute():
         p = _examples_dir() / path
     if not p.exists():
-        return {"ok": False, "example": None, "schema": "", "validated": False}
+        return {"ok": False, "reason": "not_found"}
     data = json.loads(p.read_text())
     schema_name = _infer_schema_name_from_example(p, data)
     # validate lazily to avoid import cycles
