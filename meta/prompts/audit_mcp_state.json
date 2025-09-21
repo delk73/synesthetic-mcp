@@ -11,7 +11,7 @@
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes only",
       "Always write the full audit report directly to meta/output/mcp_state.md (overwrite if exists, non-empty)",
       "Always write the updated agent snapshot directly to AGENTS.md (overwrite if exists, non-empty)",
-      "MCP must default to STDIO JSON-RPC only; HTTP transport is not part of the spec",
+      "MCP must implement STDIO JSON-RPC only; any HTTP/TCP listener is a non-compliant divergence",
       "Audit is incomplete unless both output files are created or overwritten with non-empty content"
     ],
     "sections": [
@@ -19,6 +19,7 @@
       "Top gaps & fixes (3-5 bullets)",
       "Alignment with mcp_spec.md and init_mcp_repo.json (table: Spec item → Status → Evidence)",
       "STDIO server entrypoint & process model (bullets: NDJSON framing, blocking loop, signals, readiness file, shutdown semantics)",
+      "Golden request/response example (table: Aspect → Present/Missing/Divergent → Evidence)",
       "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
       "Schema discovery & validation (table: Source → Mechanism → Evidence)",
       "Test coverage (table: Feature → Tested? → Evidence)",
@@ -62,6 +63,7 @@
     "AGENTS.md snapshot updated with current audit findings",
     "Spec features mapped to Present / Missing / Divergent in table form",
     "STDIO entrypoint behavior explicitly verified (framing, ready file, shutdown semantics)",
+    "Golden request/response example checked and status recorded",
     "Test coverage summarized in a table with evidence",
     "Dependencies mapped to imports in a table with evidence",
     "Environment variables listed with defaults and clear behavior when invalid/missing",
