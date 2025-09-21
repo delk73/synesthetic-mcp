@@ -32,6 +32,7 @@ flowchart LR
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
 - Canonical STDIO JSON-RPC loop (transport locked to STDIO)
+- Per-request 1 MiB STDIO payload guard enforced before parsing
 
 ## Quickstart
 
@@ -134,6 +135,7 @@ git submodule update --init --recursive
 - Backend error: `{ ok:false, reason:'backend_error', status, detail }`
 - Unsupported tool/resource: `{ ok:false, reason:'unsupported', detail }`
 - Network errors map to backend_error with `status:503` and a brief `detail`.
+- Payload too large (>1 MiB on STDIO): `{ ok:false, reason:'validation_failed', errors:[{ path:'', msg:'payload_too_large' }] }`
 
 ## CLI Usage
 
@@ -162,6 +164,7 @@ Notes:
 
 - `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and then tails logs.
 - Transport remains STDIO-only; any alternate `MCP_ENDPOINT` value fails fast during startup.
+- STDIO requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large`.
 
 ## Spec
 

@@ -38,6 +38,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * **Protocol:** JSON-RPC 2.0 messages. Every request/response MUST include `"jsonrpc": "2.0"`.
 * **Framing:** **NDJSON** (one UTF-8 JSON object per line, `\n` delimiter).
 * **Batch:** Not supported. Exactly one request per line.
+* **Size guard:** Requests exceeding **1 MiB** (UTF-8 bytes) MUST be rejected pre-parse with `{ "ok": false, "reason": "validation_failed", "errors": [{ "path": "", "msg": "payload_too_large" }] }`.
 * **IDs:** `id` MUST be string or number; server echoes unchanged.
 * **Logging hygiene:**
 
