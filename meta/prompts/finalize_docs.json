@@ -1,32 +1,35 @@
 {
   "task": "Finalize synesthetic-mcp documentation",
-  "objective": "Validate and update docs/ and README.md to ensure they are fresh, accurate, and aligned with current implementation and spec.",
+  "objective": "Review and update docs/mcp_spec.md and README.md so they are accurate to implementation and compliant with spec v0.2.3.",
   "changes": {
     "docs/mcp_spec.md": {
       "validate": [
-        "Discovery order is env → submodule only; no fixture fallback",
-        "Error shapes include reason:'validation_failed' and msg for unsupported/backend disabled",
-        "Nested alias behavior documented",
-        "Minimal deps explicit (jsonschema, httpx, pytest)"
+        "Discovery order is environment overrides → submodule only; no fixture fallback",
+        "Error model shows reason:'validation_failed', reason:'backend_error', reason:'unsupported' with 'detail' field",
+        "Alias behavior: nested-synesthetic-asset validates as synesthetic-asset, $schemaRef ignored",
+        "Dependencies: runtime = jsonschema, httpx; tests = pytest; optional = referencing"
       ]
     },
     "README.md": {
       "validate": [
-        "Discovery order text matches spec (no fixtures)",
-        "Nested alias documented",
-        "Minimal deps shown in install instructions",
-        "Error model section matches spec (reason + msg included)"
+        "Discovery order description matches spec (env overrides before submodule, no fixtures)",
+        "Alias validation for nested-synesthetic-asset documented",
+        "Dependencies section lists jsonschema, httpx, pytest as minimal set",
+        "Error model examples use reason + detail exactly as in spec",
+        "1 MiB STDIO request size limit is documented"
       ]
     }
   },
   "constraints": {
     "style": "deterministic, concise, no stale references",
-    "baseline": "Docs must match code and spec as of current passing state"
+    "baseline": "Docs must match code and spec as of current passing audit"
   },
   "exit_criteria": [
-    "docs/mcp_spec.md matches current implementation and spec",
-    "README.md matches current implementation and spec",
+    "docs/mcp_spec.md matches current implementation and spec v0.2.3",
+    "README.md matches current implementation and spec v0.2.3",
     "No references to fixture fallback remain",
-    "Error shapes and alias handling documented correctly"
+    "Error models documented with correct reason/detail fields",
+    "Alias handling documented",
+    "Dependencies and 1 MiB STDIO guard documented"
   ]
 }
