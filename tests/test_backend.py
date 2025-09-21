@@ -22,7 +22,7 @@ def test_backend_disabled_without_env(monkeypatch):
     monkeypatch.delenv("SYN_BACKEND_URL", raising=False)
     res = populate_backend({"schema": "asset", "id": "abc"}, validate_first=False)
     assert res["ok"] is False and res["reason"] == "unsupported"
-    assert "msg" in res and isinstance(res["msg"], str)
+    assert "detail" in res and isinstance(res["detail"], str)
 
 
 def test_backend_success(monkeypatch):

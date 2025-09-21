@@ -28,6 +28,8 @@ def test_uses_submodule_when_present(monkeypatch):
     ls = list_schemas()
     assert ls["ok"] and len(ls["schemas"]) >= 1
     assert any(str(SUBMODULE_SCHEMAS_DIR) in s["path"] for s in ls["schemas"])
+    assert all(s["path"].endswith(".json") for s in ls["schemas"])
+    assert all(not s["path"].endswith(".schema.json") for s in ls["schemas"])
     # deterministic ordering by name/version/path
     schemas_sorted = sorted(ls["schemas"], key=lambda x: (x["name"], x["version"], x["path"]))
     assert ls["schemas"] == schemas_sorted

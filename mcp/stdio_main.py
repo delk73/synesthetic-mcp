@@ -5,7 +5,7 @@ import sys
 from typing import Any, Dict
 
 from .core import get_example, get_schema, list_examples, list_schemas
-from .validate import validate_asset
+from .validate import validate_asset, MAX_BYTES
 from .diff import diff_assets
 from .backend import populate_backend
 
@@ -27,7 +27,11 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return populate_backend(
             params.get("asset", {}), bool(params.get("validate_first", True))
         )
-    return {"ok": False, "reason": "unsupported", "msg": "tool not implemented"}
+    return {
+        "ok": False,
+        "reason": "unsupported",
+        "detail": "tool not implemented",
+    }
 
 
 def main() -> None:
@@ -38,6 +42,17 @@ def main() -> None:
             continue
         rid = None
         try:
+            if len(line.encode("utf-8")) > MAX_BYTES:
+                result = {
+                    "ok": False,
+                    "reason": "validation_failed",
+                    "errors": [{"path": "", "msg": "payload_too_large"}],
+                }
+                out = {"jsonrpc": "2.0", "id": rid, "result": result}
+                sys.stdout.write(json.dumps(out) + "\n")
+                sys.stdout.flush()
+                continue
+
             req = json.loads(line)
             rid = req.get("id")
             method = req.get("method", "")

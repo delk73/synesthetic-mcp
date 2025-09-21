@@ -11,6 +11,8 @@ from typing import Any, Dict
 
 import pytest
 
+from mcp.validate import MAX_BYTES
+
 
 def test_stdio_loop_smoke(monkeypatch):
     # Prepare a single JSON-RPC request line for list_schemas
@@ -145,3 +147,50 @@ def test_stdio_error_includes_request_id(monkeypatch):
     error = payload.get("error")
     assert isinstance(error, dict)
     assert error.get("code") == -32603
+
+
+def test_stdio_unsupported_uses_detail(monkeypatch):
+    request: Dict[str, Any] = {"id": 5, "method": "nope", "params": {}}
+    stdin = io.StringIO(json.dumps(request) + "\n")
+    stdout = io.StringIO()
+
+    import mcp.stdio_main as stdio
+
+    monkeypatch.setattr(stdio.sys, "stdin", stdin)
+    monkeypatch.setattr(stdio.sys, "stdout", stdout)
+
+    stdio.main()
+
+    payload = json.loads(stdout.getvalue().strip())
+    assert payload.get("id") == 5
+    result = payload.get("result", {})
+    assert result.get("reason") == "unsupported"
+    assert result.get("detail") == "tool not implemented"
+
+
+def test_stdio_rejects_oversized_request(monkeypatch):
+    blob = "x" * (MAX_BYTES + 1)
+    oversized = {
+        "id": 11,
+        "method": "list_schemas",
+        "params": {"blob": blob},
+    }
+    line = json.dumps(oversized)
+    assert len(line.encode("utf-8")) > MAX_BYTES
+
+    stdin = io.StringIO(line + "\n")
+    stdout = io.StringIO()
+
+    import mcp.stdio_main as stdio
+
+    monkeypatch.setattr(stdio.sys, "stdin", stdin)
+    monkeypatch.setattr(stdio.sys, "stdout", stdout)
+
+    stdio.main()
+
+    payload = json.loads(stdout.getvalue().strip())
+    assert payload.get("id") is None
+    result = payload.get("result", {})
+    assert result.get("ok") is False
+    assert result.get("reason") == "validation_failed"
+    assert any(error.get("msg") == "payload_too_large" for error in result.get("errors", []))

@@ -55,13 +55,11 @@ mcp/
   diff.py
   backend.py
   stdio_main.py
-  http_main.py
 tests/
   test_validate.py
   test_diff.py
   test_backend.py
   test_env_discovery.py
-  test_http.py
   test_stdio.py
   test_submodule_integration.py  
 ```
@@ -71,21 +69,20 @@ tests/
 * Python >= 3.11
 * Install deps (minimal): `pip install -r requirements.txt`
   - Minimal deps: `jsonschema`, `httpx`, `pytest`
-  - Optional extras: `fastapi` (non-spec HTTP app), `uvicorn` (dev server), `referencing` (enhanced JSON Schema refs; import is optional)
+  - Optional extras: `referencing` (enhanced JSON Schema refs; import is optional)
   - Dev (optional): `ruff`, `mypy`
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
   - `python -m mcp` (canonical STDIO JSON-RPC loop; logs `mcp:ready mode=stdio` and blocks on stdin/stdout).
   - `python -m mcp.stdio_main` (invoke the loop directly when embedding).
-  - `uvicorn 'mcp.http_main:create_app'` (FastAPI adapter for non-spec experimentation)
 
 ## Dependencies
 
 - Runtime: `jsonschema`, `httpx`
 - Tests: `pytest`
 - Dev (optional): `ruff`, `mypy`
-- Extras (optional): `fastapi`, `uvicorn` (non-spec HTTP adapter), `referencing` (ref handling performance/behavior)
+- Extras (optional): `referencing` (ref handling performance/behavior)
 
 ## Environment
 
@@ -135,7 +132,7 @@ git submodule update --init --recursive
 
 - Validation failed: `{ ok:false, reason:'validation_failed', errors:[{ path, msg }] }`
 - Backend error: `{ ok:false, reason:'backend_error', status, detail }`
-- Unsupported tool/resource: `{ ok:false, reason:'unsupported', msg }`
+- Unsupported tool/resource: `{ ok:false, reason:'unsupported', detail }`
 - Network errors map to backend_error with `status:503` and a brief `detail`.
 
 ## CLI Usage

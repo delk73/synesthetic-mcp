@@ -46,7 +46,11 @@ def list_schemas() -> Dict[str, Any]:
                 continue
             name = p.name.replace(".schema.json", "")
             version = str(data.get("version", ""))
-            items.append({"name": name, "version": version, "path": str(p)})
+            if p.name.endswith(".schema.json"):
+                listed_path = str(p.with_name(p.name.replace(".schema.json", ".json")))
+            else:
+                listed_path = str(p)
+            items.append({"name": name, "version": version, "path": listed_path})
     items.sort(key=lambda x: (x["name"], x["version"], x["path"]))
     return {"ok": True, "schemas": items}
 
