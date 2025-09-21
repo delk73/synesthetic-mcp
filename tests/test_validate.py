@@ -39,16 +39,30 @@ def test_validate_invalid_sorted_errors():
     asset = {"name": "", "extra": True}
     res = validate_asset(asset, "nested-synesthetic-asset")
     assert res["ok"] is False and res.get("reason") == "validation_failed"
-    # ensure deterministic order
+    # Ensure deterministic order
     paths = [e["path"] for e in res["errors"]]
     assert paths == sorted(paths)
 
 
 def test_validate_payload_limit():
     # Construct an object with a string payload well over 1 MiB
-    oversized = {"blob": "x" * (1_200_000)}
+    oversized = {"blob": "x" * 1_200_000}
     res = validate_asset(oversized, "nested-synesthetic-asset")
     assert res["ok"] is False
     # Spec/code use reason 'validation_failed' with a payload_too_large error
     assert res.get("reason") == "validation_failed"
     assert any(e.get("msg") == "payload_too_large" for e in res.get("errors", []))
+
+
+def test_validate_asset_missing_schema():
+    """Regression: validate_asset must fail with reason=validation_failed if schema is missing/blank."""
+    # Minimal payload with no schema reference
+    asset = {"type": "synesthetic-asset", "id": "dummy"}
+
+    result = validate_asset(asset, schema=None)
+
+    assert result["ok"] is False
+    assert result["reason"] == "validation_failed"
+    # Must surface at least one error
+    assert isinstance(result.get("errors"), list)
+    assert any("schema" in err["msg"] or "schema" in err["path"] for err in result["errors"])
