@@ -11,9 +11,20 @@ import os
 import signal
 import sys
 from pathlib import Path
+from typing import NamedTuple
+from urllib.parse import urlparse
 
+from . import stdio_main
 from .core import SUBMODULE_SCHEMAS_DIR, _infer_schema_name_from_example
 from .validate import validate_asset
+
+DEFAULT_READY_FILE = "/tmp/mcp.ready"
+
+
+class Endpoint(NamedTuple):
+    mode: str
+    host: str | None
+    port: int | None
 
 
 def _resolve_schemas_dir() -> str:
@@ -41,7 +52,60 @@ def _resolve_host_port() -> tuple[str, int]:
     return host, port
 
 
-async def _http_health_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+def _resolve_endpoint() -> Endpoint:
+    raw = os.environ.get("MCP_ENDPOINT", "stdio")
+    value = raw.strip() if raw else ""
+    if value in {"", "stdio", "stdio://"}:
+        return Endpoint("stdio", None, None)
+
+    lowered = value.lower()
+    if lowered in {"http", "tcp"}:
+        host, port = _resolve_host_port()
+        return Endpoint("http", host, port)
+
+    parsed = urlparse(value)
+    scheme = (parsed.scheme or "http").lower()
+    if scheme not in {"http", "tcp"}:
+        raise RuntimeError(f"Unsupported MCP_ENDPOINT scheme '{scheme}'")
+    if parsed.hostname is None or parsed.port is None:
+        raise RuntimeError(
+            "MCP_ENDPOINT must include host and port (e.g. http://0.0.0.0:7000)"
+        )
+    return Endpoint("http", parsed.hostname, parsed.port)
+
+
+def _ready_file_path() -> Path | None:
+    raw = os.environ.get("MCP_READY_FILE", DEFAULT_READY_FILE)
+    value = raw.strip() if raw else ""
+    if not value:
+        return None
+    return Path(value)
+
+
+def _write_ready_file(path: Path | None) -> None:
+    if not path:
+        return
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ready\n", encoding="utf-8")
+    except KeyboardInterrupt:  # pragma: no cover - defensive
+        logging.warning(
+            "mcp:warning reason=ready_file_interrupted path=%s", path, exc_info=True
+        )
+    except Exception:
+        logging.warning("mcp:warning reason=ready_file_failed path=%s", path, exc_info=True)
+
+
+def _clear_ready_file(path: Path | None) -> None:
+    if not path:
+        return
+    with contextlib.suppress(FileNotFoundError):
+        path.unlink()
+
+
+async def _http_health_handler(
+    reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+) -> None:
     try:
         data = await reader.read(1024)
         request_line = ""
@@ -73,7 +137,9 @@ async def _http_health_handler(reader: asyncio.StreamReader, writer: asyncio.Str
             pass
 
 
-async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
+async def _serve_http_forever(
+    host: str, port: int, schemas_dir: str, ready_file: Path | None
+) -> None:
     loop = asyncio.get_running_loop()
     stop_event = asyncio.Event()
     ready = False
@@ -99,7 +165,10 @@ async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
             handlers.append(("signal", sig, previous))
 
     server = await asyncio.start_server(_http_health_handler, host=host, port=port)
-    logging.info("mcp:ready host=%s port=%s schemas_dir=%s", host, port, schemas_dir)
+    logging.info(
+        "mcp:ready mode=http host=%s port=%s schemas_dir=%s", host, port, schemas_dir
+    )
+    _write_ready_file(ready_file)
     ready = True
 
     try:
@@ -116,8 +185,42 @@ async def _serve_forever(host: str, port: int, schemas_dir: str) -> None:
                     signal.signal(sig, previous)
             except Exception:
                 pass
+        _clear_ready_file(ready_file)
         if ready:
-            logging.info("mcp:shutdown")
+            logging.info("mcp:shutdown mode=http")
+
+
+def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
+    def _sigterm_handler(signum: int, _frame: object) -> None:  # pragma: no cover - signal
+        raise KeyboardInterrupt
+
+    handlers: list[tuple[int, object]] = []
+    try:
+        previous = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, _sigterm_handler)
+        handlers.append((signal.SIGTERM, previous))
+    except Exception:  # pragma: no cover - platform guard
+        pass
+
+    logging.info("mcp:ready mode=stdio schemas_dir=%s", schemas_dir)
+    _write_ready_file(ready_file)
+    exit_code = 0
+    try:
+        stdio_main.main()
+    except KeyboardInterrupt:
+        exit_code = 0
+    except Exception:
+        logging.exception("mcp:error reason=runtime_failure mode=stdio")
+        exit_code = 1
+    finally:
+        logging.info("mcp:shutdown mode=stdio")
+        for sig, previous in handlers:
+            try:
+                signal.signal(sig, previous)
+            except Exception:
+                pass
+        _clear_ready_file(ready_file)
+    return exit_code
 
 
 def _run_validation(path: str) -> int:
@@ -189,18 +292,34 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         schemas_dir = _resolve_schemas_dir()
-        host, port = _resolve_host_port()
     except Exception as exc:
         logging.error("mcp:error reason=setup_failed detail=%s", exc)
         sys.exit(2)
 
     try:
-        asyncio.run(_serve_forever(host, port, schemas_dir))
+        endpoint = _resolve_endpoint()
+    except Exception as exc:
+        logging.error("mcp:error reason=setup_failed detail=%s", exc)
+        sys.exit(2)
+
+    ready_file = _ready_file_path()
+
+    if endpoint.mode == "stdio":
+        code = _run_stdio(schemas_dir, ready_file)
+        sys.exit(code)
+
+    host = endpoint.host
+    port = endpoint.port
+    if host is None or port is None:
+        logging.error("mcp:error reason=setup_failed detail=invalid_endpoint")
+        sys.exit(2)
+
+    try:
+        asyncio.run(_serve_http_forever(host, port, schemas_dir, ready_file))
     except KeyboardInterrupt:
-        logging.info("mcp:shutdown")
         sys.exit(0)
     except Exception:
-        logging.exception("mcp:error reason=runtime_failure")
+        logging.exception("mcp:error reason=runtime_failure mode=http")
         sys.exit(1)
     sys.exit(0)
 

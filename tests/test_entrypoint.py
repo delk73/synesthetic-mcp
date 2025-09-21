@@ -6,16 +6,16 @@ import signal
 import subprocess
 import sys
 import time
-from typing import List
+from typing import List, TextIO
 
 
-def _wait_for_line(proc: subprocess.Popen, needle: str, timeout: float = 10.0) -> str:
+def _wait_for_line(stream: TextIO, proc: subprocess.Popen, needle: str, timeout: float = 10.0) -> str:
     deadline = time.time() + timeout
-    if proc.stdout is None:
-        raise AssertionError("process stdout not captured")
+    if stream.closed:
+        raise AssertionError("stream unexpectedly closed")
     lines: List[str] = []
     while time.time() < deadline:
-        line = proc.stdout.readline()
+        line = stream.readline()
         if not line:
             if proc.poll() is not None:
                 break
@@ -43,23 +43,26 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
     proc = subprocess.Popen(
         [sys.executable, "-m", "mcp"],
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE,
         text=True,
         env=env,
     )
 
     try:
-        ready_line = _wait_for_line(proc, "mcp:ready")
+        if proc.stderr is None:
+            raise AssertionError("stderr not captured")
+
+        ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
         assert "schemas_dir=" in ready_line
 
         proc.send_signal(signal.SIGINT)
-        output, _ = proc.communicate(timeout=5)
+        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
             proc.kill()
 
-    combined = "\n".join(filter(None, [ready_line, output]))
-    assert "mcp:shutdown" in combined
+    combined = "\n".join(filter(None, [ready_line, shutdown_line]))
     assert proc.returncode == 0
 
 
@@ -94,6 +97,7 @@ def test_bad_port(tmp_path):
     env.update(
         {
             "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "MCP_ENDPOINT": "http",
             "MCP_PORT": "not-an-int",
             "PYTHONUNBUFFERED": "1",
         }

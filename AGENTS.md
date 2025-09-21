@@ -1,10 +1,11 @@
-# AGENTS.md — Repo Baseline
+# AGENTS.md — Repo Snapshot
 
 ## Repo Summary
-- Minimal MCP adapter exposing discovery, validation, diff, backend populate, and stdio/HTTP entrypoints (mcp/core.py:38; mcp/validate.py:81; mcp/diff.py:42; mcp/backend.py:24; mcp/stdio_main.py:13; mcp/http_main.py:6).
-- Runtime/test deps pinned to jsonschema, httpx, pytest with optional extras noted in docs (requirements.txt:1; README.md:65; docs/mcp_spec.md:109).
-- Synesthetic schemas checked in via git submodule and consumed through env/submodule discovery order (.gitmodules:1; mcp/core.py:12; tests/test_submodule_integration.py:19).
-- CI runs pytest on Python 3.11–3.13 with submodules enabled (.github/workflows/ci.yml:15; .github/workflows/ci.yml:21).
+- STDIO entrypoint defaults to newline-delimited JSON-RPC and emits `mcp:ready`/`mcp:shutdown`, while HTTP health serving is gated by `MCP_ENDPOINT` (mcp/__main__.py:55; mcp/__main__.py:205; README.md:80).
+- Tool router exposes discovery, validation, diff, and backend populate over STDIO (mcp/stdio_main.py:13; mcp/backend.py:24).
+- Schema/example discovery prioritises env overrides before submodule fallbacks with deterministic sorting (mcp/core.py:12; mcp/core.py:38; tests/test_env_discovery.py:7).
+- Validation enforces alias resolution, RFC6901 errors, and a shared 1 MiB payload cap reused by backend populate (mcp/validate.py:17; mcp/validate.py:106; mcp/backend.py:34).
+- CI checks out submodules, installs the project editable, and runs pytest on Python 3.11–3.13 (.github/workflows/ci.yml:21; .github/workflows/ci.yml:34).
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
@@ -13,41 +14,46 @@
 | httpx | Backend populate client | Required | requirements.txt:2; mcp/backend.py:7 |
 | pytest | Test runner | Required (tests) | requirements.txt:3; tests/test_backend.py:1 |
 | referencing | JSON Schema registry support | Optional | mcp/validate.py:10 |
-| fastapi | HTTP adapter | Optional | README.md:66; mcp/http_main.py:8 |
-| uvicorn | HTTP runtime | Optional | README.md:71 |
+| fastapi | HTTP adapter | Optional | mcp/http_main.py:6 |
+| uvicorn | HTTP runtime | Optional | README.md:83 |
 
 ## Environment Variables
-- SYN_SCHEMAS_DIR — overrides schema directory before submodule fallback (mcp/core.py:12).
-- SYN_EXAMPLES_DIR — overrides examples directory before submodule fallback (mcp/core.py:25).
-- SYN_BACKEND_URL — enables backend POSTs; missing returns unsupported (mcp/backend.py:14; mcp/backend.py:32).
-- SYN_BACKEND_ASSETS_PATH — customizes POST path, default `/synesthetic-assets/` (mcp/backend.py:17).
+- `MCP_ENDPOINT` (`stdio` default) selects STDIO vs. optional HTTP/TCP (mcp/__main__.py:55; README.md:96).
+- `MCP_READY_FILE` (`/tmp/mcp.ready`) signals readiness for compose health checks (mcp/__main__.py:77; docker-compose.yml:29).
+- `MCP_HOST` / `MCP_PORT` applied only when HTTP is requested; invalid ports fail startup (mcp/__main__.py:43; tests/test_entrypoint.py:92).
+- `SYN_SCHEMAS_DIR` / `SYN_EXAMPLES_DIR` override discovery roots (mcp/core.py:12; tests/test_env_discovery.py:29).
+- `SYN_BACKEND_URL` unlocks populate; unset returns `unsupported` (mcp/backend.py:30; tests/test_backend.py:21).
+- `SYN_BACKEND_ASSETS_PATH` customises backend POST path with leading slash guard (mcp/backend.py:17; tests/test_backend.py:36).
 
 ## Tests Overview
-| Focus | Test(s) | Evidence |
+| Focus | Status | Evidence |
 | - | - | - |
-| Env overrides | tests/test_env_discovery.py | tests/test_env_discovery.py:7 |
-| Submodule integration | tests/test_submodule_integration.py | tests/test_submodule_integration.py:19 |
-| Validation success/error/payload limit | tests/test_validate.py | tests/test_validate.py:14 |
-| Diff determinism | tests/test_diff.py | tests/test_diff.py:4 |
-| Backend success/error/path/validation guard | tests/test_backend.py | tests/test_backend.py:27; tests/test_backend.py:95 |
-| HTTP adapter smoke | tests/test_http.py | tests/test_http.py:4 |
-| Stdio loop round-trip | tests/test_stdio.py | tests/test_stdio.py:6 |
+| STDIO ready/shutdown handling | ✅ | tests/test_entrypoint.py:31 |
+| Env overrides & submodule fallback | ✅ | tests/test_env_discovery.py:7; tests/test_submodule_integration.py:23 |
+| STDIO JSON-RPC validation loop | ✅ | tests/test_stdio.py:40 |
+| Backend success/error/size/validation guards | ✅ | tests/test_backend.py:28 |
+| Diff determinism | ✅ | tests/test_diff.py:11 |
+| HTTP endpoint happy path | ❌ | tests/test_entrypoint.py:100 |
+| FastAPI adapter smoke (optional) | ⚠️ skipped if FastAPI missing | tests/test_http.py:4 |
 
 ## Spec Alignment
 | Spec Item | Status | Evidence |
 | - | - | - |
-| Env → submodule discovery order | Present | docs/mcp_spec.md:18; mcp/core.py:12 |
-| Sorted schema/example listings | Present | docs/mcp_spec.md:57; mcp/core.py:50 |
-| Validation alias + RFC6901 errors | Present | docs/mcp_spec.md:42; mcp/validate.py:18 |
-| 1 MiB payload cap | Present | docs/mcp_spec.md:115; mcp/backend.py:34 |
-| Diff limited to add/remove/replace | Present | docs/mcp_spec.md:59; mcp/diff.py:16 |
-| Backend error model | Present | docs/mcp_spec.md:79; mcp/backend.py:60 |
+| STDIO default with MCP_ENDPOINT override | Present | docs/mcp_spec.md:25; mcp/__main__.py:55 |
+| Env→submodule discovery order | Present | docs/mcp_spec.md:105; mcp/core.py:38 |
+| Validation alias & 1 MiB cap | Present | docs/mcp_spec.md:117; mcp/validate.py:17 |
+| RFC6902 diff add/remove/replace | Present | docs/mcp_spec.md:61; mcp/diff.py:16 |
+| Backend env gating & error model | Present | docs/mcp_spec.md:116; mcp/backend.py:30 |
+| CI via editable install | Present | meta/prompts/init_mcp_repo.json:18; .github/workflows/ci.yml:34 |
 
 ## Divergences
-- CI relies on `PYTHONPATH=.` instead of an editable install despite init prompt guidance (meta/prompts/init_mcp_repo.json:19; .github/workflows/ci.yml:34).
+- Compose always publishes `${MCP_PORT}` even when running in STDIO mode, leaving an unused port exposed (docker-compose.yml:18; mcp/__main__.py:307).
+- Optional HTTP/TCP path lacks a passing integration test, so `mode=http` readiness is unverified (mcp/__main__.py:168; tests/test_entrypoint.py:100).
 
 ## Recommendations
-- Update CI to install the project (e.g., `pip install -e .`) and drop the `PYTHONPATH` override (.github/workflows/ci.yml:34).
+- Add an HTTP-mode smoke test that runs `python -m mcp` with `MCP_ENDPOINT=http://127.0.0.1:0` and asserts readiness plus `/healthz` response (mcp/__main__.py:140).
+- Condition the Compose port mapping on HTTP enablement or document the unused port when STDIO is active (docker-compose.yml:26; README.md:40).
+- Reuse the submodule skip guard in `tests/test_stdio.py` to avoid failures when schemas are absent (tests/test_stdio.py:75; tests/test_submodule_integration.py:19).
 
 ## Baseline Commit
-- b4df97aac523c741d1e9d2d442dba43e58369ead
+- 95863497ed75482c9c967f105ea2bfb11c8ac024

@@ -1,6 +1,34 @@
 {
-  "task": "Audit synesthetic-mcp repo",
-  "objective": "Compare actual implementation and tests against init reference (meta/prompts/init_mcp_repo.json) and spec (docs/mcp_spec.md). Report only what is Present, Missing, or Divergent, and persist the audit.",
+  "task": "Audit synesthetic-mcp repo state",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md and init_mcp_repo.json. Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "constraints": {
+    "style": "deterministic, terse, Markdown headings with bullets/tables",
+    "rules": [
+      "Ground all findings in visible code/tests/docs",
+      "Mark functionality not present as Missing",
+      "Mark intentional design differences as Divergent",
+      "No speculation about unseen behavior",
+      "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes only",
+      "Always write the full audit report directly to meta/output/mcp_state.md (overwrite if exists, non-empty)",
+      "Always write the updated agent snapshot directly to AGENTS.md (overwrite if exists, non-empty)",
+      "MCP must default to STDIO JSON-RPC; TCP/HTTP optional via MCP_ENDPOINT only",
+      "Stdout may mirror results, but audit is incomplete unless both output files are created or overwritten with non-empty content"
+    ],
+    "sections": [
+      "Summary of repo state",
+      "Top gaps & fixes (3-5 bullets)",
+      "Alignment with mcp_spec.md and init_mcp_repo.json (table: Spec item → Status → Evidence)",
+      "STDIO server entrypoint & process model (bullets: blocking loop, signals, logging, exit codes)",
+      "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
+      "Schema discovery & validation (table: Source → Mechanism → Evidence)",
+      "Test coverage (table: Feature → Tested? → Evidence)",
+      "Dependencies & runtime (table: Package → Used in → Required/Optional)",
+      "Environment variables (bullets: name, default, behavior when missing/invalid)",
+      "Documentation accuracy (bullets: README vs. docs/mcp_spec.md)",
+      "Detected divergences",
+      "Recommendations"
+    ]
+  },
   "scope": {
     "files": [
       "README.md",
@@ -14,50 +42,29 @@
       "mcp/**/server.py",
       "tests/*.py",
       "libs/synesthetic-schemas",
-      ".github/workflows/*",
+      "meta/",
+      "AGENTS.md",
+      ".github/workflows/",
       ".env.example"
     ]
   },
-  "constraints": {
-    "style": "deterministic, terse, Markdown headings with bullet points or tables",
-    "rules": [
-      "Ground all findings in visible code/tests/docs with explicit file:line evidence.",
-      "Mark functionality not present as Missing; intentional differences as Divergent.",
-      "No speculation about unseen behavior.",
-      "Recommendations must be actionable code/test/doc changes only.",
-      "Verify ENTRYPOINT behavior: server must block (long-running), handle SIGINT/SIGTERM, log mcp:ready host/port/schemas_dir, log mcp:shutdown, and exit non-zero on fatal setup with mcp:error.",
-      "Verify containerization: a compose 'serve' service (distinct from test runner) runs the server in the foreground, exposes a TCP/HTTP port, and defines a HEALTHCHECK (compose or code-level).",
-      "If docker is available, optionally perform a 5s smoke: 'docker compose up -d serve', wait, confirm container is healthy/running, then 'docker compose down'. If docker is unavailable, mark as Skipped with explanation.",
-      "Check schema discovery: SYN_SCHEMAS_DIR honored; fallback to libs/synesthetic-schemas present; error surfaces if directory missing.",
-      "Check validation wiring: CriticAgent (or equivalent) accepts MCP-backed schema validation; failures return clear logs and non-zero exit.",
-      "Check error handling: bad env, missing schemas, invalid port → non-zero exit and readable error log.",
-      "Check tests: entrypoint unit/integration tests exist and exercise the loop; CI runs them.",
-      "Persist the full audit to meta/output/mcp_state.md (overwrite, non-empty). Do not only print to stdout."
-    ],
-    "sections": [
-      "Summary of repo state (files, deps, schema discovery presence)",
-      "Top gaps & fixes (3–5 bullets)",
-      "Alignment with init prompt (bullets: Item → Status → Evidence)",
-      "Alignment with spec (table: Spec item → Status → Evidence)",
-      "Server entrypoint & process model (bullets: blocking loop, signals, logging, exit codes)",
-      "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
-      "Schema discovery & validation (table: Source → Mechanism → Evidence)",
-      "Test coverage & CI (table: Feature → Tested? → Evidence)",
-      "Dependencies & runtime (table: Package → Used in → Required/Optional)",
-      "Environment variables (bullets: name, default, fallback, error behavior)",
-      "Documentation accuracy (bullets: README vs. code/spec)",
-      "Detected divergences",
-      "Recommendations (concrete next steps)"
-    ]
-  },
   "output": {
-    "path": "meta/output/mcp_state.md",
+    "paths": [
+      "meta/output/mcp_state.md",
+      "AGENTS.md"
+    ],
     "format": "Markdown",
     "must_write": true,
     "stdout_optional": true
   },
   "exit_criteria": [
-    "meta/output/mcp_state.md exists and is non-empty",
-    "Audit explicitly marks Present/Missing/Divergent for: blocking entrypoint, signal handling, compose 'serve' target, healthcheck, schema discovery, validation wiring, error handling, tests, CI"
+    "meta/output/mcp_state.md is written and non-empty",
+    "AGENTS.md snapshot updated with current audit findings",
+    "Spec features mapped to Present / Missing / Divergent in table form",
+    "STDIO entrypoint behavior explicitly verified",
+    "Test coverage summarized in a table with evidence",
+    "Dependencies mapped to imports in a table with evidence",
+    "Environment variables listed with defaults and clear behavior when invalid/missing",
+    "README cross-checked against docs/mcp_spec.md and init_mcp_repo.json"
   ]
 }

@@ -22,7 +22,7 @@ Expose schemas, examples, validation, diff, and optional persistence as determin
   * Refresh by process restart; no polling.
 * Backend: optional via `SYN_BACKEND_URL`; 5s timeout; no retries.
 * Optional env knob: `SYN_BACKEND_ASSETS_PATH` may override the POST path for asset creation.
-* Blocking entrypoint: `python -m mcp` listens on `MCP_HOST` (default `0.0.0.0`) and `MCP_PORT` (default `7000`), serving a `/healthz` probe until SIGINT/SIGTERM.
+* Blocking entrypoint: `python -m mcp` runs newline-delimited JSON-RPC over STDIO, logs `mcp:ready mode=stdio`, and writes `MCP_READY_FILE` (default `/tmp/mcp.ready`) until SIGINT/SIGTERM. Setting `MCP_ENDPOINT=http://host:port` enables the legacy HTTP health server bound via `MCP_HOST`/`MCP_PORT`.
 * Validation CLI: `python -m mcp --validate <path>` loads JSON, infers schema aliases, prints validation results, and exits `0` on success, `1` on validation failure, `2` on IO/parse errors.
 
 ---

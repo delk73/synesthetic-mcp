@@ -31,15 +31,16 @@ flowchart LR
 - JSON Schema validation (Draft 2020-12)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
-- Minimal stdio loop; optional HTTP app factory
+- Canonical STDIO JSON-RPC loop; optional HTTP app factory
 
 ## Quickstart
 
 1. Install deps: `pip install -r requirements.txt && pip install -e .`
 2. Initialize schemas/examples: `git submodule update --init --recursive`.
-3. Serve via Compose: `docker compose up serve` (binds `http://localhost:7000` and exposes `/healthz`).
-4. Or run the helper: `./serve.sh` builds the image, waits for a healthy container, then tails logs.
-5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
+3. Serve via Compose: `docker compose up serve` (runs the STDIO JSON-RPC loop, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
+4. Optional HTTP/TCP: `MCP_ENDPOINT=http://0.0.0.0:7000 docker compose up serve` (reuses the same image but enables the legacy HTTP health server on `MCP_PORT`).
+5. Or run the helper: `./serve.sh` builds the image, waits for a ready container, then tails logs.
+6. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
 
 ## Structure
 
@@ -76,8 +77,9 @@ tests/
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
-  - `python -m mcp` (blocking server with `/healthz` HTTP probe)
-  - `python -m mcp.stdio_main` (newline-delimited JSON requests)
+  - `python -m mcp` (canonical STDIO JSON-RPC loop; logs `mcp:ready mode=stdio` and blocks on stdin/stdout).
+  - `MCP_ENDPOINT=http://0.0.0.0:7000 python -m mcp` (optional HTTP health server on `MCP_HOST`/`MCP_PORT`).
+  - `python -m mcp.stdio_main` (invoke the loop directly when embedding).
   - `uvicorn 'mcp.http_main:create_app'` (FastAPI optional)
 
 ## Dependencies
@@ -91,8 +93,10 @@ tests/
 
 | Variable | Default | Behaviour |
 | - | - | - |
-| `MCP_HOST` | `0.0.0.0` | Bind address for `python -m mcp`; edit for local-only usage. |
-| `MCP_PORT` | `7000` | TCP port for the HTTP health server (`/healthz`) and Compose port mapping. |
+| `MCP_ENDPOINT` | `stdio` | Transport selector: `stdio` (canonical newline-delimited JSON-RPC). Set to `http`/`tcp` or a URL like `http://0.0.0.0:7000` to enable the optional HTTP health server. |
+| `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
+| `MCP_HOST` | `0.0.0.0` | Only used when `MCP_ENDPOINT` requests HTTP/TCP; bind address for the optional health server. |
+| `MCP_PORT` | `7000` | Only used when `MCP_ENDPOINT` requests HTTP/TCP; port for the optional health server and Compose port mapping. |
 | `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
@@ -163,9 +167,9 @@ Notes:
 
 ### Serving Locally
 
-- `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for a health check on `/healthz`, and tails logs.
-- The service binds `http://localhost:7000` by default; override with `MCP_PORT=7100 docker compose up serve` or `MCP_PORT=7100 ./serve.sh`.
-- `MCP_HOST` defaults to `0.0.0.0` for container networking and can be tightened for local-only usage.
+- `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and then tails logs.
+- To expose the optional HTTP health server, export `MCP_ENDPOINT=http://0.0.0.0:${MCP_PORT:-7000}` before running compose (keep the port mapping if you need external access).
+- `MCP_HOST`/`MCP_PORT` only apply when the HTTP/TCP endpoint is enabled; otherwise the process blocks on STDIO.
 
 ## Spec
 
