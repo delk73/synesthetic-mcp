@@ -1,0 +1,74 @@
+{
+  "task": "Fill MCP spec compliance gaps",
+  "objective": "Update implementation and tests so synesthetic-mcp matches docs/mcp_spec.md v0.2.3. Address all gaps flagged in the latest audit.",
+  "gaps": [
+    {
+      "id": "ready_file_format",
+      "description": "Ready file writes 'ready' instead of '<pid> <ISO8601 timestamp>'.",
+      "changes": [
+        "In mcp/__main__.py:_write_ready_file, write '<pid> <ISO8601 timestamp>'",
+        "Update tests/test_stdio.py to assert this format",
+        "Update docs if needed"
+      ]
+    },
+    {
+      "id": "not_found_responses",
+      "description": "get_schema/get_example missing reason:'not_found' contract.",
+      "changes": [
+        "In mcp/core.py, return {'ok': false, 'reason': 'not_found'} when schema/example is absent",
+        "Add regression tests in tests/test_validate.py or new test file"
+      ]
+    },
+    {
+      "id": "error_id_echo",
+      "description": "JSON-RPC error frames drop request id.",
+      "changes": [
+        "In mcp/stdio_main.py, preserve and echo incoming id in error responses",
+        "Extend tests/test_stdio.py to assert error responses include id"
+      ]
+    },
+    {
+      "id": "list_examples_all",
+      "description": "Implementation uses '*' sentinel but spec requires 'all'.",
+      "changes": [
+        "Accept both 'all' and '*' in mcp/core.py for list_examples",
+        "Normalize internally to one form",
+        "Update tests/test_submodule_integration.py to cover 'all'"
+      ]
+    },
+    {
+      "id": "http_listener",
+      "description": "Optional HTTP listener contradicts STDIO-only spec.",
+      "changes": [
+        "Remove or fence HTTP server startup in mcp/__main__.py",
+        "Condition docker-compose.yml not to publish ${MCP_PORT} when STDIO-only",
+        "Mark HTTP entrypoint as non-compliant in README/docs if kept"
+      ]
+    },
+    {
+      "id": "missing_baseline",
+      "description": "meta/prompts/init_mcp_repo.json is missing.",
+      "changes": [
+        "Restore init_mcp_repo.json with initial baseline state",
+        "Or update references in meta/prompts to stop pointing to missing file"
+      ]
+    }
+  ],
+  "constraints": {
+    "style": "deterministic, concise diffs",
+    "rules": [
+      "No new dependencies",
+      "Tests must pass",
+      "Align code, tests, and docs with spec v0.2.3"
+    ]
+  },
+  "exit_criteria": [
+    "Ready file writes '<pid> <ISO8601 timestamp>' and tests updated",
+    "get_schema/get_example return reason:'not_found' on misses",
+    "Error responses echo request id",
+    "list_examples accepts 'all' sentinel",
+    "HTTP listener removed/fenced and Compose ports adjusted",
+    "Baseline prompt restored or references updated",
+    "All tests pass after changes"
+  ]
+}
