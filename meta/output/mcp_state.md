@@ -1,127 +1,123 @@
 # MCP State Audit (v0.2.4)
 
 ## Summary of repo state
-The `synesthetic-mcp` repository is in a good state, with a strong alignment to the `mcp_spec.md` for its core features. The implementation correctly handles STDIO transport, payload limits, schema discovery, and validation. Test coverage is robust for the implemented features. The main gaps are the lack of Socket transport and the `validate_many` batching feature, both of which are marked as optional in the spec. A minor divergence exists in how `validate_asset` handles a missing `schema` parameter.
+The `synesthetic-mcp` repository is in a good state, with a solid foundation for the features it implements. The STDIO transport is compliant with the spec, including NDJSON framing, payload size guards, and correct stream separation. The core validation and discovery logic is sound and well-tested. Key areas for improvement are tightening the enforcement of the `schema` parameter at the transport boundary and implementing the optional `socket` transport and `validate_many` batching if they become necessary.
 
 ## Top gaps & fixes
-1.  **Missing Socket Transport:** The spec defines an optional Unix Domain Socket transport, which is not implemented. This is acceptable as it's not a required feature.
-2.  **Missing `validate_many`:** The optional batch validation method `validate_many` is not implemented.
-3.  **Divergent `validate_asset` schema handling:** `validate_asset` in `mcp/stdio_main.py` passes an empty string to `validate_asset` if the `schema` parameter is missing, while the spec requires it. This should be fixed to return a `validation_failed` error.
-4.  **Missing `get_example` error reason:** The spec doesn't account for a `validation_failed` reason in the `get_example` method, which can occur. The spec should be updated.
+1.  **`validate_asset` `schema` parameter enforcement:** The `schema` parameter is not strictly enforced at the `stdio_main.py` boundary, allowing empty strings to pass through. This should be a hard failure at the transport layer.
+2.  **Socket Transport Missing:** The spec defines an optional but important socket-based transport, which is not implemented.
+3.  **`validate_many` Missing:** The optional batch validation method `validate_many` is not implemented.
+4.  **`get_example` spec divergence:** The spec for `get_example` does not list `validation_failed` as a possible error reason, but the implementation can and does produce this.
 
 ## Alignment with mcp_spec.md
+
 | Spec item | Status | Evidence |
-|---|---|---|
-| STDIO JSON-RPC 2.0 Transport | Present | `mcp/stdio_main.py`, `mcp/__main__.py` |
-| Socket (UDS) JSON-RPC 2.0 Transport | Missing | No implementation found. |
-| 1 MiB Payload Cap (STDIO) | Present | `mcp/stdio_main.py:45`, `tests/test_stdio.py:171` |
-| `validate_asset`: `schema` is REQUIRED | Divergent | `mcp/stdio_main.py:25` passes `""` if missing. `tests/test_validate.py:63` confirms this. |
-| `validate` alias for `validate_asset` | Present | `mcp/stdio_main.py:24` |
-| `validate_many` (Optional) | Missing | No implementation found. |
-| Local-only `$ref` resolution | Present | `mcp/validate.py` uses a local registry. |
-| Deterministic sorting (lists, errors, diffs) | Present | `mcp/core.py`, `mcp/validate.py`, `mcp/diff.py`, `tests/test_submodule_integration.py:34` |
-| STDIO Readiness File (`MCP_READY_FILE`) | Present | `mcp/__main__.py:53`, `tests/test_stdio.py:62` |
-| SIGINT/SIGTERM handling | Present | `mcp/__main__.py:78` |
+| :--- | :--- | :--- |
+| STDIO NDJSON framing & sequential handling | Present | `mcp/stdio_main.py` |
+| Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py`, `tests/test_stdio.py` |
+| 1 MiB per-request STDIO limit | Present | `mcp/stdio_main.py`, `tests/test_stdio.py` |
+| `validate_asset` requires `schema` | Divergent | `mcp/stdio_main.py:25` passes an empty string if missing. |
+| Socket Transport | Missing | Not implemented (optional feature). |
+| `validate_many` | Missing | Not implemented (optional feature). |
+| `get_example` with `validation_failed` | Divergent | `docs/mcp_spec.md` is missing this error case. |
 
 ## Transports
-- **STDIO:** Present and correctly implemented as the default and only transport.
-- **Socket:** Missing. The spec marks this as optional.
-- **HTTP/gRPC:** Missing, as expected (roadmap only).
+The implementation **only** supports the STDIO transport.
 
-## STDIO server entrypoint & process model
-- **NDJSON framing:** Present, handled in `mcp/stdio_main.py`.
-- **Blocking loop:** Present, `sys.stdin` is iterated in `mcp/stdio_main.py`.
-- **Signals:** `SIGTERM` is handled to allow graceful shutdown. `SIGINT` is caught as `KeyboardInterrupt`.
-- **Readiness file:** `MCP_READY_FILE` is written on startup and removed on shutdown.
-- **Shutdown semantics:** The server exits when `stdin` closes or on `SIGINT`/`SIGTERM`.
-- **stdout vs stderr:** `stdout` is used for JSON-RPC frames, `stderr` for logging.
+### STDIO server entrypoint & process model
+- **NDJSON framing:** Correctly implemented in `mcp/stdio_main.py`.
+- **Blocking loop:** The main loop in `mcp/stdio_main.py` blocks on `sys.stdin`.
+- **Signals:** `SIGINT` and `SIGTERM` are handled in `mcp/__main__.py` to allow graceful shutdown.
+- **Readiness file:** The ready file is created and cleared as expected in `mcp/__main__.py`.
+- **Shutdown semantics:** The server exits when `stdin` closes.
+- **stdout vs stderr:** `stdout` is used for JSON-RPC frames, and `stderr` is used for logging.
 
-## Socket server (if present)
-Not implemented.
+### Socket server
+The socket server is **not implemented**.
 
 ## Golden request/response examples
-| Method | Success frame Present/Missing/Divergent | Error frame Present/Missing/Divergent | Evidence |
-|---|---|---|---|
-| `list_schemas` | Present | N/A | `tests/fixtures/e2e_golden.jsonl` |
-| `get_schema` | Present | Present | `tests/test_validate.py:12` (not found) |
-| `validate_asset` | Present | Present | `tests/test_validate.py:25`, `tests/test_validate.py:37` |
-| `validate` (alias) | Present | Present | `mcp/stdio_main.py:24` |
+
+| Method | Success frame | Error frame | Evidence |
+| :--- | :--- | :--- | :--- |
+| `list_schemas` | Present | N/A | `tests/test_submodule_integration.py` |
+| `get_schema` | Present | Present | `tests/test_validate.py` |
+| `validate_asset` | Present | Present | `tests/test_validate.py` |
+| `validate` (alias) | Present | Present | `mcp/stdio_main.py` |
+| `get_example` | Present | Present | `tests/test_validate.py` |
 | `diff_assets` | Present | N/A | `tests/test_diff.py` |
-| Malformed frame | N/A | Present | `mcp/stdio_main.py:63` |
+| Malformed frame | N/A | Present | `tests/test_stdio.py` |
 
 ## Payload size guard
+
 | Method | STDIO guard | Socket guard | Evidence |
-|---|---|---|---|
-| All | Present | N/A | `mcp/stdio_main.py:45`, `tests/test_stdio.py:171` |
-| `validate_asset` | Present | N/A | `mcp/validate.py:107`, `tests/test_validate.py:47` |
-| `populate_backend` | Present | N/A | `mcp/backend.py:38`, `tests/test_backend.py:55` |
+| :--- | :--- | :--- | :--- |
+| All | Present | Missing | `mcp/stdio_main.py`, `tests/test_stdio.py` |
 
 ## Schema validation contract
-- **Required `schema` param:** Divergent. `mcp/stdio_main.py` sends an empty string if the param is missing, which `validate_asset` then rejects. The rejection is correct, but the spec implies the check should be earlier.
-- **Alias handling:** Present. `validate` is an alias for `validate_asset`.
-- **Error ordering:** Present. Validation errors are sorted by path and message.
-- **`validate_asset` behavior:** Present and correct, aside from the schema param issue.
+- **Required `schema` param:** The `schema` parameter is not properly enforced at the transport layer.
+- **Alias handling:** The `validate` alias for `validate_asset` is correctly handled.
+- **Error ordering:** Validation errors are sorted by `path` and then `msg`.
+- **`validate_asset` behavior:** `validate_asset` is implemented and works as expected, aside from the missing `schema` parameter enforcement.
 
-## Optional batching (if present)
-Not implemented.
+## Optional batching
+The `validate_many` method is **not implemented**.
 
 ## Logging hygiene
-- **`stdout` frames only:** Present.
-- **`stderr` logs/diagnostics:** Present.
-- **Deterministic timestamps:** Present, ISO-8601 format is used in the ready file.
+- **`stdout` frames only:** Correct.
+- **`stderr` logs/diagnostics:** Correct.
+- **Deterministic timestamps:** Logs use ISO-8601 timestamps.
 
 ## Container & health
+
 | Aspect | Present/Missing/Divergent | Evidence |
-|---|---|---|
+| :--- | :--- | :--- |
 | `docker-compose` services | Present | `docker-compose.yml` |
-| Healthcheck | Present | `docker-compose.yml` checks for `MCP_READY_FILE`. |
-| Environment variables | Present | `docker-compose.yml` passes through environment variables. |
+| Environment variables | Present | `docker-compose.yml` |
+| Healthcheck | Present | `docker-compose.yml` |
 
 ## Schema discovery & validation
+
 | Source | Mechanism | Evidence |
-|---|---|---|
-| Environment variables | `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR` | `mcp/core.py`, `tests/test_env_discovery.py` |
+| :--- | :--- | :--- |
+| Environment variables | `SYN_SCHEMAS_DIR` and `SYN_EXAMPLES_DIR` | `mcp/core.py`, `tests/test_env_discovery.py` |
 | Submodule | `libs/synesthetic-schemas` | `mcp/core.py`, `tests/test_submodule_integration.py` |
-| `$ref` resolution | Local-only via `referencing` library | `mcp/validate.py` |
 
 ## Test coverage
+
 | Feature | Tested? | Evidence |
-|---|---|---|
-| STDIO transport | Yes | `tests/test_stdio.py` |
-| `validate_asset` | Yes | `tests/test_validate.py` |
-| `diff_assets` | Yes | `tests/test_diff.py` |
-| `populate_backend` | Yes | `tests/test_backend.py` |
-| Schema/example discovery | Yes | `tests/test_env_discovery.py`, `tests/test_submodule_integration.py` |
-| CLI entrypoint | Yes | `tests/test_entrypoint.py` |
-| Payload size limits | Yes | `tests/test_stdio.py`, `tests/test_validate.py`, `tests/test_backend.py` |
+| :--- | :--- | :--- |
+| STDIO framing, ready file, oversize guard | Yes | `tests/test_stdio.py` |
+| Transport setup & shutdown handling | Yes | `tests/test_entrypoint.py` |
+| Validation aliasing, ordering, payload cap | Yes | `tests/test_validate.py` |
+| Backend success/error/size handling | Yes | `tests/test_backend.py` |
+| Env overrides & submodule fallback | Yes | `tests/test_env_discovery.py`, `tests/test_submodule_integration.py` |
+| Diff determinism | Yes | `tests/test_diff.py` |
 
 ## Dependencies & runtime
+
 | Package | Used in | Required/Optional |
-|---|---|---|
+| :--- | :--- | :--- |
 | `jsonschema` | `mcp/validate.py` | Required |
-| `httpx` | `mcp/backend.py` | Required (for backend) |
-| `pytest` | `tests/` | Required (for tests) |
+| `httpx` | `mcp/backend.py` | Required |
+| `pytest` | `tests/` | Required (tests) |
 | `referencing` | `mcp/validate.py` | Optional |
 
 ## Environment variables
-- `MCP_ENDPOINT`: Honored, but only `stdio` is supported.
-- `MCP_READY_FILE`: Honored.
-- `MCP_SOCKET_PATH`: Not used (no socket transport).
-- `MCP_SOCKET_MODE`: Not used.
-- `MCP_MAX_BATCH`: Not used.
-- `SYN_SCHEMAS_DIR`: Honored.
-- `SYN_EXAMPLES_DIR`: Honored.
-- `SYN_BACKEND_URL`: Honored.
-- `SYN_BACKEND_ASSETS_PATH`: Honored.
+
+- `MCP_ENDPOINT`: Only `stdio` is supported.
+- `MCP_READY_FILE`: Correctly used to signal readiness.
+- `SYN_SCHEMAS_DIR` & `SYN_EXAMPLES_DIR`: Used to override default schema and example paths.
+- `SYN_BACKEND_URL`: Gates the `populate_backend` feature.
+- `SYN_BACKEND_ASSETS_PATH`: Correctly overrides the backend POST path.
 
 ## Documentation accuracy
-- `README.md` is accurate and consistent with `docs/mcp_spec.md` regarding the implemented features.
-- Both documents correctly describe the STDIO transport, payload limits, and schema discovery.
+The `README.md` is accurate, but `docs/mcp_spec.md` has a minor divergence in the `get_example` error cases.
 
 ## Detected divergences
-- `validate_asset`'s `schema` parameter is not strictly required at the JSON-RPC method level, but is required by the validation logic itself. This is a minor divergence from the spec's intent.
+- The `schema` parameter for `validate_asset` is not strictly enforced at the transport layer.
+- The `get_example` method can return a `validation_failed` error, which is not documented in the spec.
 
 ## Recommendations
-1.  **Fix `validate_asset` schema handling:** Modify `mcp/stdio_main.py` to check for the `schema` parameter in `validate_asset` and `validate` calls and return a proper JSON-RPC error if it's missing.
-2.  **Update spec for `get_example`:** Add `validation_failed` to the possible error reasons for `get_example` in `docs/mcp_spec.md`.
-3.  **Implement optional features:** If desired, implement the `socket` transport and the `validate_many` method.
+- **Fix `validate_asset` Divergence:** Modify `mcp.stdio_main` to return a `validation_failed` error if the `schema` parameter is missing in a `validate_asset` call.
+- **Update Spec:** Add `validation_failed` as a possible reason for failure in the `get_example` method in `docs/mcp_spec.md`.
+- **Consider Optional Features:** Plan for the implementation of the `socket` transport and `validate_many` if they are desired for future use cases.
