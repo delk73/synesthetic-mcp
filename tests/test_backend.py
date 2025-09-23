@@ -43,6 +43,16 @@ def test_backend_assets_path_override(monkeypatch):
     assert res["ok"] is True
     assert res["asset_id"] == "override"
 
+def test_backend_assets_path_normalization(monkeypatch):
+    monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
+    monkeypatch.setenv("SYN_BACKEND_ASSETS_PATH", "custom-assets-no-slash")
+    client = _client_for(200, {"id": "normalized"}, expect_path="/custom-assets-no-slash")
+
+    res = populate_backend({"schema": "asset", "id": "abc"}, client=client, validate_first=False)
+
+    assert res["ok"] is True
+    assert res["asset_id"] == "normalized"
+
 
 def test_backend_error(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
@@ -156,3 +166,13 @@ def test_backend_validation_default_blocks_invalid(monkeypatch, tmp_path: Path):
     assert res["ok"] is False
     assert res.get("reason") == "validation_failed"
     assert called["post"] is False
+
+def test_backend_assets_path_normalization(monkeypatch):
+    monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
+    monkeypatch.setenv("SYN_BACKEND_ASSETS_PATH", "custom-assets-no-slash")
+    client = _client_for(200, {"id": "normalized"}, expect_path="/custom-assets-no-slash")
+
+    res = populate_backend({"schema": "asset", "id": "abc"}, client=client, validate_first=False)
+
+    assert res["ok"] is True
+    assert res["asset_id"] == "normalized"

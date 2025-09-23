@@ -42,6 +42,7 @@
 | 1 MiB per-request STDIO limit | Present | docs/mcp_spec.md:41; mcp/stdio_main.py:45; tests/test_stdio.py:171 |
 | `unsupported` responses use `detail` | Present | docs/mcp_spec.md:153; mcp/stdio_main.py:30; mcp/backend.py:32 |
 | Validation errors use RFC6901 ordering | Present | docs/mcp_spec.md:121; mcp/validate.py:147; tests/test_validate.py:37 |
+| `validate_asset` requires `schema` | Divergent | docs/mcp_spec.md:99; mcp/stdio_main.py:25 (passes empty string) |
 
 ## Golden Example
 | Aspect | Status | Evidence |
@@ -57,6 +58,8 @@
 | Backend payload cap | Present | mcp/backend.py:38; tests/test_backend.py:55 |
 
 ## Recommendations
-- Add regression coverage for `MCP_READY_FILE=""` to ensure ready-file suppression works (docs/mcp_spec.md:49; mcp/__main__.py:45; tests/test_stdio.py:62)
-- Test `SYN_BACKEND_ASSETS_PATH=custom-assets` to cover the leading-slash normalization branch (mcp/backend.py:17; tests/test_backend.py:36)
-- Mock `httpx.HTTPError` in populate to assert the 503 `backend_error` path (docs/mcp_spec.md:108; mcp/backend.py:60; tests/test_backend.py:47)
+- **Divergence Fix:** Modify `mcp.validate.validate_asset` to explicitly check for a non-empty `schema` string and return a `validation_failed` error if it is missing or empty.
+- **Spec Update:** Update the `docs/mcp_spec.md` to include `validation_failed` as a possible failure reason for the `get_example` method.
+- **Test Coverage:** Add regression coverage for `MCP_READY_FILE=""` to ensure ready-file suppression works (docs/mcp_spec.md:49; mcp/__main__.py:45; tests/test_stdio.py:62)
+- **Test Coverage:** Test `SYN_BACKEND_ASSETS_PATH=custom-assets` to cover the leading-slash normalization branch (mcp/backend.py:17; tests/test_backend.py:36)
+- **Test Coverage:** Mock `httpx.HTTPError` in populate to assert the 503 `backend_error` path (docs/mcp_spec.md:108; mcp/backend.py:60; tests/test_backend.py:47)
