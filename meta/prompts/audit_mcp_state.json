@@ -19,9 +19,11 @@
       "Socket mode (if present) must use Unix Domain Socket with NDJSON framing and honor MCP_SOCKET_PATH and MCP_SOCKET_MODE; multiple clients supported; per-connection response order preserved; socket file is removed on shutdown",
 
       "Payload cap: enforce 1 MiB per request at the transport layer (STDIO and Socket) for all methods; audit must verify explicit guard and a failing test",
-      "validate_asset: schema param is REQUIRED; audit must verify enforced or mark Missing",
+      "validate_asset: schema param is REQUIRED; audit must verify enforcement at method boundary; mark Divergent if empty string is passed through instead of immediate validation_failed",
       "Alias: method name \"validate\" MUST be accepted as an alias to \"validate_asset\" (deprecated); mark Missing if alias is not supported",
       "Optional batching: if validate_many is implemented, shape must match spec and respect payload cap and MCP_MAX_BATCH; if not implemented, mark as Optional (do not fail)",
+
+      "get_example must support returning validation_failed when the embedded example does not validate; mark Missing if not implemented",
 
       "Schema resolution: no remote fetch is allowed; $ref resolution MUST be local to configured schema roots; path traversal (..) MUST be rejected",
       "Determinism: sorting rules for listings, error ordering, and diff ordering MUST be implemented and tested",
@@ -92,7 +94,7 @@
     "Spec features mapped to Present / Missing / Divergent in table form",
     "STDIO entrypoint behavior explicitly verified (NDJSON framing, ready file, signal handling, shutdown semantics, stdout vs stderr separation)",
     "Socket server (if present) explicitly verified (UDS path env, perms, multi-client handling, per-connection ordering, unlink on shutdown, readiness/shutdown logs)",
-    "Golden request/response examples verified with evidence from docs and tests for at least: list_schemas, get_schema, validate_asset (and validate alias), diff_assets; include one malformed-frame JSON-RPC error example",
+    "Golden request/response examples verified with evidence from docs and tests for at least: list_schemas, get_schema, validate_asset (and validate alias), get_example (success + validation_failed), diff_assets; include one malformed-frame JSON-RPC error example",
     "Payload size guard behavior verified with explicit failing test cases for STDIO (and Socket if present)",
     "Validation contract verified including required schema param, alias mapping (validate → validate_asset), error ordering, and validate_asset implementation status (Missing if unsupported)",
     "Optional batching (if implemented) verified: request/response shape, payload cap enforcement, MCP_MAX_BATCH honored",

@@ -81,10 +81,13 @@ All tools return deterministic JSON result objects (inside JSON-RPC `result`).
 * `get_example(path)`
   → `{ "ok": true, "example": object, "schema": string, "validated": bool }`
   → `{ "ok": false, "reason": "not_found" }`
+  → `{ "ok": false, "reason": "validation_failed", "errors": [...] }`
   *`validated` = validated at call time against the returned `schema`.*
 
 * `validate_asset(asset, schema)` **(schema REQUIRED)**
   → `{ "ok": bool, "errors"?: [{ "path": string, "msg": string }], "reason"?: "validation_failed" }`
+
+  * If `schema` param is missing or empty, the server MUST immediately return `validation_failed` with an explicit error.\*
 
   **Alias for compatibility:** method name `"validate"` MUST be accepted as an alias for `"validate_asset"` and treated identically. `"validate"` is **deprecated** and MAY be removed in ≥ v0.3 after a deprecation window.
 
