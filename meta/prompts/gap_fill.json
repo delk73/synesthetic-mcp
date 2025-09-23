@@ -1,35 +1,26 @@
 {
-  "task": "Implement validate_asset in MCP",
-  "objective": "Add full validate_asset support so synesthetic-mcp matches docs/mcp_spec.md v0.2.3 and responds correctly to Labs Critic calls.",
-  "gaps": [
-    {
-      "id": "validate_asset_missing",
-      "description": "MCP responds with {\"ok\":false, \"reason\":\"unsupported\"} because validate_asset is not implemented.",
-      "changes": [
-        "In mcp/validate.py, implement validate_asset(asset, schema) using jsonschema Draft 2020-12",
-        "Explicitly check schema param; if missing or empty, return {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[{\"path\":\"\",\"msg\":\"schema_required\"}]}",
-        "Return {\"ok\":true} when validation passes",
-        "Return {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[...]} when validation fails; errors sorted by path then msg",
-        "In mcp/stdio_main.py, register validate_asset in the JSON-RPC dispatcher so it no longer falls through to unsupported",
-        "Add regression tests in tests/test_validate.py to cover: valid asset, invalid asset, missing schema param",
-        "Update docs/mcp_spec.md if needed to confirm response shape and error reasons are spec-compliant"
-      ]
-    }
-  ],
+  "task": "Patch validate_asset schema enforcement",
+  "objective": "Ensure validate_asset fails if schema param is missing or empty, per MCP Spec v0.2.4",
   "constraints": {
-    "style": "deterministic, concise diffs",
+    "style": "minimal, deterministic",
+    "files": ["mcp/stdio_main.py", "tests/test_stdio.py"],
     "rules": [
-      "No new dependencies",
-      "Tests must pass",
-      "Align code, tests, and docs with spec v0.2.3"
+      "Do not introduce new dependencies",
+      "Do not change unrelated code",
+      "Return JSON-RPC style error object when schema param missing"
     ]
   },
-  "exit_criteria": [
-    "validate_asset implemented in mcp/validate.py and exposed via STDIO",
-    "Valid assets return {\"ok\":true}",
-    "Invalid assets return {\"ok\":false, \"reason\":\"validation_failed\"} with sorted RFC6901 errors",
-    "Missing schema param returns {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[{\"path\":\"\",\"msg\":\"schema_required\"}]}",
-    "Tests in tests/test_validate.py cover all three paths",
-    "All tests pass after changes"
+  "edits": [
+    {
+      "file": "mcp/stdio_main.py",
+      "pattern": "if method in \\(\"validate\", \"validate_asset\"\\):([\\s\\S]*?)return validate_asset\\(asset, schema\\)",
+      "replacement": "if method in (\"validate\", \"validate_asset\"):\n        asset = params.get(\"asset\", {})\n        if \"schema\" not in params or not params[\"schema\"]:\n            return {\n                \"ok\": False,\n                \"reason\": \"validation_failed\",\n                \"errors\": [{\"path\": \"/schema\", \"msg\": \"schema param is required\"}]\n            }\n        schema = params[\"schema\"]\n        return validate_asset(asset, schema)"
+    },
+    {
+      "file": "tests/test_stdio.py",
+      "pattern": "(def test_validate_asset_.*)",
+      "multiple": false,
+      "replacement": "def test_validate_asset_requires_schema(tmp_path):\n    from subprocess import Popen, PIPE\n    import json, sys\n\n    proc = Popen([sys.executable, \"-m\", \"mcp\"], stdin=PIPE, stdout=PIPE, text=True)\n    req = {\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"validate_asset\", \"params\": {\"asset\": {}}}\n    stdout, _ = proc.communicate(json.dumps(req) + \"\\n\", timeout=5)\n    resp = json.loads(stdout.strip())\n    assert resp[\"result\"][\"ok\"] is False\n    assert resp[\"result\"][\"reason\"] == \"validation_failed\"\n    assert any(err[\"msg\"] == \"schema param is required\" for err in resp[\"result\"][\"errors\"])"
+    }
   ]
 }

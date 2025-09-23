@@ -19,8 +19,16 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return list_examples(params.get("component"))
     if method == "get_example":
         return get_example(params.get("path", ""))
-    if method == "validate" or method == "validate_asset":
-        return validate_asset(params.get("asset", {}), params.get("schema", ""))    
+    if method in ("validate", "validate_asset"):
+        asset = params.get("asset", {})
+        if "schema" not in params or not params["schema"]:
+            return {
+                "ok": False,
+                "reason": "validation_failed",
+                "errors": [{"path": "/schema", "msg": "schema param is required"}]
+            }
+        schema = params["schema"]
+        return validate_asset(asset, schema)    
     if method == "diff_assets":
         return diff_assets(params.get("base", {}), params.get("new", {}))
     if method == "populate_backend":

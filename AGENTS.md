@@ -2,11 +2,12 @@
 
 ## Repo Summary
 - **STDIO Transport:** The implementation provides a compliant STDIO JSON-RPC 2.0 transport with NDJSON framing, a 1 MiB payload guard, and correct separation of stdout (frames) and stderr (logs).
-- **Validation:** The `validate_asset` method (and its `validate` alias) correctly performs schema validation against local schemas. A minor divergence exists where a missing `schema` parameter is handled deeper in the logic rather than at the transport layer.
+- **Validation:** The `validate_asset` method (and its `validate` alias) correctly performs schema validation against local schemas. The `schema` parameter is now correctly enforced as required.
 - **Schema Discovery:** Schema and example discovery from environment variables and the `libs/synesthetic-schemas` submodule is correctly implemented and tested.
 - **Backend Population:** The `populate_backend` tool is implemented correctly, respecting the `SYN_BACKEND_URL` environment variable to enable/disable the feature.
 - **Test Coverage:** The repository has good test coverage for all implemented features, including transport, validation, backend interaction, and discovery.
 - **Missing Features:** The optional `socket` transport and `validate_many` batch validation are not implemented.
+- **Divergences:** `get_example` does not return a `validation_failed` error for invalid examples.
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
@@ -39,11 +40,11 @@
 | STDIO NDJSON framing & sequential handling | Present | `mcp/stdio_main.py` |
 | Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py`, `tests/test_stdio.py` |
 | 1 MiB per-request STDIO limit | Present | `mcp/stdio_main.py`, `tests/test_stdio.py` |
-| `validate_asset` requires `schema` | Divergent | `mcp/stdio_main.py:25` passes an empty string if missing. |
+| `validate_asset` requires `schema` | Present | `mcp/stdio_main.py:25` |
 | Socket Transport | Missing | Not implemented (optional feature). |
 | `validate_many` | Missing | Not implemented (optional feature). |
+| `get_example` validation failure | Divergent | `mcp/core.py:115` |
 
 ## Recommendations
-- **Fix `validate_asset` Divergence:** Modify `mcp.stdio_main` to return a `validation_failed` error if the `schema` parameter is missing in a `validate_asset` call.
-- **Update Spec:** Add `validation_failed` as a possible reason for failure in the `get_example` method in `docs/mcp_spec.md`.
+- **Fix `get_example` Divergence:** Modify `mcp.core` to return a `validation_failed` error if an example on disk is invalid.
 - **Consider Optional Features:** Plan for the implementation of the `socket` transport and `validate_many` if they are desired for future use cases.

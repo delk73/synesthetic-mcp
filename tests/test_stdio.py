@@ -14,7 +14,20 @@ import pytest
 from mcp.validate import MAX_BYTES
 
 
+def test_validate_asset_requires_schema(tmp_path):
+    from subprocess import Popen, PIPE
+    import json, sys
+
+    proc = Popen([sys.executable, "-m", "mcp"], stdin=PIPE, stdout=PIPE, text=True)
+    req = {"jsonrpc": "2.0", "id": 1, "method": "validate_asset", "params": {"asset": {}}}
+    stdout, _ = proc.communicate(json.dumps(req) + "\n", timeout=5)
+    resp = json.loads(stdout.strip())
+    assert resp["result"]["ok"] is False
+    assert resp["result"]["reason"] == "validation_failed"
+    assert any(err["msg"] == "schema param is required" for err in resp["result"]["errors"])
+
 def test_stdio_loop_smoke(monkeypatch):
+
     # Prepare a single JSON-RPC request line for list_schemas
     request: Dict[str, Any] = {"id": 1, "method": "list_schemas", "params": {}}
     stdin = io.StringIO(json.dumps(request) + "\n")
