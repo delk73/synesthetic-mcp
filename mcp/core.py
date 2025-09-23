@@ -118,7 +118,8 @@ def get_example(path: str) -> Dict[str, Any]:
         from .validate import validate_asset
 
         res = validate_asset(data, schema_name)
-        validated = bool(res.get("ok", False))
-    except Exception:
-        validated = False
-    return {"ok": True, "example": data, "schema": schema_name, "validated": validated}
+        if not res.get("ok", False):
+            return res
+    except Exception as e:
+        return {"ok": False, "reason": "validation_failed", "errors": [{"path": "/", "msg": str(e)}]}
+    return {"ok": True, "example": data, "schema": schema_name, "validated": True}

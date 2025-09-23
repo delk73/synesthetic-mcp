@@ -29,9 +29,18 @@ def test_get_schema_and_validate_valid():
     assert res["errors"] == []
 
 
-def test_get_example_not_found(tmp_path):
-    res = get_example("no-such-example.json")
-    assert res == {"ok": False, "reason": "not_found"}
+def test_get_example_invalid_returns_error(tmp_path, monkeypatch):
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+    invalid_example_path = examples_dir / "invalid_example.json"
+    invalid_example_path.write_text(json.dumps({"schema": "synesthetic-asset", "name": "", "extra": True}))
+
+    monkeypatch.setenv("SYN_EXAMPLES_DIR", str(examples_dir))
+
+    res = get_example("invalid_example.json")
+
+    assert res["ok"] is False
+    assert res["reason"] == "validation_failed"
 
 
 def test_validate_invalid_sorted_errors():

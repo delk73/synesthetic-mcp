@@ -1,26 +1,26 @@
 {
-  "task": "Patch validate_asset schema enforcement",
-  "objective": "Ensure validate_asset fails if schema param is missing or empty, per MCP Spec v0.2.4",
+  "task": "Patch get_example validation_failed handling",
+  "objective": "Ensure get_example returns a validation_failed error instead of validated=false when an example is invalid",
   "constraints": {
     "style": "minimal, deterministic",
-    "files": ["mcp/stdio_main.py", "tests/test_stdio.py"],
+    "files": ["mcp/core.py", "tests/test_validate.py"],
     "rules": [
-      "Do not introduce new dependencies",
-      "Do not change unrelated code",
-      "Return JSON-RPC style error object when schema param missing"
+      "Do not add new dependencies",
+      "Keep deterministic error format consistent with validate_asset",
+      "Update tests to assert validation_failed for invalid examples"
     ]
   },
   "edits": [
     {
-      "file": "mcp/stdio_main.py",
-      "pattern": "if method in \\(\"validate\", \"validate_asset\"\\):([\\s\\S]*?)return validate_asset\\(asset, schema\\)",
-      "replacement": "if method in (\"validate\", \"validate_asset\"):\n        asset = params.get(\"asset\", {})\n        if \"schema\" not in params or not params[\"schema\"]:\n            return {\n                \"ok\": False,\n                \"reason\": \"validation_failed\",\n                \"errors\": [{\"path\": \"/schema\", \"msg\": \"schema param is required\"}]\n            }\n        schema = params[\"schema\"]\n        return validate_asset(asset, schema)"
+      "file": "mcp/core.py",
+      "pattern": "return {\\s*\"ok\": true,\\s*\"example\": example,\\s*\"schema\": schema_name,\\s*\"validated\": False\\s*}",
+      "replacement": "return {\n        \"ok\": False,\n        \"reason\": \"validation_failed\",\n        \"errors\": [{\"path\": \"\", \"msg\": \"example does not validate against schema\"}]\n    }"
     },
     {
-      "file": "tests/test_stdio.py",
-      "pattern": "(def test_validate_asset_.*)",
+      "file": "tests/test_validate.py",
+      "pattern": "(def test_get_example_.*)",
       "multiple": false,
-      "replacement": "def test_validate_asset_requires_schema(tmp_path):\n    from subprocess import Popen, PIPE\n    import json, sys\n\n    proc = Popen([sys.executable, \"-m\", \"mcp\"], stdin=PIPE, stdout=PIPE, text=True)\n    req = {\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"validate_asset\", \"params\": {\"asset\": {}}}\n    stdout, _ = proc.communicate(json.dumps(req) + \"\\n\", timeout=5)\n    resp = json.loads(stdout.strip())\n    assert resp[\"result\"][\"ok\"] is False\n    assert resp[\"result\"][\"reason\"] == \"validation_failed\"\n    assert any(err[\"msg\"] == \"schema param is required\" for err in resp[\"result\"][\"errors\"])"
+      "replacement": "def test_get_example_invalid_returns_error(tmp_path):\n    from subprocess import Popen, PIPE\n    import json, sys\n\n    proc = Popen([sys.executable, \"-m\", \"mcp\"], stdin=PIPE, stdout=PIPE, text=True)\n    req = {\"jsonrpc\": \"2.0\", \"id\": 1, \"method\": \"get_example\", \"params\": {\"path\": \"nonexistent_or_invalid.json\"}}\n    stdout, _ = proc.communicate(json.dumps(req) + \"\\n\", timeout=5)\n    resp = json.loads(stdout.strip())\n    assert resp[\"result\"][\"ok\"] is False\n    assert resp[\"result\"][\"reason\"] == \"validation_failed\"\n    assert any(\"example\" in err[\"msg\"] or \"schema\" in err[\"msg\"] for err in resp[\"result\"][\"errors\"])"
     }
   ]
 }
