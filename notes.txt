@@ -1,0 +1,10 @@
+
+
+
+#RM
+docker ps -a --filter "name=synesthetic-mcp-serve" -q | xargs -r docker rm -f
+
+
+
+#BUILD
+docker compose build serve

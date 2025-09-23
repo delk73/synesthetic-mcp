@@ -103,7 +103,14 @@ def _build_local_registry():
 
 
 
-def validate_asset(asset: Dict[str, Any], schema: str) -> Dict[str, Any]:
+def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
+    if not schema:
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "", "msg": "schema_required"}],
+        }
+
     if not _size_okay(asset):
         return {
             "ok": False,

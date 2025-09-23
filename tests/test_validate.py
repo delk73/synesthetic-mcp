@@ -54,15 +54,14 @@ def test_validate_payload_limit():
     assert any(e.get("msg") == "payload_too_large" for e in res.get("errors", []))
 
 
-def test_validate_asset_missing_schema():
-    """Regression: validate_asset must fail with reason=validation_failed if schema is missing/blank."""
-    # Minimal payload with no schema reference
+def test_validate_asset_empty_schema():
+    """Regression: validate_asset must fail with reason=validation_failed if schema is empty."""
     asset = {"type": "synesthetic-asset", "id": "dummy"}
 
-    result = validate_asset(asset, schema=None)
+    result = validate_asset(asset, schema="")
 
     assert result["ok"] is False
     assert result["reason"] == "validation_failed"
-    # Must surface at least one error
     assert isinstance(result.get("errors"), list)
-    assert any("schema" in err["msg"] or "schema" in err["path"] for err in result["errors"])
+    assert result["errors"] == [{"path": "", "msg": "schema_required"}]
+

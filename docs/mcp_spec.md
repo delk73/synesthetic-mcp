@@ -1,4 +1,4 @@
-# MCP Spec (Python v0.2.3)
+# MCP Spec (Python **v0.2.4**)
 
 **Keywords:** **MUST**, **MUST NOT**, **SHOULD**, **MAY** follow RFC 2119.
 
@@ -10,7 +10,10 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 
 * **Resources:** served from disk, overridable via environment variables.
 * **Tools:** Validation (JSON Schema Draft 2020-12), Diff (RFC 6902: `add`,`remove`,`replace`), Backend populate.
-* **Transport:** All tools are available over **STDIO** using **JSON-RPC 2.0**.
+* **Transport:**
+
+  * Ephemeral: **STDIO** over **JSON-RPC 2.0** (default).
+  * Persistent: **Socket** (Unix Domain Socket) over JSON-RPC 2.0.
 * **Guards:** Assets MUST be validated before persistence. Schemas MUST NOT be mutated.
 
 ---
@@ -18,69 +21,52 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 ## 2. Boundaries
 
 * **Stateless.** The adapter does not persist data. All resources are read from the filesystem.
-
 * **Schema sources (priority order):**
 
   1. `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`
   2. Submodule: `libs/synesthetic-schemas/jsonschema`, `libs/synesthetic-schemas/examples`
   3. If neither exists: listings are empty; `get_*` return not-found
-
-  No fixture fallback. The submodule is SSOT when env overrides are not provided.
-
+     No fixture fallback. The submodule is SSOT when env overrides are not provided.
 * **Refresh:** Files are read on process start only. No polling.
-
 * **Backend:** Enabled only if `SYN_BACKEND_URL` is set. HTTP client timeout 5 s. No retries. `SYN_BACKEND_ASSETS_PATH` MAY override POST path.
 
 ---
 
-## 3. Transport & Framing (STDIO)
+## 3. Transport & Framing
 
-* **Protocol:** JSON-RPC 2.0 messages. Every request/response MUST include `"jsonrpc": "2.0"`.
+### 3.1 STDIO (ephemeral default)
+
+* **Protocol:** JSON-RPC 2.0 messages over stdin/stdout.
 * **Framing:** **NDJSON** (one UTF-8 JSON object per line, `\n` delimiter).
-* **Batch:** Not supported. Exactly one request per line.
-* **Size guard:** Requests exceeding **1 MiB** (UTF-8 bytes) MUST be rejected pre-parse with `{ "ok": false, "reason": "validation_failed", "errors": [{ "path": "", "msg": "payload_too_large" }] }`.
+* **Batch:** Not supported at the framing layer. Exactly one request per line.
+* **Size guard:** Requests exceeding **1 MiB** (UTF-8 bytes) MUST be rejected pre-parse with:
+  `{ "ok": false, "reason": "validation_failed", "errors": [{ "path": "", "msg": "payload_too_large" }] }`
 * **IDs:** `id` MUST be string or number; server echoes unchanged.
-* **Logging hygiene:**
-
-  * **stdout:** JSON-RPC frames only.
-  * **stderr:** all logs, diagnostics, tracebacks.
+* **Logging hygiene:** **stdout** = JSON-RPC frames only; **stderr** = logs/diagnostics/tracebacks.
 * **Concurrency:** Requests are queued and processed sequentially. Responses are emitted in request order.
-* **Readiness:**
+* **Readiness:** On entering the RPC loop, write `MCP_READY_FILE` (default `/tmp/mcp.ready`) containing `<pid> <ISO8601 timestamp>\n`. Remove on graceful shutdown; best-effort remove on fatal error.
+* **Shutdown:** On SIGINT/SIGTERM, finish any in-flight request before exit.
+* **Note:** STDIO is **ephemeral**. If stdin closes, the process MUST exit. It MUST NOT be treated as a daemon.
 
-  * On entering the RPC loop (post-discovery), create `MCP_READY_FILE` (default `/tmp/mcp.ready`).
-  * File content: `<pid> <ISO8601 timestamp>\n`.
-  * Remove on graceful shutdown; best-effort remove on fatal error.
-* **Shutdown:** On SIGINT/SIGTERM, the server MUST finish any in-flight request before exiting.
+### 3.2 Socket (persistent service)
 
-### Request/Response Example
+* **Protocol:** JSON-RPC 2.0 over **Unix Domain Socket (UDS)** with the same NDJSON framing as STDIO.
+* **Endpoint selection:** `MCP_ENDPOINT=socket` enables socket mode.
+* **Socket path:** `MCP_SOCKET_PATH` (default `/tmp/mcp.sock`).
+* **Lifecycle:** On startup, bind the socket and log `mcp:ready mode=socket path=<path>` to stderr. On shutdown, stop accepting, complete in-flight work, unlink the socket.
+* **Clients:** Multiple concurrent client connections MUST be supported. Frame order MUST be preserved **per connection**.
+* **Permissions:** Server MUST create the socket with `0600` (owner-only) unless `MCP_SOCKET_MODE` is explicitly set.
 
-Each JSON-RPC message is one UTF-8 line terminated with `\n`.
+### 3.3 Roadmap
 
-**Request (client → server):**
-
-```json
-{"jsonrpc":"2.0","id":1,"method":"list_schemas","params":{}}
-```
-
-**Response (server → client):**
-
-```json
-{"jsonrpc":"2.0","id":1,"result":{"ok":true,"schemas":[{"name":"synesthetic-asset","version":"0.7.0","path":"libs/synesthetic-schemas/jsonschema/synesthetic-asset.json"}]}}
-```
-
-Rules illustrated:
-
-* `"jsonrpc": "2.0"` always present.
-* `"id"` echoed unchanged.
-* `"method"` maps directly to tool (`list_schemas`).
-* Response wraps tool output in `"result"`.
-* One line per frame, no pretty-printing or extra whitespace.
+* **HTTP** MAY be added for cross-platform client ease.
+* **gRPC** MAY be added later for typed schemas, streaming, and polyglot interop.
 
 ---
 
 ## 4. IO Contracts
 
-All tools MUST return deterministic JSON result objects over STDIO.
+All tools return deterministic JSON result objects (inside JSON-RPC `result`).
 
 * `list_schemas()`
   → `{ "ok": true, "schemas": [{ "name": string, "version": string, "path": string }] }`
@@ -100,6 +86,12 @@ All tools MUST return deterministic JSON result objects over STDIO.
 * `validate_asset(asset, schema)` **(schema REQUIRED)**
   → `{ "ok": bool, "errors"?: [{ "path": string, "msg": string }], "reason"?: "validation_failed" }`
 
+  **Alias for compatibility:** method name `"validate"` MUST be accepted as an alias for `"validate_asset"` and treated identically. `"validate"` is **deprecated** and MAY be removed in ≥ v0.3 after a deprecation window.
+
+* `validate_many(assets[], schema)` **(Optional)**
+  → `{ "ok": true, "results": [ { "ok": bool, "errors"?: [...] }, ... ] }`
+  **Guards:** Total encoded request size MUST respect the 1 MiB limit. Servers MAY enforce `MCP_MAX_BATCH` (default 100).
+
 * `diff_assets(base, new)`
   → `{ "ok": true, "patch": [{ "op": "add"|"remove"|"replace", "path": string, "value"?: any }] }`
 
@@ -116,13 +108,10 @@ All tools MUST return deterministic JSON result objects over STDIO.
 
   * `list_schemas` by `name`, then `version`, then `path`
   * `list_examples` by `component`, then `path`
-
 * **Validation errors:**
 
-  * Paths MUST be absolute RFC 6901 JSON Pointers.
-  * Use `/` as separator on all platforms.
+  * Paths MUST be absolute RFC 6901 JSON Pointers (`/` separator on all platforms).
   * Sort by `path`, then `msg`.
-
 * **Diff:**
 
   * Allowed ops: `add`, `remove`, `replace`.
@@ -141,25 +130,21 @@ All tools MUST return deterministic JSON result objects over STDIO.
   { "ok": false, "reason": "validation_failed",
     "errors": [{ "path": "/shader/uniforms/0", "msg": "expected number" }] }
   ```
-
 * **Backend error**
 
   ```json
   { "ok": false, "reason": "backend_error", "status": 500, "detail": "internal error" }
   ```
-
 * **Unsupported**
 
   ```json
   { "ok": false, "reason": "unsupported", "detail": "tool not implemented" }
   ```
-
 * **Network error**
 
   ```json
   { "ok": false, "reason": "backend_error", "status": 503, "detail": "network_unreachable" }
   ```
-
 * **Payload too large**
 
   ```json
@@ -171,13 +156,17 @@ All tools MUST return deterministic JSON result objects over STDIO.
 
 ## 7. Environment Variables
 
-| Variable                  | Default                | Use              | Meaning                                                     |
-| ------------------------- | ---------------------- | ---------------- | ----------------------------------------------------------- |
-| `MCP_READY_FILE`          | `/tmp/mcp.ready`       | startup          | Created when ready, removed on shutdown.                    |
-| `SYN_SCHEMAS_DIR`         | —                      | schema discovery | Overrides schema directory (required if submodule missing). |
-| `SYN_EXAMPLES_DIR`        | —                      | schema discovery | Overrides examples directory.                               |
-| `SYN_BACKEND_URL`         | —                      | backend          | Enables populate. If unset, backend is disabled.            |
-| `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | backend          | Override path for backend POST.                             |
+| Variable                  | Default                | Use              | Meaning                                                               |
+| ------------------------- | ---------------------- | ---------------- | --------------------------------------------------------------------- |
+| `MCP_ENDPOINT`            | `stdio`                | transport        | `stdio` (ephemeral) or `socket` (persistent).                         |
+| `MCP_READY_FILE`          | `/tmp/mcp.ready`       | startup          | Created when ready; removed on shutdown.                              |
+| `MCP_SOCKET_PATH`         | `/tmp/mcp.sock`        | socket           | UDS path when `MCP_ENDPOINT=socket`.                                  |
+| `MCP_SOCKET_MODE`         | `0600`                 | socket           | Octal file mode for the socket; widen only if you truly need sharing. |
+| `MCP_MAX_BATCH`           | `100`                  | batching         | Server-side cap for `validate_many`.                                  |
+| `SYN_SCHEMAS_DIR`         | —                      | schema discovery | Overrides schema directory (required if submodule missing).           |
+| `SYN_EXAMPLES_DIR`        | —                      | schema discovery | Overrides examples directory.                                         |
+| `SYN_BACKEND_URL`         | —                      | backend          | Enables populate. If unset, backend is disabled.                      |
+| `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | backend          | Override path for backend POST.                                       |
 
 ---
 
@@ -190,13 +179,14 @@ All tools MUST return deterministic JSON result objects over STDIO.
 * **Python:** ≥ 3.11
 * **Validation:** Draft 2020-12. If `$id` missing, base URI derived from file path.
 * **Backend:** `httpx` 5 s timeout, no retries.
-* **Limits:** 1 MiB per request (UTF-8 bytes of JSON line).
+* **Limits:** 1 MiB per request (encoded JSON).
 
 ---
 
-## 9. Aliases and Examples
+## 9. Aliases & Compatibility
 
-* **Alias:** `nested-synesthetic-asset` MUST validate against canonical `synesthetic-asset`.
+* **Method alias:** `"validate"` **MUST** be accepted as an alias for `"validate_asset"` (deprecated; remove ≥ v0.3).
+* **Schema aliasing:** `nested-synesthetic-asset` MUST validate against canonical `synesthetic-asset`.
 * Submodule examples MUST validate as nested assets.
 * During alias validation, ignore top-level `$schemaRef` (do not resolve it).
 
@@ -207,22 +197,49 @@ All tools MUST return deterministic JSON result objects over STDIO.
 * **Validation CLI:**
 
   * `python -m mcp --validate <path>` emits JSON result.
-  * Exit codes: 0 success, 1 validation failed, 2 IO/parse error.
+  * Exit codes: `0` success, `1` validation failed, `2` IO/parse error.
 
-* **STDIO server:**
+* **STDIO server (default):**
 
   * Blocking JSON-RPC loop over stdin/stdout (NDJSON).
-  * Logs `mcp:ready mode=stdio` on readiness (stderr).
+  * Logs `mcp:ready mode=stdio`.
   * Creates `MCP_READY_FILE` on startup; removes on exit.
-  * On SIGINT/SIGTERM, MUST complete in-flight request then exit.
+  * Ephemeral: exits when stdin closes.
+
+* **Socket server (persistent):**
+
+  * `MCP_ENDPOINT=socket` enables UDS server.
+  * Listens on `MCP_SOCKET_PATH`.
+  * Logs `mcp:ready mode=socket path=<path>`.
+  * Persistent: container remains alive until explicitly stopped.
 
 ---
 
-## 11. Exit Criteria
+## 11. Security & Offline Guarantees
+
+* **No network fetch for schemas.** `$ref` resolution MUST be local to the configured schema roots; remote retrieval is **forbidden**.
+* **Path safety.** Reject path traversal (`..`) when serving files by path; only allow within configured roots.
+* **Socket perms.** Default `0600`. If widened, that’s on the operator; the server will not auto-widen.
+* **Least privilege.** Running as non-root is **RECOMMENDED** in container images.
+
+---
+
+## 12. Observability
+
+* **Startup:** Log a single line to **stderr** on readiness:
+
+  * `mcp:ready mode=stdio` **or** `mcp:ready mode=socket path=<path> schemas_dir=<dir>`
+* **Shutdown:** Log `mcp:shutdown mode=<mode>` on graceful exit.
+* **No chatter on stdout.** Only JSON-RPC frames go to stdout (or the socket).
+* **Deterministic logs.** Timestamps MUST be ISO-8601 UTC.
+
+---
+
+## 13. Exit Criteria
 
 * `pip install -r requirements.txt && pip install -e .` succeeds.
 * `python -c "import mcp; print(mcp.__version__)"` works.
 * `pytest -q` passes.
 * Listings and validation errors deterministic.
-* Tools respond consistently over STDIO.
+* Tools respond consistently over **STDIO** and **Socket** modes.
 * Implementation, docs, and tests match this spec exactly.

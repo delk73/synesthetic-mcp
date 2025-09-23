@@ -19,8 +19,8 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return list_examples(params.get("component"))
     if method == "get_example":
         return get_example(params.get("path", ""))
-    if method == "validate_asset":
-        return validate_asset(params.get("asset", {}), params.get("schema", ""))
+    if method == "validate" or method == "validate_asset":
+        return validate_asset(params.get("asset", {}), params.get("schema", ""))    
     if method == "diff_assets":
         return diff_assets(params.get("base", {}), params.get("new", {}))
     if method == "populate_backend":

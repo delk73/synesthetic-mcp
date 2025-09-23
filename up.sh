@@ -6,6 +6,7 @@ SERVICE=serve
 echo "🚀 Building image for '$SERVICE'..."
 docker compose build "$SERVICE"
 
-echo "🚀 Running '$SERVICE' (foreground)..."
-# Run interactively so you can see logs, and container exits cleanly
-docker compose run --rm "$SERVICE"
+echo "🚀 Starting '$SERVICE' (detached)..."
+docker compose up -d "$SERVICE"
+
+echo "✅ MCP is running in background. Use 'docker compose logs -f serve' to tail logs."
