@@ -16,7 +16,7 @@
       "MCP must implement STDIO JSON-RPC only; any HTTP/TCP listener is a non-compliant divergence",
       "Audit must verify the 1 MiB per-request payload cap is enforced at the STDIO transport layer across all methods",
       "Audit must verify validate_asset rejects missing schema param per spec",
-      "Audit must verify validate_asset method is implemented and callable (no unsupported response allowed)",
+      "Audit must verify validate_asset method is implemented and callable (no unsupported response allowed); if unsupported, mark as Missing",
       "Audit must verify stdout carries JSON-RPC frames only and all logs/diagnostics go to stderr",
       "Audit is incomplete unless both output files are created or overwritten with non-empty content"
     ],
@@ -74,7 +74,7 @@
     "STDIO entrypoint behavior explicitly verified (framing, ready file, shutdown semantics)",
     "Golden request/response example verified with evidence from docs and tests",
     "Payload size guard behavior verified with explicit failing test case",
-    "Validation contract verified including required schema param, alias mapping, error ordering, and validate_asset implementation status",
+    "Validation contract verified including required schema param, alias mapping, error ordering, and validate_asset implementation status (Missing if currently unsupported)",
     "Logging hygiene verified (stdout only frames, stderr for logs)",
     "Test coverage summarized in a table with evidence",
     "Dependencies mapped to imports in a table with evidence",

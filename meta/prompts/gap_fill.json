@@ -7,11 +7,12 @@
       "description": "MCP responds with {\"ok\":false, \"reason\":\"unsupported\"} because validate_asset is not implemented.",
       "changes": [
         "In mcp/validate.py, implement validate_asset(asset, schema) using jsonschema Draft 2020-12",
-        "Return {\"ok\": true} when validation passes",
-        "Return {\"ok\": false, \"reason\":\"validation_failed\", \"errors\":[{ \"path\": <RFC6901>, \"msg\": <string> }]} when validation fails",
-        "In mcp/stdio_main.py, register validate_asset as a JSON-RPC method",
-        "Add regression tests in tests/test_validate.py to cover: valid asset, invalid asset (wrong type), missing schema param",
-        "Update docs/mcp_spec.md if needed to confirm response shape is exactly spec-compliant"
+        "Explicitly check schema param; if missing or empty, return {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[{\"path\":\"\",\"msg\":\"schema_required\"}]}",
+        "Return {\"ok\":true} when validation passes",
+        "Return {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[...]} when validation fails; errors sorted by path then msg",
+        "In mcp/stdio_main.py, register validate_asset in the JSON-RPC dispatcher so it no longer falls through to unsupported",
+        "Add regression tests in tests/test_validate.py to cover: valid asset, invalid asset, missing schema param",
+        "Update docs/mcp_spec.md if needed to confirm response shape and error reasons are spec-compliant"
       ]
     }
   ],
