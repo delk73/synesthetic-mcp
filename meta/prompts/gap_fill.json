@@ -1,40 +1,17 @@
 {
-  "task": "Fill MCP spec compliance gaps",
-  "objective": "Update implementation and tests so synesthetic-mcp matches docs/mcp_spec.md v0.2.3. Address all gaps flagged in the latest audit.",
+  "task": "Implement validate_asset in MCP",
+  "objective": "Add full validate_asset support so synesthetic-mcp matches docs/mcp_spec.md v0.2.3 and responds correctly to Labs Critic calls.",
   "gaps": [
     {
-      "id": "stdio_payload_guard",
-      "description": "No pre-parse 1 MiB guard on STDIO transport.",
+      "id": "validate_asset_missing",
+      "description": "MCP responds with {\"ok\":false, \"reason\":\"unsupported\"} because validate_asset is not implemented.",
       "changes": [
-        "In mcp/stdio_main.py, reject any incoming line >1 MiB before JSON parsing",
-        "Return {\"ok\": false, \"reason\": \"validation_failed\", \"errors\":[{\"path\":\"\",\"msg\":\"payload_too_large\"}]}",
-        "Add regression test in tests/test_stdio.py with oversized payload"
-      ]
-    },
-    {
-      "id": "unsupported_detail",
-      "description": "Unsupported responses return 'msg' instead of spec 'detail'.",
-      "changes": [
-        "In mcp/stdio_main.py and mcp/backend.py, replace 'msg' with 'detail' in reason:'unsupported' payloads",
-        "Update tests/test_backend.py and tests/test_stdio.py assertions"
-      ]
-    },
-    {
-      "id": "schema_suffix",
-      "description": "Schema listings expose '.schema.json' paths diverging from spec sample.",
-      "changes": [
-        "Decide whether to strip '.schema.json' suffix in mcp/core.py or update docs to match current output",
-        "Whichever path chosen, update tests/test_submodule_integration.py to assert deterministic format"
-      ]
-    },
-    {
-      "id": "http_adapter",
-      "description": "FastAPI HTTP transport remains available despite STDIO-only spec.",
-      "changes": [
-        "Remove or hard-disable mcp/http_main.py entrypoint",
-        "Delete or fence tests/test_http.py",
-        "Update README.md to remove uvicorn/HTTP references",
-        "Ensure docker-compose.yml does not expose MCP_PORT"
+        "In mcp/validate.py, implement validate_asset(asset, schema) using jsonschema Draft 2020-12",
+        "Return {\"ok\": true} when validation passes",
+        "Return {\"ok\": false, \"reason\":\"validation_failed\", \"errors\":[{ \"path\": <RFC6901>, \"msg\": <string> }]} when validation fails",
+        "In mcp/stdio_main.py, register validate_asset as a JSON-RPC method",
+        "Add regression tests in tests/test_validate.py to cover: valid asset, invalid asset (wrong type), missing schema param",
+        "Update docs/mcp_spec.md if needed to confirm response shape is exactly spec-compliant"
       ]
     }
   ],
@@ -47,10 +24,11 @@
     ]
   },
   "exit_criteria": [
-    "STDIO loop rejects >1 MiB input lines with payload_too_large error",
-    "Unsupported responses use 'detail' field",
-    "Schema path format aligned (implementation and docs/tests consistent)",
-    "HTTP adapter removed/fenced and docs/compose cleaned",
+    "validate_asset implemented in mcp/validate.py and exposed via STDIO",
+    "Valid assets return {\"ok\":true}",
+    "Invalid assets return {\"ok\":false, \"reason\":\"validation_failed\"} with sorted RFC6901 errors",
+    "Missing schema param returns {\"ok\":false, \"reason\":\"validation_failed\", \"errors\":[{\"path\":\"\",\"msg\":\"schema_required\"}]}",
+    "Tests in tests/test_validate.py cover all three paths",
     "All tests pass after changes"
   ]
 }
