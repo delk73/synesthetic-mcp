@@ -1,68 +1,40 @@
 {
-  "task": "Resolve divergences and add socket transport",
-  "objective": "Address path traversal risks, add Unix-domain socket support, align docs with tooling, and harden container execution.",
+  "task": "Enable multi-client socket support and align docs",
+  "objective": "Upgrade the socket server to handle multiple concurrent clients, add regression tests for multi-client operation, and fix documentation mismatches in serving instructions.",
   "changes": [
     {
-      "id": "path_traversal_guard",
-      "description": "Sanitize schema/example file paths to prevent directory traversal.",
+      "id": "socket_multi_client",
+      "description": "Refactor socket server to support multiple concurrent clients instead of blocking on one connection.",
       "edits": [
-        "mcp/core.py:58 — Use Path.resolve to normalize requests under SYN_SCHEMAS_DIR, reject requests escaping root.",
-        "mcp/core.py:108 — Apply same guard for examples.",
-        "mcp/validate.py:47 — Reject schema paths that resolve outside configured root.",
-        "tests/test_path_traversal.py — Add cases for '../', absolute paths, and valid nested files."
+        "mcp/socket_main.py:32 — Replace listen(1) with listen(backlog) and accept loop that dispatches each connection in a separate thread or selector task.",
+        "mcp/socket_main.py:52 — Move blocking _serve_connection into per-connection handler, ensuring FIFO order per client while allowing multiple clients at once.",
+        "mcp/socket_main.py:43 — Ensure socket file is unlinked only once on shutdown, not per connection.",
+        "tests/test_socket.py — Add test that spawns two concurrent client connections, sends interleaved requests, and asserts both clients receive valid sequential responses without blocking."
       ]
     },
     {
-      "id": "socket_transport",
-      "description": "Implement Unix-domain socket transport as an alternative to STDIO.",
+      "id": "readme_serve_fix",
+      "description": "Correct README serve instructions so operators get accurate startup guidance.",
       "edits": [
-        "mcp/__main__.py:35 — Accept MCP_ENDPOINT=socket and branch to socket server.",
-        "mcp/socket_main.py — New UDS server: enforce 1 MiB cap, unlink on shutdown, FIFO handling, perms from MCP_SOCKET_MODE.",
-        "mcp/transport.py — Factor shared frame parsing/writing with cap enforcement.",
-        "tests/test_socket.py — Connect via socket, send requests, assert sequential replies, error frames, and cleanup.",
-        "README.md — Document MCP_SOCKET_PATH and MCP_SOCKET_MODE usage."
-      ]
-    },
-    {
-      "id": "stdio_validate_alias_test",
-      "description": "Ensure validate alias is tested and stable.",
-      "edits": [
-        "tests/test_stdio.py — Add a case invoking method='validate', assert identical behavior to 'validate_asset'.",
-        "mcp/stdio_main.py:22 — Retain alias mapping, add clarifying comment."
-      ]
-    },
-    {
-      "id": "readme_alignment",
-      "description": "Fix startup script mismatch.",
-      "edits": [
-        "README.md:43 — Replace './serve.sh' with './up.sh', or provide serve.sh shim that execs up.sh."
-      ]
-    },
-    {
-      "id": "docker_non_root",
-      "description": "Run container as non-root for security hardening.",
-      "edits": [
-        "Dockerfile — Add non-root user and switch USER; ensure /tmp remains writable.",
-        "docker-compose.yml — Explicitly set MCP_READY_FILE to /tmp/mcp.ready.",
-        "tests/test_entrypoint.py — Adjust for non-root user expectations."
+        "README.md:42 — Replace './serve.sh' reference with './up.sh' or document an actual serve.sh shim if added.",
+        "README.md:169 — Clarify that up.sh builds and starts the service but does not tail logs; suggest 'docker compose logs -f serve' if tailing is desired.",
+        "up.sh:6 — Optionally add a comment clarifying log behavior so docs and script stay consistent."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No new dependencies; only use stdlib (socket, pathlib, json, etc.).",
-      "Preserve existing STDIO behavior and 1 MiB limits.",
-      "Socket server may be single-client but must enforce FIFO and cleanup on shutdown.",
-      "Docs and tests must reflect all changes.",
-      "All tests must pass after patch."
+      "No new external dependencies; use only stdlib (threading, selectors, socket).",
+      "Preserve existing 1 MiB guard, payload validation, and logging semantics.",
+      "Each client connection must maintain strict FIFO ordering of its own requests and responses.",
+      "Tests must cover simultaneous client connections to confirm concurrency works.",
+      "README instructions must match the scripts in the repo."
     ]
   },
   "exit_criteria": [
-    "Path traversal attempts rejected with clear error and covered by tests.",
-    "Socket transport works with MCP_ENDPOINT=socket, enforces size cap, handles perms, and cleans up socket file.",
-    "Validate alias has direct test coverage.",
-    "README accurately reflects startup workflow.",
-    "Container runs as non-root without regressions.",
-    "No divergences remain for the addressed items."
+    "Socket server accepts multiple concurrent clients without blocking; per-connection ordering is preserved.",
+    "Integration tests pass with two simultaneous socket clients sending interleaved requests.",
+    "README has no stale references to serve.sh and correctly describes up.sh behavior.",
+    "All existing tests remain green alongside the new concurrency tests."
   ]
 }

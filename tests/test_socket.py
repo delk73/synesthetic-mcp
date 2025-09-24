@@ -142,3 +142,120 @@ def test_socket_transport_end_to_end(tmp_path):
     assert proc.returncode == 0
     assert not socket_path.exists()
     assert not ready_file.exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix-domain sockets not supported on Windows")
+def test_socket_allows_multiple_concurrent_clients(tmp_path):
+    socket_path = tmp_path / "mcp.sock"
+    ready_file = tmp_path / "mcp.ready"
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(_MINIMAL_SCHEMA))
+
+    probe_path = tmp_path / "probe.sock"
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.bind(str(probe_path))
+    except PermissionError as exc:
+        probe.close()
+        pytest.skip(f"unix-domain sockets unavailable: {exc}")
+    else:
+        probe.close()
+        with contextlib.suppress(FileNotFoundError):
+            probe_path.unlink()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "MCP_ENDPOINT": "socket",
+            "MCP_SOCKET_PATH": str(socket_path),
+            "MCP_READY_FILE": str(ready_file),
+        }
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        assert proc.stderr is not None
+        _wait_for_line(proc.stderr, proc, "mcp:ready")
+
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_one:
+            client_one.connect(str(socket_path))
+            reader_one = client_one.makefile("r", encoding="utf-8")
+            writer_one = client_one.makefile("w", encoding="utf-8")
+
+            request_one = {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "list_schemas",
+                "params": {},
+            }
+            writer_one.write(json.dumps(request_one) + "\n")
+            writer_one.flush()
+            response_one = json.loads(reader_one.readline())
+            assert response_one["id"] == 1
+            assert response_one["result"]["ok"] is True
+
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_two:
+                client_two.settimeout(3.0)
+                client_two.connect(str(socket_path))
+                reader_two = client_two.makefile("r", encoding="utf-8")
+                writer_two = client_two.makefile("w", encoding="utf-8")
+
+                request_two = {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "get_schema",
+                    "params": {"name": "asset"},
+                }
+                writer_two.write(json.dumps(request_two) + "\n")
+                writer_two.flush()
+
+                try:
+                    raw_two = reader_two.readline()
+                except socket.timeout:
+                    pytest.fail("second client timed out waiting for response")
+
+                response_two = json.loads(raw_two)
+                assert response_two["id"] == 2
+                assert response_two["result"]["ok"] is True
+
+                # Ensure client one is still able to issue additional requests after client two completes.
+                follow_up = {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "list_examples",
+                    "params": {},
+                }
+                writer_one.write(json.dumps(follow_up) + "\n")
+                writer_one.flush()
+                response_follow_up = json.loads(reader_one.readline())
+                assert response_follow_up["id"] == 3
+                assert response_follow_up["result"]["ok"] is True
+
+                reader_two.close()
+                writer_two.close()
+
+            reader_one.close()
+            writer_one.close()
+
+        proc.send_signal(signal.SIGINT)
+        _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        with contextlib.suppress(FileNotFoundError):
+            if ready_file.exists():
+                ready_file.unlink()
+
+    assert proc.returncode == 0

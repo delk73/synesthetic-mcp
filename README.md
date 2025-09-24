@@ -39,7 +39,7 @@ flowchart LR
 1. Install deps: `pip install -r requirements.txt && pip install -e .`
 2. Initialize schemas/examples: `git submodule update --init --recursive`.
 3. Serve via Compose: `docker compose up serve` (runs the transport, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
-4. Or run the helper: `./up.sh` builds the image, waits for a ready container, then tails logs.
+4. Or run the helper: `./up.sh` builds the image and starts the serve service in the background; follow with `docker compose logs -f serve` if you want to tail logs.
 5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
 
 ## Structure
@@ -166,7 +166,8 @@ Notes:
 
 ### Serving Locally
 
-- `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and then tails logs.
+- `docker compose up serve` builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and keeps logs attached.
+- `./up.sh` builds the image and starts the `serve` service in detached mode; run `docker compose logs -f serve` to follow output after startup.
 - STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path.
 - STDIO requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large`.
 

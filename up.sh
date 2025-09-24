@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Helper script that builds the image and starts the 'serve' service without tailing logs.
 SERVICE=serve
 
 echo "🚀 Building image for '$SERVICE'..."

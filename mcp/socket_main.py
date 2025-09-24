@@ -3,8 +3,9 @@ from __future__ import annotations
 import contextlib
 import os
 import socket
+import threading
 from pathlib import Path
-from typing import Any, Callable, Dict
+from typing import Any, Callable, Dict, List
 
 from .transport import build_error_frame, payload_too_large_frame, process_line
 from .validate import MAX_BYTES
@@ -19,6 +20,9 @@ class SocketServer:
         self._path = Path(path)
         self._mode = mode
         self._server: socket.socket | None = None
+        self._client_threads: List[threading.Thread] = []
+        self._lock = threading.Lock()
+        self._closing = False
 
     def start(self) -> None:
         if self._server is not None:
@@ -29,17 +33,20 @@ class SocketServer:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server.bind(str(self._path))
         os.chmod(str(self._path), self._mode)
-        server.listen(1)
+        server.listen(5)
         self._server = server
 
     def close(self) -> None:
         server = self._server
         if server is None:
             return
+        self._closing = True
         try:
             server.close()
         finally:
             self._server = None
+            for thread in self._drain_threads():
+                thread.join(timeout=1.0)
             with contextlib.suppress(FileNotFoundError):
                 self._path.unlink()
 
@@ -50,13 +57,39 @@ class SocketServer:
         server = self._server
         try:
             while True:
-                conn, _ = server.accept()
                 try:
-                    _serve_connection(conn, handler)
-                finally:
-                    conn.close()
+                    conn, _ = server.accept()
+                except OSError:
+                    if self._closing:
+                        break
+                    raise
+                thread = threading.Thread(
+                    target=self._handle_connection,
+                    args=(conn, handler),
+                    daemon=True,
+                )
+                with self._lock:
+                    self._client_threads.append(thread)
+                thread.start()
         finally:
             self.close()
+
+    def _handle_connection(self, conn: socket.socket, handler: Handler) -> None:
+        try:
+            _serve_connection(conn, handler)
+        finally:
+            conn.close()
+            with self._lock:
+                current = threading.current_thread()
+                self._client_threads = [
+                    t for t in self._client_threads if t is not current
+                ]
+
+    def _drain_threads(self) -> List[threading.Thread]:
+        with self._lock:
+            threads = list(self._client_threads)
+            self._client_threads.clear()
+            return threads
 
 
 def _serve_connection(conn: socket.socket, handler: Handler) -> None:
