@@ -1,0 +1,6 @@
+{
+  "schema": "asset",
+  "id": "asset-1",
+  "name": "Asset One",
+  "tags": ["primary"]
+}

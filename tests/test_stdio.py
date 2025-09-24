@@ -1,7 +1,6 @@
 import contextlib
 import io
 import json
-import logging
 import os
 import subprocess
 import sys
@@ -54,42 +53,103 @@ def test_stdio_loop_smoke(monkeypatch):
     assert "schemas" in result and isinstance(result["schemas"], list)
 
 
-def test_stdio_validate_alias(monkeypatch, tmp_path, caplog):
+def test_stdio_validate_alias_warns_to_stderr(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
-    minimal_schema = {
+    schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
-        "properties": {"schema": {"type": "string", "const": "asset"}},
-        "required": ["schema"],
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "name": {"type": "string", "minLength": 1},
+            "schema": {"type": "string", "const": "asset"},
+        },
+        "required": ["id", "name"],
         "additionalProperties": False,
     }
-    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(schema))
 
-    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+    env = os.environ.copy()
+    env["SYN_SCHEMAS_DIR"] = str(schemas_dir)
+    env["PYTHONUNBUFFERED"] = "1"
 
-    request: Dict[str, Any] = {
-        "id": 42,
-        "method": "validate",
-        "params": {"asset": {"schema": "asset"}, "schema": "asset"},
-    }
-    stdin = io.StringIO(json.dumps(request) + "\n")
-    stdout = io.StringIO()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
 
-    import mcp.stdio_main as stdio
+    try:
+        assert proc.stderr is not None
+        ready_line = proc.stderr.readline()
+        if not ready_line:
+            code = proc.poll()
+            raise AssertionError(f"mcp process exited early with code {code}")
+        assert "mcp:ready" in ready_line
 
-    monkeypatch.setattr(stdio.sys, "stdin", stdin)
-    monkeypatch.setattr(stdio.sys, "stdout", stdout)
+        request = {
+            "jsonrpc": "2.0",
+            "id": 42,
+            "method": "validate",
+            "params": {
+                "asset": {"id": "asset-1", "name": "Asset", "schema": "asset"},
+                "schema": "asset",
+            },
+        }
+        assert proc.stdin is not None
+        proc.stdin.write(json.dumps(request) + "\n")
+        proc.stdin.flush()
 
-    caplog.set_level(logging.WARNING)
-    stdio.main()
+        assert proc.stdout is not None
+        response_line = proc.stdout.readline()
+        if not response_line:
+            code = proc.poll()
+            raise AssertionError(f"no response from mcp stdio loop (exit {code})")
+        payload = json.loads(response_line)
+        assert payload.get("id") == 42
+        result = payload.get("result", {})
+        assert result.get("ok") is True
+        assert result.get("errors") == []
 
-    payload = json.loads(stdout.getvalue().strip())
-    assert payload.get("id") == 42
-    result = payload.get("result", {})
-    assert result.get("ok") is True
-    assert result.get("errors") == []
-    assert any("deprecated_alias" in record.message for record in caplog.records)
+        warning_line = ""
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            line = proc.stderr.readline()
+            if not line:
+                if proc.poll() is not None:
+                    break
+                continue
+            if "deprecated_alias" in line:
+                warning_line = line
+                break
+        assert "deprecated_alias" in warning_line
+        assert "method=validate" in warning_line
+
+        shutdown_seen = False
+        if proc.stdin:
+            proc.stdin.close()
+        if proc.stdout:
+            proc.stdout.close()
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            line = proc.stderr.readline()
+            if not line:
+                if proc.poll() is not None:
+                    break
+                continue
+            if "mcp:shutdown" in line:
+                shutdown_seen = True
+                break
+        proc.wait(timeout=5)
+        assert shutdown_seen
+    finally:
+        if proc.poll() is None:
+            proc.terminate()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=5)
 
 
 def test_stdio_entrypoint_validate_asset(tmp_path):
@@ -223,9 +283,10 @@ def test_stdio_unsupported_uses_detail(monkeypatch):
 def test_stdio_rejects_oversized_request(monkeypatch):
     blob = "x" * (MAX_BYTES + 1)
     oversized = {
+        "jsonrpc": "2.0",
         "id": 11,
-        "method": "list_schemas",
-        "params": {"blob": blob},
+        "method": "validate_many",
+        "params": {"assets": [blob]},
     }
     line = json.dumps(oversized)
     assert len(line.encode("utf-8")) > MAX_BYTES
@@ -245,4 +306,5 @@ def test_stdio_rejects_oversized_request(monkeypatch):
     result = payload.get("result", {})
     assert result.get("ok") is False
     assert result.get("reason") == "validation_failed"
-    assert any(error.get("msg") == "payload_too_large" for error in result.get("errors", []))
+    errors = result.get("errors", [])
+    assert errors and errors[0].get("msg") == "payload_too_large"

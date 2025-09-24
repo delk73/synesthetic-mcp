@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from mcp.core import get_example, get_schema
-from mcp.validate import validate_asset, validate_many
+from mcp.validate import MAX_BYTES, validate_asset, validate_many
 
 
 def _load(path: str):
@@ -123,3 +123,35 @@ def test_validate_many_respects_max_batch(tmp_path, monkeypatch):
     assert res["reason"] == "unsupported"
     assert res["detail"] == "batch_too_large"
     assert res["limit"] == 1
+
+
+def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    minimal = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "id": {"type": "string", "minLength": 1},
+            "name": {"type": "string", "minLength": 1},
+        },
+        "required": ["id", "name"],
+        "additionalProperties": False,
+    }
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal))
+
+    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+
+    gigantic_name = "x" * (MAX_BYTES + 512)
+    asset = {"id": "oversized", "name": gigantic_name}
+    encoded_size = len(json.dumps(asset).encode("utf-8"))
+    assert encoded_size > MAX_BYTES
+
+    res = validate_many([asset], "asset")
+
+    assert res["ok"] is False
+    assert len(res["results"]) == 1
+    first = res["results"][0]
+    assert first["ok"] is False
+    assert first["reason"] == "validation_failed"
+    assert any(err.get("msg") == "payload_too_large" for err in first.get("errors", []))
