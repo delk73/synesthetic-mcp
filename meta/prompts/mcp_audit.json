@@ -1,6 +1,6 @@
 {
-  "task": "Audit synesthetic-mcp repo state (v0.2.5 features)",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.5). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "task": "Audit synesthetic-mcp repo state (v0.2.6 features)",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.6). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -11,17 +11,17 @@
       "Ground all findings in visible code/tests/docs; no speculation",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes",
       "Always overwrite meta/output/mcp_state.md and AGENTS.md with non-empty content",
-      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; HTTP/gRPC are roadmap-only (Divergent if present)",
-      "Payload cap: 1 MiB guard enforced across all methods in both STDIO and Socket; explicit guard + failing test required",
+      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MAY exist if implemented per v0.2.6; HTTP/gRPC are roadmap-only (Divergent if present)",
+      "Payload cap: 1 MiB guard enforced across all methods in STDIO, Socket, and TCP; explicit guard + failing test required",
       "validate_asset: schema param REQUIRED; error if missing/empty",
-      "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (v0.2.5)",
+      "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (until ≥ v0.3)",
       "Batching: validate_many MUST honor MCP_MAX_BATCH",
       "get_example: MUST return validation_failed when example invalid",
       "Schema resolution: MUST be local-only; path traversal rejected",
       "Determinism: sorting for listings, error ordering, diff ordering MUST be implemented + tested",
-      "Security: Socket default perms 0600; Container must run non-root",
-      "Process model: STDIO exits when stdin closes; Socket logs readiness + unlinks socket on shutdown",
-      "Logging: startup log includes mode, path, schemas_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
+      "Security: Socket/TCP perms default to least-privilege; Container must run non-root",
+      "Process model: STDIO exits when stdin closes; Socket/TCP log readiness + unlink/close on shutdown",
+      "Logging: startup log includes mode, path/host:port, schemas_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -31,6 +31,7 @@
       "Transports",
       "STDIO entrypoint & process model",
       "Socket server (multi-client handling, perms, unlink, logs)",
+      "TCP server (binding, perms, multi-client, shutdown logs)",
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
@@ -77,13 +78,13 @@
   "exit_criteria": [
     "meta/output/mcp_state.md written and non-empty",
     "AGENTS.md snapshot updated",
-    "Spec v0.2.5 features mapped to Present/Missing/Divergent with evidence",
-    "STDIO and Socket behavior explicitly verified (multi-client ordering, logs, shutdown)",
+    "Spec v0.2.6 features mapped to Present/Missing/Divergent with evidence",
+    "STDIO, Socket, and TCP behavior explicitly verified (multi-client ordering, logs, shutdown)",
     "Golden examples cover list_schemas, get_schema, validate_asset+alias, get_example success+validation_failed, diff_assets, malformed JSON-RPC",
-    "Payload guard verified across all methods",
+    "Payload guard verified across all transports and methods",
     "Batching (validate_many) verified or marked",
     "Determinism + schema safety verified",
-    "Logging verified (mode, path, schemas_dir, ISO timestamps)",
+    "Logging verified (mode, path/host:port, schemas_dir, ISO timestamps)",
     "Container non-root verified",
     "README cross-checked with docs/mcp_spec.md"
   ]
