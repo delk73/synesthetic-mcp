@@ -1,43 +1,44 @@
 {
-  "task": "Finalize MCP v0.2.5 compliance",
-  "objective": "Close divergences by aligning golden fixtures with real schema behavior, enforcing payload size checks in validate_many, testing alias warnings, and handling SIGINT.",
+  "task": "Finalize MCP v0.2.5a compliance",
+  "objective": "Close remaining divergences by aligning golden fixtures with runtime MCP output, enforcing payload size checks in validate_many, testing alias warnings via JSON-RPC, and handling SIGINT consistently.",
   "changes": [
     {
       "id": "validate_many_guard",
-      "description": "Added _size_okay guard to validate_many so payload >1 MiB returns validation_failed."
+      "description": "Ensure validate_many uses _size_okay to reject payloads >1 MiB with validation_failed."
     },
     {
       "id": "alias_warning_test",
-      "description": "Added subprocess test (tests/test_cli.py) that calls 'validate' alias and asserts deprecated_alias warning on stderr."
+      "description": "Replace CLI-arg test with subprocess JSON-RPC test: spawn `python -m mcp`, send method='validate', and assert that (1) stdout result matches validate_asset, and (2) stderr contains deprecated_alias warning."
     },
     {
       "id": "golden_fixtures",
-      "description": "Replaced tests/fixtures/e2e_golden.jsonl with deterministic entries: list_schemas (sorted), get_schema (raw file), validate_asset/validate/validate_many (validation_failed with required-property errors), diff_assets, populate_backend, malformed JSON-RPC."
+      "description": "Regenerate tests/fixtures/e2e_golden.jsonl directly from MCP runtime responses. Include: malformed JSON-RPC parse error, list_schemas (sorted, version:''), get_schema (raw file contents), validate_asset/validate/validate_many (invalid assets => validation_failed with required-property errors), diff_assets, and populate_backend."
     },
     {
       "id": "golden_test",
-      "description": "Created tests/test_golden.py to replay golden.jsonl. Marked with @pytest.mark.slow and registered in pytest.ini."
+      "description": "Update tests/test_golden.py to replay golden.jsonl through JSON-RPC subprocess. Normalize deterministic fields (schema list order, error sort), assert equality with golden. Mark with @pytest.mark.slow and register in pytest.ini."
     },
     {
       "id": "sigint_handler",
-      "description": "Updated _run_stdio in mcp/__main__.py to trap SIGINT same as SIGTERM; test_entrypoint_ready_and_shutdown passes."
+      "description": "Trap SIGINT in mcp/__main__.py the same as SIGTERM. Ensure test_entrypoint_ready_and_shutdown exits cleanly after SIGINT."
     }
   ],
   "constraints": {
     "rules": [
-      "Golden responses must match actual runtime schema behavior exactly.",
-      "Do not fabricate schema content; get_schema returns raw schema file.",
-      "If an asset is invalid, golden must expect validation_failed with proper errors.",
+      "Alias warning test MUST use JSON-RPC transport, not CLI arguments.",
+      "Golden responses MUST be captured from real MCP execution, not fabricated.",
+      "get_schema response MUST echo the exact JSON schema file on disk.",
+      "Invalid assets MUST yield validation_failed with explicit required-property errors.",
       "Schema list order fixed: control, control-bundle, haptic, modulation, rule, rule-bundle, shader, synesthetic-asset, tone.",
       "No new dependencies beyond pytest."
     ]
   },
   "exit_criteria": [
     "validate_many enforces payload size guard correctly.",
-    "Alias test confirms deprecated_alias warning on stderr.",
-    "Golden.jsonl aligned with runtime behavior; test_golden.py shows no diffs.",
-    "pytest.ini registers slow marker, warning gone.",
-    "SIGINT handling works; entrypoint test passes.",
-    "All tests green, audit shows no divergences."
+    "Alias test observes deprecated_alias warning in stderr for method=validate.",
+    "Golden.jsonl matches live MCP responses; test_golden.py passes with no diffs.",
+    "pytest.ini registers slow marker, no warnings emitted.",
+    "SIGINT handling works; entrypoint shutdown test passes.",
+    "All tests pass in container (`./test.sh`), audit shows no divergences."
   ]
 }
