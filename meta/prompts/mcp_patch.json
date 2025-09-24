@@ -4,40 +4,40 @@
   "changes": [
     {
       "id": "validate_many_guard",
-      "description": "Ensure validate_many enforces payload size using _size_okay, not just batch length."
+      "description": "Added _size_okay guard to validate_many so payload >1 MiB returns validation_failed."
     },
     {
       "id": "alias_warning_test",
-      "description": "Add subprocess-based test that calls 'validate' alias and asserts deprecation warning appears on stderr."
+      "description": "Added subprocess test (tests/test_cli.py) that calls 'validate' alias and asserts deprecated_alias warning on stderr."
     },
     {
       "id": "golden_fixtures",
-      "description": "Correct tests/fixtures/golden.jsonl to mirror real output. Must include: list_schemas (alphabetical order, version:''), get_schema (verbatim schema file), validate_asset/validate/validate_many (validation_failed with required-property errors), diff_assets, populate_backend, and malformed JSON-RPC."
+      "description": "Replaced tests/fixtures/e2e_golden.jsonl with deterministic entries: list_schemas (sorted), get_schema (raw file), validate_asset/validate/validate_many (validation_failed with required-property errors), diff_assets, populate_backend, malformed JSON-RPC."
     },
     {
       "id": "golden_test",
-      "description": "Add tests/test_golden.py to replay golden.jsonl against MCP. Mark with pytest.mark.slow and register marker in pytest.ini."
+      "description": "Created tests/test_golden.py to replay golden.jsonl. Marked with @pytest.mark.slow and registered in pytest.ini."
     },
     {
       "id": "sigint_handler",
-      "description": "Handle SIGINT same as SIGTERM in _run_stdio; test_entrypoint_ready_and_shutdown must exit cleanly."
+      "description": "Updated _run_stdio in mcp/__main__.py to trap SIGINT same as SIGTERM; test_entrypoint_ready_and_shutdown passes."
     }
   ],
   "constraints": {
     "rules": [
       "Golden responses must match actual runtime schema behavior exactly.",
-      "Do not fabricate schema content; get_schema must return the raw schema file.",
+      "Do not fabricate schema content; get_schema returns raw schema file.",
       "If an asset is invalid, golden must expect validation_failed with proper errors.",
       "Schema list order fixed: control, control-bundle, haptic, modulation, rule, rule-bundle, shader, synesthetic-asset, tone.",
       "No new dependencies beyond pytest."
     ]
   },
   "exit_criteria": [
-    "validate_many enforces size guard correctly.",
-    "Alias test confirms stderr deprecation warning.",
-    "Golden.jsonl fully aligned with runtime behavior, no diffs in test_golden.py.",
+    "validate_many enforces payload size guard correctly.",
+    "Alias test confirms deprecated_alias warning on stderr.",
+    "Golden.jsonl aligned with runtime behavior; test_golden.py shows no diffs.",
     "pytest.ini registers slow marker, warning gone.",
-    "SIGINT handling works, entrypoint test passes.",
+    "SIGINT handling works; entrypoint test passes.",
     "All tests green, audit shows no divergences."
   ]
 }
