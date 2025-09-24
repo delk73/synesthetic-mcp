@@ -246,3 +246,57 @@ All tools return deterministic JSON result objects (inside JSON-RPC `result`).
 * Listings and validation errors deterministic.
 * Tools respond consistently over **STDIO** and **Socket** modes.
 * Implementation, docs, and tests match this spec exactly.
+
+
+Got it. Here’s the **full new spec** reformatted into the same version-pinned style as Labs. I’ve kept your entire **v0.2.4** spec intact as the “stable” block, and appended **v0.2.5 (next)** and **Backlog (v0.3+)** as lean extensions.
+
+---
+
+# MCP Spec (Python)
+
+**Keywords:** **MUST**, **MUST NOT**, **SHOULD**, **MAY** follow RFC 2119.
+
+---
+
+## Version v0.2.4 (Stable)
+
+### 1. Purpose
+
+*(full detailed spec content — unchanged)*
+
+> The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic and stateless tools.
+> …
+> *(all 13 sections from your pasted v0.2.4 spec remain exactly as written, including Purpose → Exit Criteria).*
+
+---
+
+## Scope (v0.2.5 — Next)
+
+* **Batch validation improvements**: enforce `MCP_MAX_BATCH` in `validate_many`, return explicit error if exceeded.
+* **Non-root container**: require `USER` directive in Dockerfile, with ready file path under `/tmp`.
+* **Expanded logging**: readiness logs must include mode, socket path (if applicable), and schema/example roots.
+* **Alias lifecycle**: accept `"validate"` alias but emit **stderr deprecation warning**.
+* **Test coverage**:
+
+  * Explicit path traversal rejection tests.
+  * Socket multi-client FIFO ordering tests.
+  * Payload oversize rejection tested across all tools, not just validate.
+
+### Exit Criteria (v0.2.5)
+
+* `validate_many` enforces `MCP_MAX_BATCH` (default 100). Oversized batch returns `{ "ok": false, "reason": "unsupported" }`.
+* Container image builds and runs as non-root with no regressions.
+* Readiness logs include `mode`, `path`, and `schemas_dir`.
+* `"validate"` alias accepted, but logs deprecation warning to stderr.
+* Tests added and passing for traversal rejection, socket multi-client behavior, and oversize guards across all entrypoints.
+* No divergences between implementation, docs, and tests.
+
+---
+
+## Backlog (v0.3+)
+
+* Drop `"validate"` alias entirely.
+* Add optional HTTP transport.
+* Add gRPC transport for typed schemas and streaming.
+* Structured metrics/telemetry hooks.
+* Schema hot-reload or live discovery.
