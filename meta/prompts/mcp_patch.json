@@ -1,46 +1,43 @@
 {
-  "task": "Close MCP v0.2.5 divergences",
-  "objective": "Add missing tests for alias deprecation warning and payload size guards, and introduce golden request/response examples to complete v0.2.5 exit criteria.",
+  "task": "Cleanup MCP v0.2.5 state",
+  "objective": "Update docs and README to reflect v0.2.5 as current, and deduplicate backend tests for clarity.",
   "changes": [
     {
-      "id": "alias_warning_test",
-      "description": "Add test to confirm 'validate' alias emits deprecation warning to stderr.",
+      "id": "spec_version_update",
+      "description": "Promote v0.2.5 from 'next' to stable in docs/mcp_spec.md.",
       "edits": [
-        "tests/test_stdio.py: add a test that sends a JSON-RPC request with method='validate', captures stderr, and asserts that a deprecation warning mentioning 'deprecated_alias' and 'validate' is present."
+        "docs/mcp_spec.md:1-2 — change heading to '# MCP Spec (v0.2.5)'.",
+        "docs/mcp_spec.md:167-215 — fold the 'Scope (v0.2.5 — Next)' section into the main body, removing 'Next' wording."
       ]
     },
     {
-      "id": "payload_guard_tests",
-      "description": "Add explicit oversize payload tests for STDIO and validate_many.",
+      "id": "readme_version_update",
+      "description": "Update README front matter to show v0.2.5 instead of 0.1.0.",
       "edits": [
-        "tests/test_stdio.py: add a test that sends an oversized (>1 MiB) JSON-RPC request and asserts response contains reason='validation_failed' and error msg='payload_too_large'.",
-        "tests/test_validate.py: add a test that calls validate_many with a list so large that encoded size >1 MiB, and asserts rejection with reason='validation_failed'."
+        "README.md:1-4 — change version string to 'v0.2.5' and align with current release."
       ]
     },
     {
-      "id": "golden_examples",
-      "description": "Introduce golden request/response fixtures for all MCP methods.",
+      "id": "dedupe_backend_tests",
+      "description": "Remove duplicate definition of test_backend_assets_path_normalization.",
       "edits": [
-        "tests/fixtures/golden.jsonl: add canonical NDJSON frames covering list_schemas, get_schema, validate_asset, validate alias, validate_many, get_example (success and validation_failed), diff_assets, populate_backend, and a malformed JSON-RPC parse error.",
-        "tests/test_golden.py: add test that spawns MCP via subprocess, replays golden.jsonl requests, and asserts outputs match expected responses; mark with @pytest.mark.slow and register 'slow' in pytest.ini."
+        "tests/test_backend.py:46-57 — delete duplicate function body.",
+        "tests/test_backend.py:170-181 — keep only one definition to preserve coverage."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No new dependencies; use only pytest and stdlib.",
-      "Golden examples must match actual MCP output shapes exactly (no fabricated fields).",
-      "Alias warning test must use JSON-RPC transport, not CLI args.",
-      "Oversize payload tests must exceed 1 MiB and assert payload_too_large.",
-      "All existing tests must remain green."
+      "Docs must clearly mark v0.2.5 as the current spec, not 'next'.",
+      "README version badge/front matter must match v0.2.5.",
+      "Only one definition of test_backend_assets_path_normalization remains.",
+      "No functional logic changes outside docs/tests cleanup."
     ]
   },
   "exit_criteria": [
-    "tests/test_stdio.py contains a working alias warning test with stderr assertion.",
-    "tests/test_validate.py and tests/test_stdio.py contain explicit oversize payload rejection cases.",
-    "tests/fixtures/golden.jsonl contains complete canonical request/response set.",
-    "tests/test_golden.py replays golden.jsonl successfully with no diffs.",
-    "pytest.ini registers 'slow' marker without warnings.",
-    "All tests pass in container; v0.2.5 audit shows no divergences."
+    "docs/mcp_spec.md header shows v0.2.5, no dangling 'next' section.",
+    "README front matter shows v0.2.5 consistently.",
+    "Duplicate test removed; pytest shows only one test_backend_assets_path_normalization.",
+    "All tests green, audit shows no divergences."
   ]
 }

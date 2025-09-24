@@ -1,5 +1,5 @@
 ---
-version: 0.1.0
+version: v0.2.5
 owner: delk73
 lastReviewed: 2025-09-12
 ---

@@ -1,4 +1,4 @@
-# MCP Spec (Python **v0.2.4**)
+# MCP Spec (Python **v0.2.5**)
 
 **Keywords:** **MUST**, **MUST NOT**, **SHOULD**, **MAY** follow RFC 2119.
 
@@ -258,38 +258,32 @@ Got it. Here’s the **full new spec** reformatted into the same version-pinned 
 
 ---
 
-## Version v0.2.4 (Stable)
+## Version v0.2.5 (Current)
 
 ### 1. Purpose
 
-*(full detailed spec content — unchanged)*
+*(full detailed spec content — unchanged from prior stable release)*
 
 > The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic and stateless tools.
 > …
-> *(all 13 sections from your pasted v0.2.4 spec remain exactly as written, including Purpose → Exit Criteria).*
+> *(all 13 sections from the v0.2.4 specification remain in force, including Purpose → Exit Criteria, now incorporating the v0.2.5 requirements listed below.)*
 
----
+### v0.2.5 Additions
 
-## Scope (v0.2.5 — Next)
+* **Batch validation improvements:** `validate_many` enforces `MCP_MAX_BATCH` (default 100) and returns `{ "ok": false, "reason": "unsupported" }` when exceeded.
+* **Non-root container:** Docker image MUST drop root privileges and still surface the ready file under `/tmp`.
+* **Expanded logging:** readiness logs include transport mode, socket path (if applicable), and schema/example roots.
+* **Alias lifecycle:** the `"validate"` method alias remains accepted but MUST emit a deprecation warning to stderr.
+* **Test coverage:** array of regression tests covering traversal rejection, socket multi-client ordering, and payload oversize guards across transports and batch validation.
 
-* **Batch validation improvements**: enforce `MCP_MAX_BATCH` in `validate_many`, return explicit error if exceeded.
-* **Non-root container**: require `USER` directive in Dockerfile, with ready file path under `/tmp`.
-* **Expanded logging**: readiness logs must include mode, socket path (if applicable), and schema/example roots.
-* **Alias lifecycle**: accept `"validate"` alias but emit **stderr deprecation warning**.
-* **Test coverage**:
-
-  * Explicit path traversal rejection tests.
-  * Socket multi-client FIFO ordering tests.
-  * Payload oversize rejection tested across all tools, not just validate.
-
-### Exit Criteria (v0.2.5)
+### Exit Criteria
 
 * `validate_many` enforces `MCP_MAX_BATCH` (default 100). Oversized batch returns `{ "ok": false, "reason": "unsupported" }`.
 * Container image builds and runs as non-root with no regressions.
 * Readiness logs include `mode`, `path`, and `schemas_dir`.
-* `"validate"` alias accepted, but logs deprecation warning to stderr.
-* Tests added and passing for traversal rejection, socket multi-client behavior, and oversize guards across all entrypoints.
-* No divergences between implementation, docs, and tests.
+* `"validate"` alias accepted, logging the deprecation warning to stderr.
+* Tests pass for traversal rejection, socket multi-client behavior, and oversize guards across entrypoints.
+* Implementation, docs, and tests remain aligned.
 
 ---
 
