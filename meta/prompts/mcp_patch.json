@@ -1,40 +1,75 @@
 {
-  "task": "Enable multi-client socket support and align docs",
-  "objective": "Upgrade the socket server to handle multiple concurrent clients, add regression tests for multi-client operation, and fix documentation mismatches in serving instructions.",
+  "task": "Implement v0.2.5 MCP features",
+  "objective": "Add multi-client socket support, enforce MCP_MAX_BATCH, harden container to non-root, extend readiness logs, and log deprecation warning for 'validate' alias.",
   "changes": [
     {
       "id": "socket_multi_client",
-      "description": "Refactor socket server to support multiple concurrent clients instead of blocking on one connection.",
+      "description": "Refactor socket server to support multiple concurrent clients with FIFO per connection.",
       "edits": [
-        "mcp/socket_main.py:32 — Replace listen(1) with listen(backlog) and accept loop that dispatches each connection in a separate thread or selector task.",
-        "mcp/socket_main.py:52 — Move blocking _serve_connection into per-connection handler, ensuring FIFO order per client while allowing multiple clients at once.",
-        "mcp/socket_main.py:43 — Ensure socket file is unlinked only once on shutdown, not per connection.",
-        "tests/test_socket.py — Add test that spawns two concurrent client connections, sends interleaved requests, and asserts both clients receive valid sequential responses without blocking."
+        "mcp/socket_main.py: listen(backlog>1), accept loop spawns thread/selector per client.",
+        "Per-connection handler preserves request order.",
+        "Shutdown unlinks socket once after all clients closed.",
+        "tests/test_socket.py: add concurrent client test with interleaved requests."
       ]
     },
     {
-      "id": "readme_serve_fix",
-      "description": "Correct README serve instructions so operators get accurate startup guidance.",
+      "id": "batch_guard",
+      "description": "Enforce MCP_MAX_BATCH limit in validate_many.",
       "edits": [
-        "README.md:42 — Replace './serve.sh' reference with './up.sh' or document an actual serve.sh shim if added.",
-        "README.md:169 — Clarify that up.sh builds and starts the service but does not tail logs; suggest 'docker compose logs -f serve' if tailing is desired.",
-        "up.sh:6 — Optionally add a comment clarifying log behavior so docs and script stay consistent."
+        "mcp/validate.py: before processing, check len(assets) <= MCP_MAX_BATCH (default 100).",
+        "Return {ok:false, reason:'unsupported'} if exceeded.",
+        "tests/test_validate_many.py: assert oversized batch rejected."
+      ]
+    },
+    {
+      "id": "alias_deprecation",
+      "description": "Keep 'validate' alias but log warning in stderr.",
+      "edits": [
+        "mcp/validate.py: if method == 'validate', emit 'deprecated alias used' to stderr before routing to validate_asset.",
+        "tests/test_stdio.py: cover alias call + warning log."
+      ]
+    },
+    {
+      "id": "container_non_root",
+      "description": "Switch container to non-root execution.",
+      "edits": [
+        "Dockerfile: add USER directive with dedicated app user.",
+        "docker-compose.yml: service user override removed (inherits non-root).",
+        "tests/test_container.py: assert process runs as non-root uid != 0."
+      ]
+    },
+    {
+      "id": "logging_expansion",
+      "description": "Include schemas/examples dir in readiness logs.",
+      "edits": [
+        "mcp/__main__.py: when logging 'mcp:ready', append schemas_dir and examples_dir env values.",
+        "tests/test_entrypoint.py: assert readiness log includes paths."
+      ]
+    },
+    {
+      "id": "docs_refresh",
+      "description": "Update documentation for v0.2.5 features.",
+      "edits": [
+        "docs/mcp_spec.md: add v0.2.5 scope and exit criteria.",
+        "README.md: correct serve instructions, describe socket concurrency, MCP_MAX_BATCH, alias deprecation, non-root container."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No new external dependencies; use only stdlib (threading, selectors, socket).",
-      "Preserve existing 1 MiB guard, payload validation, and logging semantics.",
-      "Each client connection must maintain strict FIFO ordering of its own requests and responses.",
-      "Tests must cover simultaneous client connections to confirm concurrency works.",
-      "README instructions must match the scripts in the repo."
+      "No new external dependencies; stdlib only (threading/selectors/socket).",
+      "Preserve existing 1 MiB guard and determinism.",
+      "Each client must maintain strict FIFO response order.",
+      "Tests must cover new features: multi-client socket, batch guard, alias warning, non-root container, expanded logging."
     ]
   },
   "exit_criteria": [
-    "Socket server accepts multiple concurrent clients without blocking; per-connection ordering is preserved.",
-    "Integration tests pass with two simultaneous socket clients sending interleaved requests.",
-    "README has no stale references to serve.sh and correctly describes up.sh behavior.",
-    "All existing tests remain green alongside the new concurrency tests."
+    "Socket server supports concurrent clients; tests pass.",
+    "validate_many enforces MCP_MAX_BATCH; oversized batches rejected.",
+    "'validate' alias accepted with deprecation warning logged.",
+    "Container runs as non-root.",
+    "Readiness logs include schemas/examples dir.",
+    "README/docs updated for v0.2.5.",
+    "All tests (old + new) pass."
   ]
 }

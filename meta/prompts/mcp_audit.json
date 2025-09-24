@@ -1,6 +1,6 @@
 {
-  "task": "Audit synesthetic-mcp repo state",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.4). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "task": "Audit synesthetic-mcp repo state (v0.2.5 features)",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.5). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -14,45 +14,37 @@
       "Always write the full audit report directly to meta/output/mcp_state.md (overwrite if exists, non-empty)",
       "Always write the updated agent snapshot directly to AGENTS.md (overwrite if exists, non-empty)",
 
-      "Transport compliance: Implementation MUST support STDIO (ephemeral) JSON-RPC 2.0 and MAY support Socket (persistent) JSON-RPC 2.0; mark Socket as Missing if not implemented; mark HTTP/TCP/gRPC listeners as Divergent (roadmap-only) if present",
-      "STDIO framing must be NDJSON (one JSON object per line) with stdout=frames-only and stderr=logs",
-      "Socket mode (if present) must use Unix Domain Socket with NDJSON framing and honor MCP_SOCKET_PATH and MCP_SOCKET_MODE; multiple clients supported; per-connection response order preserved; socket file is removed on shutdown",
-
-      "Payload cap: enforce 1 MiB per request at the transport layer (STDIO and Socket) for all methods; audit must verify explicit guard and a failing test",
-      "validate_asset: schema param is REQUIRED; audit must verify enforcement at method boundary; mark Divergent if empty string is passed through instead of immediate validation_failed",
-      "Alias: method name \"validate\" MUST be accepted as an alias to \"validate_asset\" (deprecated); mark Missing if alias is not supported",
-      "Optional batching: if validate_many is implemented, shape must match spec and respect payload cap and MCP_MAX_BATCH; if not implemented, mark as Optional (do not fail)",
-
-      "get_example must support returning validation_failed when the embedded example does not validate; mark Missing if not implemented",
-
-      "Schema resolution: no remote fetch is allowed; $ref resolution MUST be local to configured schema roots; path traversal (..) MUST be rejected",
-      "Determinism: sorting rules for listings, error ordering, and diff ordering MUST be implemented and tested",
-      "Security: socket default perms 0600 unless MCP_SOCKET_MODE overrides; running non-root in container is recommended—note status",
-      
-      "Process model: STDIO server exits when stdin closes; handles SIGINT/SIGTERM by completing in-flight then exiting; writes MCP_READY_FILE on readiness and removes on shutdown; Socket server logs mcp:ready mode=socket path=<path> and unlinks socket on shutdown",
-      
-      "Containerization: docker-compose service names and healthchecks must reflect readiness (ready file) and transport mode; environment variables must be passed through correctly",
-      
-      "Audit is incomplete unless both output files are created or overwritten with non-empty content"
+      "Transport compliance: STDIO MUST exist; Socket MUST support multiple concurrent clients and per-connection ordering; HTTP/gRPC are roadmap-only (mark Divergent if present)",
+      "Payload cap: 1 MiB guard enforced across all methods in both STDIO and Socket; verify explicit guard + failing test",
+      "validate_asset: schema param REQUIRED; must error immediately if missing/empty",
+      "Alias: method name 'validate' MUST be accepted as alias to 'validate_asset'; log deprecation warning in v0.2.5",
+      "Batching: validate_many MUST honor MCP_MAX_BATCH; mark Divergent if unlimited; Missing if not implemented",
+      "get_example: must return validation_failed when example does not validate",
+      "Schema resolution: MUST be local-only, path traversal '..' rejected",
+      "Determinism: sorting for listings, error ordering, diff ordering MUST be implemented + tested",
+      "Security: Socket default perms 0600; Container must run non-root in v0.2.5",
+      "Process model: STDIO exits when stdin closes; Socket logs readiness + unlinks socket on shutdown",
+      "Logging: startup log includes mode, path, schemas_dir; stdout only frames; stderr logs; timestamps deterministic",
+      "Audit incomplete unless both output files are written non-empty"
     ],
     "sections": [
       "Summary of repo state",
       "Top gaps & fixes (3-5 bullets)",
       "Alignment with mcp_spec.md (table: Spec item → Status → Evidence)",
       "Transports",
-      "STDIO server entrypoint & process model (bullets: NDJSON framing, blocking loop, signals, readiness file, shutdown semantics, stdout vs stderr)",
-      "Socket server (if present) (bullets: UDS path, perms, multi-client handling, per-connection ordering, unlink on shutdown, readiness/shutdown logs)",
-      "Golden request/response examples (table: Method → Success frame Present/Missing/Divergent → Error frame Present/Missing/Divergent → Evidence)",
-      "Payload size guard (table: Method → STDIO guard → Socket guard → Evidence)",
-      "Schema validation contract (bullets: required schema param, alias handling, error ordering, explicit validate_asset behavior)",
-      "Optional batching (if present) (table: Shape → Cap enforcement → Evidence)",
-      "Logging hygiene (bullets: stdout frames only; stderr logs/diagnostics; deterministic timestamps)",
-      "Container & health (table: Aspect → Present/Missing/Divergent → Evidence)",
-      "Schema discovery & validation (table: Source → Mechanism → Evidence)",
-      "Test coverage (table: Feature → Tested? → Evidence)",
-      "Dependencies & runtime (table: Package → Used in → Required/Optional)",
-      "Environment variables (bullets: name, default, behavior when missing/invalid)",
-      "Documentation accuracy (bullets: README vs. docs/mcp_spec.md)",
+      "STDIO entrypoint & process model",
+      "Socket server (multi-client handling, perms, unlink, logs)",
+      "Golden request/response examples",
+      "Payload size guard",
+      "Schema validation contract",
+      "Batching",
+      "Logging hygiene",
+      "Container & health",
+      "Schema discovery & validation",
+      "Test coverage",
+      "Dependencies & runtime",
+      "Environment variables",
+      "Documentation accuracy",
       "Detected divergences",
       "Recommendations"
     ]
@@ -68,9 +60,6 @@
       "up.sh",
       "down.sh",
       "mcp/*.py",
-      "mcp/**/__main__.py",
-      "mcp/**/server.py",
-      "mcp/**/socket*.py",
       "tests/*.py",
       "libs/synesthetic-schemas",
       "meta/",
@@ -89,21 +78,16 @@
     "stdout_optional": true
   },
   "exit_criteria": [
-    "meta/output/mcp_state.md is written and non-empty",
-    "AGENTS.md snapshot updated with current audit findings",
-    "Spec features mapped to Present / Missing / Divergent in table form",
-    "STDIO entrypoint behavior explicitly verified (NDJSON framing, ready file, signal handling, shutdown semantics, stdout vs stderr separation)",
-    "Socket server (if present) explicitly verified (UDS path env, perms, multi-client handling, per-connection ordering, unlink on shutdown, readiness/shutdown logs)",
-    "Golden request/response examples verified with evidence from docs and tests for at least: list_schemas, get_schema, validate_asset (and validate alias), get_example (success + validation_failed), diff_assets; include one malformed-frame JSON-RPC error example",
-    "Payload size guard behavior verified with explicit failing test cases for STDIO (and Socket if present)",
-    "Validation contract verified including required schema param, alias mapping (validate → validate_asset), error ordering, and validate_asset implementation status (Missing if unsupported)",
-    "Optional batching (if implemented) verified: request/response shape, payload cap enforcement, MCP_MAX_BATCH honored",
-    "No remote $ref: evidence that schema resolution is local-only; path traversal rejected",
-    "Determinism verified (sorting for listings, error ordering, diff ordering) with test evidence",
-    "Logging hygiene verified (stdout only frames; stderr logs; ISO-8601 UTC timestamps)",
-    "Container & health verified (compose service names, env, healthcheck tied to MCP_READY_FILE; mode logs align with transport)",
-    "Dependencies mapped to imports in a table with evidence",
-    "Environment variables listed with defaults and clear behavior when invalid/missing",
-    "README cross-checked against docs/mcp_spec.md (v0.2.4)"
+    "meta/output/mcp_state.md written and non-empty",
+    "AGENTS.md snapshot updated",
+    "Spec v0.2.5 features mapped to Present/Missing/Divergent with evidence",
+    "STDIO and Socket behavior explicitly verified (multi-client ordering, logs, shutdown)",
+    "Golden examples covered (list_schemas, get_schema, validate_asset+alias, get_example success+validation_failed, diff_assets, malformed JSON-RPC)",
+    "Payload guard verified across all methods",
+    "Batching (validate_many) verified or marked",
+    "Determinism + schema safety verified",
+    "Logging verified (mode, path, schemas_dir, ISO timestamps)",
+    "Container non-root verified",
+    "README cross-checked with docs/mcp_spec.md"
   ]
 }
