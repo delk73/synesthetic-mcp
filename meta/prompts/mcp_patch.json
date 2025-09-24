@@ -1,0 +1,68 @@
+{
+  "task": "Resolve divergences and add socket transport",
+  "objective": "Address path traversal risks, add Unix-domain socket support, align docs with tooling, and harden container execution.",
+  "changes": [
+    {
+      "id": "path_traversal_guard",
+      "description": "Sanitize schema/example file paths to prevent directory traversal.",
+      "edits": [
+        "mcp/core.py:58 — Use Path.resolve to normalize requests under SYN_SCHEMAS_DIR, reject requests escaping root.",
+        "mcp/core.py:108 — Apply same guard for examples.",
+        "mcp/validate.py:47 — Reject schema paths that resolve outside configured root.",
+        "tests/test_path_traversal.py — Add cases for '../', absolute paths, and valid nested files."
+      ]
+    },
+    {
+      "id": "socket_transport",
+      "description": "Implement Unix-domain socket transport as an alternative to STDIO.",
+      "edits": [
+        "mcp/__main__.py:35 — Accept MCP_ENDPOINT=socket and branch to socket server.",
+        "mcp/socket_main.py — New UDS server: enforce 1 MiB cap, unlink on shutdown, FIFO handling, perms from MCP_SOCKET_MODE.",
+        "mcp/transport.py — Factor shared frame parsing/writing with cap enforcement.",
+        "tests/test_socket.py — Connect via socket, send requests, assert sequential replies, error frames, and cleanup.",
+        "README.md — Document MCP_SOCKET_PATH and MCP_SOCKET_MODE usage."
+      ]
+    },
+    {
+      "id": "stdio_validate_alias_test",
+      "description": "Ensure validate alias is tested and stable.",
+      "edits": [
+        "tests/test_stdio.py — Add a case invoking method='validate', assert identical behavior to 'validate_asset'.",
+        "mcp/stdio_main.py:22 — Retain alias mapping, add clarifying comment."
+      ]
+    },
+    {
+      "id": "readme_alignment",
+      "description": "Fix startup script mismatch.",
+      "edits": [
+        "README.md:43 — Replace './serve.sh' with './up.sh', or provide serve.sh shim that execs up.sh."
+      ]
+    },
+    {
+      "id": "docker_non_root",
+      "description": "Run container as non-root for security hardening.",
+      "edits": [
+        "Dockerfile — Add non-root user and switch USER; ensure /tmp remains writable.",
+        "docker-compose.yml — Explicitly set MCP_READY_FILE to /tmp/mcp.ready.",
+        "tests/test_entrypoint.py — Adjust for non-root user expectations."
+      ]
+    }
+  ],
+  "constraints": {
+    "rules": [
+      "No new dependencies; only use stdlib (socket, pathlib, json, etc.).",
+      "Preserve existing STDIO behavior and 1 MiB limits.",
+      "Socket server may be single-client but must enforce FIFO and cleanup on shutdown.",
+      "Docs and tests must reflect all changes.",
+      "All tests must pass after patch."
+    ]
+  },
+  "exit_criteria": [
+    "Path traversal attempts rejected with clear error and covered by tests.",
+    "Socket transport works with MCP_ENDPOINT=socket, enforces size cap, handles perms, and cleans up socket file.",
+    "Validate alias has direct test coverage.",
+    "README accurately reflects startup workflow.",
+    "Container runs as non-root without regressions.",
+    "No divergences remain for the addressed items."
+  ]
+}
