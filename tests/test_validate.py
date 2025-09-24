@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from mcp.core import get_example, get_schema
-from mcp.validate import validate_asset
+from mcp.validate import validate_asset, validate_many
 
 
 def _load(path: str):
@@ -74,3 +74,52 @@ def test_validate_asset_empty_schema():
     assert isinstance(result.get("errors"), list)
     assert result["errors"] == [{"path": "", "msg": "schema_required"}]
 
+
+def test_validate_many_mixed_results(tmp_path, monkeypatch):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    minimal = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"id": {"type": "string", "minLength": 1}},
+        "required": ["id"],
+        "additionalProperties": False,
+    }
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal))
+
+    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+
+    assets = [{"id": "good"}, {"id": ""}]
+
+    res = validate_many(assets, "asset")
+
+    assert res["ok"] is False
+    assert len(res["results"]) == 2
+    assert res["results"][0]["ok"] is True
+    assert res["results"][1]["ok"] is False
+    assert res["results"][1]["reason"] == "validation_failed"
+
+
+def test_validate_many_respects_max_batch(tmp_path, monkeypatch):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    minimal = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"id": {"type": "string", "minLength": 1}},
+        "required": ["id"],
+        "additionalProperties": False,
+    }
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal))
+
+    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+    monkeypatch.setenv("MCP_MAX_BATCH", "1")
+
+    assets = [{"id": "first"}, {"id": "second"}]
+
+    res = validate_many(assets, "asset")
+
+    assert res["ok"] is False
+    assert res["reason"] == "unsupported"
+    assert res["detail"] == "batch_too_large"
+    assert res["limit"] == 1

@@ -21,6 +21,20 @@ _SCHEMA_ALIASES = {
 
 
 MAX_BYTES = 1 * 1024 * 1024  # 1 MiB
+_DEFAULT_MAX_BATCH = 100
+
+
+def _max_batch() -> int:
+    raw = os.environ.get("MCP_MAX_BATCH")
+    if raw is None or not raw.strip():
+        return _DEFAULT_MAX_BATCH
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"Invalid MCP_MAX_BATCH '{raw}'") from exc
+    if value <= 0:
+        raise RuntimeError("MCP_MAX_BATCH must be a positive integer")
+    return value
 
 
 def _pointer_from_path(parts) -> str:
@@ -163,3 +177,45 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
     if errors:
         return {"ok": False, "reason": "validation_failed", "errors": errors}
     return {"ok": True, "errors": []}
+
+
+def validate_many(assets: List[Dict[str, Any]] | None, schema: str | None) -> Dict[str, Any]:
+    if not schema:
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "/schema", "msg": "schema param is required"}],
+        }
+
+    if assets is None:
+        assets = []
+    if not isinstance(assets, list):
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "/assets", "msg": "assets must be an array"}],
+        }
+
+    limit = _max_batch()
+    if len(assets) > limit:
+        return {
+            "ok": False,
+            "reason": "unsupported",
+            "detail": "batch_too_large",
+            "limit": limit,
+        }
+
+    results: List[Dict[str, Any]] = []
+    all_ok = True
+    for item in assets:
+        validation = validate_asset(item, schema)
+        entry: Dict[str, Any] = {"ok": validation.get("ok", False)}
+        if "errors" in validation and validation["errors"]:
+            entry["errors"] = validation["errors"]
+        if not entry["ok"] and validation.get("reason"):
+            entry["reason"] = validation["reason"]
+        results.append(entry)
+        if not entry["ok"]:
+            all_ok = False
+
+    return {"ok": all_ok, "results": results}

@@ -48,6 +48,8 @@ def test_socket_transport_end_to_end(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
     (schemas_dir / "asset.schema.json").write_text(json.dumps(_MINIMAL_SCHEMA))
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
 
     probe_path = tmp_path / "probe.sock"
     probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -67,6 +69,7 @@ def test_socket_transport_end_to_end(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
             "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
             "MCP_ENDPOINT": "socket",
             "MCP_SOCKET_PATH": str(socket_path),
             "MCP_READY_FILE": str(ready_file),
@@ -85,6 +88,8 @@ def test_socket_transport_end_to_end(tmp_path):
         assert proc.stderr is not None
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
         assert "mode=socket" in ready_line
+        assert "schemas_dir=" in ready_line
+        assert "examples_dir=" in ready_line
         assert socket_path.exists()
 
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -151,6 +156,8 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
     (schemas_dir / "asset.schema.json").write_text(json.dumps(_MINIMAL_SCHEMA))
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
 
     probe_path = tmp_path / "probe.sock"
     probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -170,6 +177,7 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
             "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
             "MCP_ENDPOINT": "socket",
             "MCP_SOCKET_PATH": str(socket_path),
             "MCP_READY_FILE": str(ready_file),
@@ -201,9 +209,6 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             }
             writer_one.write(json.dumps(request_one) + "\n")
             writer_one.flush()
-            response_one = json.loads(reader_one.readline())
-            assert response_one["id"] == 1
-            assert response_one["result"]["ok"] is True
 
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_two:
                 client_two.settimeout(3.0)
@@ -228,6 +233,10 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
                 response_two = json.loads(raw_two)
                 assert response_two["id"] == 2
                 assert response_two["result"]["ok"] is True
+
+                response_one = json.loads(reader_one.readline())
+                assert response_one["id"] == 1
+                assert response_one["result"]["ok"] is True
 
                 # Ensure client one is still able to issue additional requests after client two completes.
                 follow_up = {

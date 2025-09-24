@@ -34,11 +34,14 @@ def _wait_for_line(stream: TextIO, proc: subprocess.Popen, needle: str, timeout:
 def test_entrypoint_ready_and_shutdown(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
 
     env = os.environ.copy()
     env.update(
         {
             "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
             "PYTHONUNBUFFERED": "1",
         }
     )
@@ -57,6 +60,7 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
 
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
         assert "schemas_dir=" in ready_line
+        assert "examples_dir=" in ready_line
 
         proc.send_signal(signal.SIGINT)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
@@ -95,11 +99,14 @@ def test_invalid_schema_dir(tmp_path):
 def test_non_stdio_endpoint_rejected(tmp_path):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
 
     env = os.environ.copy()
     env.update(
         {
             "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
             "MCP_ENDPOINT": "http",
             "PYTHONUNBUFFERED": "1",
         }

@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import socket_main, stdio_main
-from .core import SUBMODULE_SCHEMAS_DIR, _infer_schema_name_from_example
+from .core import (
+    SUBMODULE_SCHEMAS_DIR,
+    _examples_dir,
+    _infer_schema_name_from_example,
+)
 from .validate import validate_asset
 
 DEFAULT_READY_FILE = "/tmp/mcp.ready"
@@ -31,6 +35,13 @@ def _resolve_schemas_dir() -> str:
     if os.path.isdir(submodule_dir):
         return submodule_dir
     raise RuntimeError("No schemas directory available; set SYN_SCHEMAS_DIR")
+
+
+def _examples_dir_for_log() -> str:
+    try:
+        return str(_examples_dir().resolve(strict=False))
+    except Exception:
+        return str(_examples_dir())
 
 
 def _endpoint() -> str:
@@ -101,7 +112,12 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
     except Exception:  # pragma: no cover - platform guard
         pass
 
-    logging.info("mcp:ready mode=stdio schemas_dir=%s", schemas_dir)
+    examples_dir = _examples_dir_for_log()
+    logging.info(
+        "mcp:ready mode=stdio schemas_dir=%s examples_dir=%s",
+        schemas_dir,
+        examples_dir,
+    )
     _write_ready_file(ready_file)
     exit_code = 0
     try:
@@ -144,10 +160,12 @@ def _run_socket(
         logging.exception("mcp:error reason=socket_start_failed path=%s", socket_path)
         exit_code = 1
     else:
+        examples_dir = _examples_dir_for_log()
         logging.info(
-            "mcp:ready mode=socket path=%s schemas_dir=%s",
+            "mcp:ready mode=socket path=%s schemas_dir=%s examples_dir=%s",
             socket_path,
             schemas_dir,
+            examples_dir,
         )
         _write_ready_file(ready_file)
         try:

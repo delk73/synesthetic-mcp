@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -53,7 +54,7 @@ def test_stdio_loop_smoke(monkeypatch):
     assert "schemas" in result and isinstance(result["schemas"], list)
 
 
-def test_stdio_validate_alias(monkeypatch, tmp_path):
+def test_stdio_validate_alias(monkeypatch, tmp_path, caplog):
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
     minimal_schema = {
@@ -80,6 +81,7 @@ def test_stdio_validate_alias(monkeypatch, tmp_path):
     monkeypatch.setattr(stdio.sys, "stdin", stdin)
     monkeypatch.setattr(stdio.sys, "stdout", stdout)
 
+    caplog.set_level(logging.WARNING)
     stdio.main()
 
     payload = json.loads(stdout.getvalue().strip())
@@ -87,6 +89,7 @@ def test_stdio_validate_alias(monkeypatch, tmp_path):
     result = payload.get("result", {})
     assert result.get("ok") is True
     assert result.get("errors") == []
+    assert any("deprecated_alias" in record.message for record in caplog.records)
 
 
 def test_stdio_entrypoint_validate_asset(tmp_path):

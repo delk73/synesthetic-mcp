@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import sys
 from typing import Any, Dict
 
@@ -7,7 +8,7 @@ from .backend import populate_backend
 from .core import get_example, get_schema, list_examples, list_schemas
 from .diff import diff_assets
 from .transport import process_line
-from .validate import validate_asset
+from .validate import validate_asset, validate_many
 
 
 def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -21,6 +22,8 @@ def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return get_example(params.get("path", ""))
     if method in ("validate", "validate_asset"):
         # "validate" is the deprecated alias; keep accepting it for compatibility.
+        if method == "validate":
+            logging.warning("mcp:warning reason=deprecated_alias method=validate")
         asset = params.get("asset", {})
         if "schema" not in params or not params["schema"]:
             return {
@@ -30,6 +33,8 @@ def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
             }
         schema = params["schema"]
         return validate_asset(asset, schema)
+    if method == "validate_many":
+        return validate_many(params.get("assets"), params.get("schema"))
     if method == "diff_assets":
         return diff_assets(params.get("base", {}), params.get("new", {}))
     if method == "populate_backend":

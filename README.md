@@ -29,10 +29,12 @@ flowchart LR
 
 - Schema and example discovery
 - JSON Schema validation (Draft 2020-12)
+- Batch validation via `validate_many` with `MCP_MAX_BATCH` (default 100)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
 - Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`)
 - Per-request 1 MiB payload guard enforced before parsing (STDIO and socket)
+- Deprecated `validate` alias remains available but logs a warning; prefer `validate_asset`
 
 ## Quickstart
 
@@ -99,6 +101,7 @@ tests/
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
 | `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | Custom path for backend POST requests. |
+| `MCP_MAX_BATCH` | `100` | Maximum batch size for `validate_many`; oversized batches return `{ok:false, reason:'unsupported'}`. |
 
 `.env.example` captures these defaults for quick copying into local shells or Compose.
 

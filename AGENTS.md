@@ -1,51 +1,51 @@
-# AGENTS.md — Repo Snapshot
+# AGENTS.md — Repo Snapshot (v0.2.5 Audit)
 
 ## Repo Summary
-- **Transports:** STDIO and socket share the NDJSON dispatcher, 1 MiB guard, and ready-file lifecycle; socket now runs each client in its own thread to satisfy the multi-client requirement (mcp/stdio_main.py:46; mcp/socket_main.py:36; mcp/socket_main.py:67; tests/test_socket.py:147).
-- **Schema Safety:** Schema/example lookups reject traversal before disk access and retain deterministic ordering with submodule fallback (mcp/core.py:16; mcp/core.py:85; tests/test_path_traversal.py:34; tests/test_submodule_integration.py:34).
-- **Tools:** Validation, diff, and backend populate enforce payload caps, ordering, and local-only refs with strong test coverage (mcp/validate.py:114; mcp/validate.py:162; mcp/diff.py:49; mcp/backend.py:38; tests/test_validate.py:46; tests/test_backend.py:65).
-- **Process Model:** Entry point logs readiness mode/path/schemas_dir, writes `<pid> <ISO8601>` to the ready file, and cleans up on shutdown for both transports (mcp/__main__.py:104; mcp/__main__.py:147; mcp/__main__.py:161; tests/test_stdio.py:121; tests/test_socket.py:131).
-- **Container & Compose:** Image runs as non-root and compose healthchecks rely on the ready file while exposing transport env controls (Dockerfile:24; docker-compose.yml:18; docker-compose.yml:26).
+- **Transports:** STDIO and socket transports are functional, but testing for payload size guards is incomplete.
+- **Schema Safety:** Local-only schema discovery is implemented correctly with path traversal protections.
+- **Tools:** Core tools like validation, diff, and backend population are implemented. However, testing for the `validate` alias deprecation warning is missing.
+- **Process Model:** The entrypoint and process model are correctly implemented for both STDIO and socket transports.
+- **Container & Compose:** The container correctly runs as a non-root user.
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
 | - | - | - | - |
 | jsonschema | Draft 2020-12 validation | Required | requirements.txt:1; mcp/validate.py:8 |
 | httpx | Backend populate client | Required (backend) | requirements.txt:2; mcp/backend.py:7 |
-| pytest | Test runner | Required (tests) | requirements.txt:3; tests/test_stdio.py:12 |
-| referencing | Local schema registry support | Optional | mcp/validate.py:9 |
+| pytest | Test runner | Required (tests) | requirements.txt:3; tests/test_stdio.py:13 |
+| referencing | Local schema registry support | Optional | mcp/validate.py:8; mcp/validate.py:66 |
 
 ## Environment Variables
-- `MCP_ENDPOINT`: defaults to `stdio`; rejects unsupported transports (mcp/__main__.py:36; tests/test_entrypoint.py:95).
-- `MCP_READY_FILE`: `/tmp/mcp.ready` by default; written on ready and removed on shutdown (mcp/__main__.py:69; mcp/__main__.py:115).
-- `MCP_SOCKET_PATH` / `MCP_SOCKET_MODE`: control UDS location and permissions (mcp/__main__.py:47; mcp/__main__.py:52; mcp/socket_main.py:34).
-- `SYN_SCHEMAS_DIR` / `SYN_EXAMPLES_DIR`: override discovery roots; invalid schema directory aborts startup (mcp/__main__.py:23; tests/test_entrypoint.py:81).
-- `SYN_BACKEND_URL`: enables backend POST; unset returns `unsupported` (mcp/backend.py:30; tests/test_backend.py:21).
-- `SYN_BACKEND_ASSETS_PATH`: normalized to a leading slash before POST (mcp/backend.py:17; tests/test_backend.py:46).
+- `MCP_ENDPOINT`: defaults to `stdio`; rejects unsupported transports.
+- `MCP_READY_FILE`: `/tmp/mcp.ready` by default; written on ready and removed on shutdown.
+- `MCP_SOCKET_PATH` / `MCP_SOCKET_MODE`: control UDS location and permissions.
+- `SYN_SCHEMAS_DIR` / `SYN_EXAMPLES_DIR`: override discovery roots.
+- `SYN_BACKEND_URL`: enables backend POST; unset returns `unsupported`.
+- `MCP_MAX_BATCH`: caps `validate_many`; must be positive.
 
 ## Tests Overview
 | Focus | Status | Evidence |
 | - | - | - |
-| STDIO framing, guard, alias coverage | ✅ | tests/test_stdio.py:29; tests/test_stdio.py:56; tests/test_stdio.py:220 |
-| Socket server handshake, guard, multi-client threads | ✅ | tests/test_socket.py:84; tests/test_socket.py:114; tests/test_socket.py:147 |
-| Path traversal rejection | ✅ | tests/test_path_traversal.py:34 |
-| Ready file lifecycle & shutdown | ✅ | tests/test_entrypoint.py:54; tests/test_socket.py:131 |
-| Validation contract & ordering | ✅ | tests/test_validate.py:46 |
-| Backend populate flows & guard | ✅ | tests/test_backend.py:28; tests/test_backend.py:65 |
-| Schema discovery (env + submodule) | ✅ | tests/test_env_discovery.py:29; tests/test_submodule_integration.py:28 |
-| Diff determinism | ✅ | tests/test_diff.py:11 |
+| STDIO framing, guard, alias warning | 🟡 **Divergent** | `tests/test_stdio.py` (alias warning not tested) |
+| Socket readiness, guard, multi-client threads | 🟡 **Divergent** | `tests/test_socket.py` (payload guard not tested for all methods) |
+| Path traversal rejection | ✅ **Present** | `tests/test_path_traversal.py` |
+| Ready file lifecycle & shutdown | ✅ **Present** | `tests/test_entrypoint.py`, `tests/test_socket.py` |
+| Validation contract & batching | ✅ **Present** | `tests/test_validate.py` |
+| Backend populate flows & guard | ✅ **Present** | `tests/test_backend.py` |
+| Schema discovery (env + submodule) | ✅ **Present** | `tests/test_env_discovery.py`, `tests/test_submodule_integration.py` |
+| Diff determinism | ✅ **Present** | `tests/test_diff.py` |
 
 ## Spec Alignment
 | Spec Item | Status | Evidence |
 | - | - | - |
-| STDIO & socket NDJSON transport with 1 MiB guard | Present | mcp/stdio_main.py:46; mcp/socket_main.py:95; mcp/transport.py:41; tests/test_socket.py:114 |
-| Ready file `<pid> <ISO8601>` lifecycle | Present | mcp/__main__.py:69; mcp/__main__.py:161; tests/test_stdio.py:121 |
-| Path traversal rejection | Present | mcp/core.py:16; mcp/validate.py:130; tests/test_path_traversal.py:53 |
-| Socket multi-client support | Present | mcp/socket_main.py:67; tests/test_socket.py:147 |
-| `validate` alias deprecation warning (v0.2.5) | Divergent | mcp/stdio_main.py:22; docs/mcp_spec.md:94 |
-| `validate_many` batching with MCP_MAX_BATCH | Missing | docs/mcp_spec.md:89; mcp/stdio_main.py:13 |
+| STDIO & socket NDJSON with 1 MiB guard | 🟡 **Divergent** | Incomplete test coverage |
+| Ready file `<pid> <ISO8601>` lifecycle | ✅ **Present** | `mcp/__main__.py` |
+| Path traversal rejection | ✅ **Present** | `mcp/core.py`, `tests/test_path_traversal.py` |
+| Socket multi-client support | ✅ **Present** | `mcp/socket_main.py`, `tests/test_socket.py` |
+| `validate` alias warning (v0.2.5) | 🟡 **Divergent** | `mcp/stdio_main.py` (no test) |
+| `validate_many` batching with `MCP_MAX_BATCH` | ✅ **Present** | `mcp/validate.py`, `tests/test_validate.py` |
 
 ## Recommendations
-- Implement `validate_many` with MCP_MAX_BATCH enforcement and add corresponding tests (docs/mcp_spec.md:89).
-- Emit and test a deprecation warning when the `validate` alias is invoked (mcp/stdio_main.py:22; docs/mcp_spec.md:94).
-- Add regression coverage for socket permission overrides and STDIO shutdown on stdin close (mcp/socket_main.py:34; mcp/stdio_main.py:46).
+1.  Add a test to `tests/test_stdio.py` that uses the `validate` alias and asserts that the deprecation warning is written to `stderr`.
+2.  Add tests to `tests/test_validate.py` and `tests/test_stdio.py` to ensure oversized payloads are rejected by `validate_many` and the stdio transport.
+3.  Create a `golden.jsonl` file in `tests/fixtures` with example requests and responses for all MCP methods.
