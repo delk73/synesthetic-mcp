@@ -1,44 +1,46 @@
 {
-  "task": "Finalize MCP v0.2.5a compliance",
-  "objective": "Close remaining divergences by aligning golden fixtures with runtime MCP output, enforcing payload size checks in validate_many, testing alias warnings via JSON-RPC, and handling SIGINT consistently.",
+  "task": "Close MCP v0.2.5 divergences",
+  "objective": "Add missing tests for alias deprecation warning and payload size guards, and introduce golden request/response examples to complete v0.2.5 exit criteria.",
   "changes": [
     {
-      "id": "validate_many_guard",
-      "description": "Ensure validate_many uses _size_okay to reject payloads >1 MiB with validation_failed."
-    },
-    {
       "id": "alias_warning_test",
-      "description": "Replace CLI-arg test with subprocess JSON-RPC test: spawn `python -m mcp`, send method='validate', and assert that (1) stdout result matches validate_asset, and (2) stderr contains deprecated_alias warning."
+      "description": "Add test to confirm 'validate' alias emits deprecation warning to stderr.",
+      "edits": [
+        "tests/test_stdio.py: add a test that sends a JSON-RPC request with method='validate', captures stderr, and asserts that a deprecation warning mentioning 'deprecated_alias' and 'validate' is present."
+      ]
     },
     {
-      "id": "golden_fixtures",
-      "description": "Regenerate tests/fixtures/e2e_golden.jsonl directly from MCP runtime responses. Include: malformed JSON-RPC parse error, list_schemas (sorted, version:''), get_schema (raw file contents), validate_asset/validate/validate_many (invalid assets => validation_failed with required-property errors), diff_assets, and populate_backend."
+      "id": "payload_guard_tests",
+      "description": "Add explicit oversize payload tests for STDIO and validate_many.",
+      "edits": [
+        "tests/test_stdio.py: add a test that sends an oversized (>1 MiB) JSON-RPC request and asserts response contains reason='validation_failed' and error msg='payload_too_large'.",
+        "tests/test_validate.py: add a test that calls validate_many with a list so large that encoded size >1 MiB, and asserts rejection with reason='validation_failed'."
+      ]
     },
     {
-      "id": "golden_test",
-      "description": "Update tests/test_golden.py to replay golden.jsonl through JSON-RPC subprocess. Normalize deterministic fields (schema list order, error sort), assert equality with golden. Mark with @pytest.mark.slow and register in pytest.ini."
-    },
-    {
-      "id": "sigint_handler",
-      "description": "Trap SIGINT in mcp/__main__.py the same as SIGTERM. Ensure test_entrypoint_ready_and_shutdown exits cleanly after SIGINT."
+      "id": "golden_examples",
+      "description": "Introduce golden request/response fixtures for all MCP methods.",
+      "edits": [
+        "tests/fixtures/golden.jsonl: add canonical NDJSON frames covering list_schemas, get_schema, validate_asset, validate alias, validate_many, get_example (success and validation_failed), diff_assets, populate_backend, and a malformed JSON-RPC parse error.",
+        "tests/test_golden.py: add test that spawns MCP via subprocess, replays golden.jsonl requests, and asserts outputs match expected responses; mark with @pytest.mark.slow and register 'slow' in pytest.ini."
+      ]
     }
   ],
   "constraints": {
     "rules": [
-      "Alias warning test MUST use JSON-RPC transport, not CLI arguments.",
-      "Golden responses MUST be captured from real MCP execution, not fabricated.",
-      "get_schema response MUST echo the exact JSON schema file on disk.",
-      "Invalid assets MUST yield validation_failed with explicit required-property errors.",
-      "Schema list order fixed: control, control-bundle, haptic, modulation, rule, rule-bundle, shader, synesthetic-asset, tone.",
-      "No new dependencies beyond pytest."
+      "No new dependencies; use only pytest and stdlib.",
+      "Golden examples must match actual MCP output shapes exactly (no fabricated fields).",
+      "Alias warning test must use JSON-RPC transport, not CLI args.",
+      "Oversize payload tests must exceed 1 MiB and assert payload_too_large.",
+      "All existing tests must remain green."
     ]
   },
   "exit_criteria": [
-    "validate_many enforces payload size guard correctly.",
-    "Alias test observes deprecated_alias warning in stderr for method=validate.",
-    "Golden.jsonl matches live MCP responses; test_golden.py passes with no diffs.",
-    "pytest.ini registers slow marker, no warnings emitted.",
-    "SIGINT handling works; entrypoint shutdown test passes.",
-    "All tests pass in container (`./test.sh`), audit shows no divergences."
+    "tests/test_stdio.py contains a working alias warning test with stderr assertion.",
+    "tests/test_validate.py and tests/test_stdio.py contain explicit oversize payload rejection cases.",
+    "tests/fixtures/golden.jsonl contains complete canonical request/response set.",
+    "tests/test_golden.py replays golden.jsonl successfully with no diffs.",
+    "pytest.ini registers 'slow' marker without warnings.",
+    "All tests pass in container; v0.2.5 audit shows no divergences."
   ]
 }
