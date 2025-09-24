@@ -1,57 +1,43 @@
 {
   "task": "Finalize MCP v0.2.5 compliance",
-  "objective": "Close divergences by aligning golden fixtures with actual schema behavior, enforcing payload size checks in validate_many, testing alias warnings, and adding SIGINT handling.",
+  "objective": "Close divergences by aligning golden fixtures with real schema behavior, enforcing payload size checks in validate_many, testing alias warnings, and handling SIGINT.",
   "changes": [
     {
       "id": "validate_many_guard",
-      "description": "Ensure validate_many enforces total payload size using _size_okay, not just batch length.",
-      "edits": [
-        "mcp/validate.py: before enforcing MCP_MAX_BATCH, add a _size_okay(assets) guard returning validation_failed if false."
-      ]
+      "description": "Ensure validate_many enforces payload size using _size_okay, not just batch length."
     },
     {
       "id": "alias_warning_test",
-      "description": "Add test for validate alias deprecation warning.",
-      "edits": [
-        "tests/test_stdio.py: add test that calls method 'validate', captures stderr, and asserts deprecation warning appears."
-      ]
+      "description": "Add subprocess-based test that calls 'validate' alias and asserts deprecation warning appears on stderr."
     },
     {
       "id": "golden_fixtures",
-      "description": "Correct golden.jsonl to match real behavior.",
-      "edits": [
-        "tests/fixtures/golden.jsonl: ensure list_schemas array is alphabetically sorted; all schema versions are ''; get_schema returns full raw schema file (including $defs if present); validate_asset/validate/validate_many responses expect validation_failed with missing required fields, not ok:true; malformed JSON-RPC example returns JSON-RPC error."
-      ]
+      "description": "Correct tests/fixtures/golden.jsonl to mirror real output. Must include: list_schemas (alphabetical order, version:''), get_schema (verbatim schema file), validate_asset/validate/validate_many (validation_failed with required-property errors), diff_assets, populate_backend, and malformed JSON-RPC."
     },
     {
       "id": "golden_test",
-      "description": "Update test_golden.py to tolerate deterministic errors.",
-      "edits": [
-        "tests/test_golden.py: ensure golden test compares actual vs expected strictly, but expected responses must match schema reality; mark slow with pytest.mark.slow but register it in pytest.ini to silence warnings."
-      ]
+      "description": "Add tests/test_golden.py to replay golden.jsonl against MCP. Mark with pytest.mark.slow and register marker in pytest.ini."
     },
     {
       "id": "sigint_handler",
-      "description": "Handle SIGINT same as SIGTERM in stdio entrypoint.",
-      "edits": [
-        "mcp/__main__.py: in _run_stdio, add signal.signal(signal.SIGINT, _sigterm_handler) and restore on exit."
-      ]
+      "description": "Handle SIGINT same as SIGTERM in _run_stdio; test_entrypoint_ready_and_shutdown must exit cleanly."
     }
   ],
   "constraints": {
     "rules": [
-      "Do not fabricate schema content; golden get_schema must mirror the actual JSON file on disk.",
-      "Golden validate_* calls must expect validation_failed unless the fixture asset is truly valid.",
-      "Schema list order must be control, control-bundle, haptic, modulation, rule, rule-bundle, shader, synesthetic-asset, tone.",
+      "Golden responses must match actual runtime schema behavior exactly.",
+      "Do not fabricate schema content; get_schema must return the raw schema file.",
+      "If an asset is invalid, golden must expect validation_failed with proper errors.",
+      "Schema list order fixed: control, control-bundle, haptic, modulation, rule, rule-bundle, shader, synesthetic-asset, tone.",
       "No new dependencies beyond pytest."
     ]
   },
   "exit_criteria": [
-    "validate_many enforces payload size limit with validation_failed error.",
-    "tests/test_stdio.py includes stderr assertion for alias deprecation warning.",
-    "tests/fixtures/golden.jsonl matches actual schema content and sorting; validate_* responses aligned with schema requirements.",
-    "pytest.ini registers [pytest] markers = slow to silence warning.",
-    "mcp/__main__.py handles SIGINT gracefully, test_entrypoint_ready_and_shutdown passes.",
+    "validate_many enforces size guard correctly.",
+    "Alias test confirms stderr deprecation warning.",
+    "Golden.jsonl fully aligned with runtime behavior, no diffs in test_golden.py.",
+    "pytest.ini registers slow marker, warning gone.",
+    "SIGINT handling works, entrypoint test passes.",
     "All tests green, audit shows no divergences."
   ]
 }
