@@ -3,7 +3,7 @@ services:
     build: .
     image: synesthetic-mcp
     container_name: synesthetic-mcp
-    # Environment is passed through from host if set; no defaults here
+    
     environment:
       - SYN_SCHEMAS_DIR
       - SYN_EXAMPLES_DIR
@@ -11,6 +11,7 @@ services:
     volumes:
       - .:/app
     command: pytest -q
+
   serve:
     build: .
     image: synesthetic-mcp
@@ -18,11 +19,17 @@ services:
       MCP_ENDPOINT: ${MCP_ENDPOINT:-stdio}
       MCP_SOCKET_PATH: ${MCP_SOCKET_PATH:-/tmp/mcp.sock}
       MCP_SOCKET_MODE: ${MCP_SOCKET_MODE:-0600}
+      MCP_PORT: ${MCP_PORT:-7000}
       MCP_READY_FILE: /tmp/mcp.ready
       SYN_SCHEMAS_DIR: ${SYN_SCHEMAS_DIR:-}
       SYN_EXAMPLES_DIR: ${SYN_EXAMPLES_DIR:-}
       SYN_BACKEND_URL: ${SYN_BACKEND_URL:-}
+
+    volumes:
+      - /tmp:/tmp
     command: ["python", "-m", "mcp"]
+    ports:
+      - "${MCP_PORT:-7000}:${MCP_PORT:-7000}"
     healthcheck:
       test: ["CMD-SHELL", "[ -f /tmp/mcp.ready ]"]
       interval: 30s
