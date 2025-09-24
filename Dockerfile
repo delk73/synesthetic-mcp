@@ -20,5 +20,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN pip install -e .
 
+# Drop root privileges once dependencies are installed
+RUN useradd --create-home --home-dir /home/mcp --shell /usr/sbin/nologin mcp \
+    && chown -R mcp:mcp /app
+
+USER mcp
+ENV HOME=/home/mcp
+
 # Default to the blocking MCP server; callers may override for tests
 CMD ["python", "-m", "mcp"]

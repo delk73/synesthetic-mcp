@@ -53,6 +53,42 @@ def test_stdio_loop_smoke(monkeypatch):
     assert "schemas" in result and isinstance(result["schemas"], list)
 
 
+def test_stdio_validate_alias(monkeypatch, tmp_path):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    minimal_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"schema": {"type": "string", "const": "asset"}},
+        "required": ["schema"],
+        "additionalProperties": False,
+    }
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
+
+    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+
+    request: Dict[str, Any] = {
+        "id": 42,
+        "method": "validate",
+        "params": {"asset": {"schema": "asset"}, "schema": "asset"},
+    }
+    stdin = io.StringIO(json.dumps(request) + "\n")
+    stdout = io.StringIO()
+
+    import mcp.stdio_main as stdio
+
+    monkeypatch.setattr(stdio.sys, "stdin", stdin)
+    monkeypatch.setattr(stdio.sys, "stdout", stdout)
+
+    stdio.main()
+
+    payload = json.loads(stdout.getvalue().strip())
+    assert payload.get("id") == 42
+    result = payload.get("result", {})
+    assert result.get("ok") is True
+    assert result.get("errors") == []
+
+
 def test_stdio_entrypoint_validate_asset(tmp_path):
     repo_root = Path(__file__).resolve().parent.parent
     ready_file = tmp_path / "mcp.ready"

@@ -31,15 +31,15 @@ flowchart LR
 - JSON Schema validation (Draft 2020-12)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
-- Canonical STDIO JSON-RPC loop (transport locked to STDIO)
-- Per-request 1 MiB STDIO payload guard enforced before parsing
+- Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`)
+- Per-request 1 MiB payload guard enforced before parsing (STDIO and socket)
 
 ## Quickstart
 
 1. Install deps: `pip install -r requirements.txt && pip install -e .`
 2. Initialize schemas/examples: `git submodule update --init --recursive`.
-3. Serve via Compose: `docker compose up serve` (runs the STDIO JSON-RPC loop, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
-4. Or run the helper: `./serve.sh` builds the image, waits for a ready container, then tails logs.
+3. Serve via Compose: `docker compose up serve` (runs the transport, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
+4. Or run the helper: `./up.sh` builds the image, waits for a ready container, then tails logs.
 5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
 
 ## Structure
@@ -56,6 +56,8 @@ mcp/
   diff.py
   backend.py
   stdio_main.py
+  socket_main.py
+  transport.py
 tests/
   test_validate.py
   test_diff.py
@@ -75,8 +77,8 @@ tests/
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
-  - `python -m mcp` (canonical STDIO JSON-RPC loop; logs `mcp:ready mode=stdio` and blocks on stdin/stdout).
-  - `python -m mcp.stdio_main` (invoke the loop directly when embedding).
+  - `python -m mcp` (STDIO by default; set `MCP_ENDPOINT=socket` for the Unix-domain socket server. Logs `mcp:ready mode=<endpoint>` on readiness).
+  - `python -m mcp.stdio_main` (invoke the STDIO loop directly when embedding).
 
 ## Dependencies
 
@@ -89,8 +91,10 @@ tests/
 
 | Variable | Default | Behaviour |
 | - | - | - |
-| `MCP_ENDPOINT` | `stdio` | Transport selector fixed to STDIO. Any other value raises a setup failure. |
+| `MCP_ENDPOINT` | `stdio` | Transport selector. `stdio` runs over stdin/stdout; `socket` enables the Unix-domain socket server. |
 | `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup with `<pid> <ISO8601>` and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
+| `MCP_SOCKET_PATH` | `/tmp/mcp.sock` | Socket path when `MCP_ENDPOINT=socket`. The server unlinks the file on shutdown. |
+| `MCP_SOCKET_MODE` | `0600` | Octal file mode applied to the socket on startup. Increase only when the socket must be shared. |
 | `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
@@ -163,7 +167,7 @@ Notes:
 ### Serving Locally
 
 - `docker compose up serve` (or `./serve.sh`) builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and then tails logs.
-- Transport remains STDIO-only; any alternate `MCP_ENDPOINT` value fails fast during startup.
+- STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path.
 - STDIO requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large`.
 
 ## Spec

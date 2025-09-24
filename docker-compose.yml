@@ -16,13 +16,15 @@ services:
     image: synesthetic-mcp
     environment:
       MCP_ENDPOINT: ${MCP_ENDPOINT:-stdio}
-      MCP_READY_FILE: ${MCP_READY_FILE:-/tmp/mcp.ready}
+      MCP_SOCKET_PATH: ${MCP_SOCKET_PATH:-/tmp/mcp.sock}
+      MCP_SOCKET_MODE: ${MCP_SOCKET_MODE:-0600}
+      MCP_READY_FILE: /tmp/mcp.ready
       SYN_SCHEMAS_DIR: ${SYN_SCHEMAS_DIR:-}
       SYN_EXAMPLES_DIR: ${SYN_EXAMPLES_DIR:-}
       SYN_BACKEND_URL: ${SYN_BACKEND_URL:-}
     command: ["python", "-m", "mcp"]
     healthcheck:
-      test: ["CMD-SHELL", "[ -f ${MCP_READY_FILE:-/tmp/mcp.ready} ]"]
+      test: ["CMD-SHELL", "[ -f /tmp/mcp.ready ]"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -12,11 +12,12 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import stdio_main
+from . import socket_main, stdio_main
 from .core import SUBMODULE_SCHEMAS_DIR, _infer_schema_name_from_example
 from .validate import validate_asset
 
 DEFAULT_READY_FILE = "/tmp/mcp.ready"
+DEFAULT_SOCKET_PATH = "/tmp/mcp.sock"
 
 
 def _resolve_schemas_dir() -> str:
@@ -32,14 +33,29 @@ def _resolve_schemas_dir() -> str:
     raise RuntimeError("No schemas directory available; set SYN_SCHEMAS_DIR")
 
 
-def _ensure_stdio_endpoint() -> None:
+def _endpoint() -> str:
     raw = os.environ.get("MCP_ENDPOINT", "stdio")
-    value = raw.strip() if raw else ""
+    value = raw.strip() if raw else "stdio"
     if value in {"", "stdio", "stdio://"}:
-        return
-    raise RuntimeError(
-        "Only STDIO transport is supported; set MCP_ENDPOINT=stdio or unset it"
-    )
+        return "stdio"
+    if value == "socket":
+        return "socket"
+    raise RuntimeError("Unsupported MCP transport; set MCP_ENDPOINT to 'stdio' or 'socket'")
+
+
+def _socket_path() -> Path:
+    raw = os.environ.get("MCP_SOCKET_PATH", DEFAULT_SOCKET_PATH)
+    value = raw.strip() if raw else DEFAULT_SOCKET_PATH
+    return Path(value)
+
+
+def _socket_mode() -> int:
+    raw = os.environ.get("MCP_SOCKET_MODE", "0600")
+    value = raw.strip() if raw else "0600"
+    try:
+        return int(value, 8)
+    except ValueError as exc:  # pragma: no cover - invalid configuration
+        raise RuntimeError(f"Invalid MCP_SOCKET_MODE '{value}'") from exc
 
 
 def _ready_file_path() -> Path | None:
@@ -103,6 +119,54 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
             except Exception:
                 pass
         _clear_ready_file(ready_file)
+    return exit_code
+
+
+def _run_socket(
+    socket_path: Path, mode: int, ready_file: Path | None, schemas_dir: str
+) -> int:
+    def _sigterm_handler(signum: int, _frame: object) -> None:  # pragma: no cover - signal
+        raise KeyboardInterrupt
+
+    handlers: list[tuple[int, object]] = []
+    try:
+        previous = signal.getsignal(signal.SIGTERM)
+        signal.signal(signal.SIGTERM, _sigterm_handler)
+        handlers.append((signal.SIGTERM, previous))
+    except Exception:  # pragma: no cover - platform guard
+        pass
+
+    server = socket_main.SocketServer(socket_path, mode)
+    exit_code = 0
+    try:
+        server.start()
+    except Exception:
+        logging.exception("mcp:error reason=socket_start_failed path=%s", socket_path)
+        exit_code = 1
+    else:
+        logging.info(
+            "mcp:ready mode=socket path=%s schemas_dir=%s",
+            socket_path,
+            schemas_dir,
+        )
+        _write_ready_file(ready_file)
+        try:
+            server.serve_forever(stdio_main.dispatch)
+        except KeyboardInterrupt:
+            exit_code = 0
+        except Exception:
+            logging.exception("mcp:error reason=runtime_failure mode=socket")
+            exit_code = 1
+        finally:
+            logging.info("mcp:shutdown mode=socket")
+            server.close()
+            _clear_ready_file(ready_file)
+    finally:
+        for sig, previous in handlers:
+            try:
+                signal.signal(sig, previous)
+            except Exception:
+                pass
     return exit_code
 
 
@@ -180,14 +244,23 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(2)
 
     try:
-        _ensure_stdio_endpoint()
+        endpoint = _endpoint()
     except Exception as exc:
         logging.error("mcp:error reason=setup_failed detail=%s", exc)
         sys.exit(2)
 
     ready_file = _ready_file_path()
 
-    code = _run_stdio(schemas_dir, ready_file)
+    if endpoint == "stdio":
+        code = _run_stdio(schemas_dir, ready_file)
+    else:
+        socket_path = _socket_path()
+        try:
+            mode = _socket_mode()
+        except Exception as exc:
+            logging.error("mcp:error reason=setup_failed detail=%s", exc)
+            sys.exit(2)
+        code = _run_socket(socket_path, mode, ready_file, schemas_dir)
     sys.exit(code)
 
 

@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover
     Registry = None  # type: ignore
     Resource = None  # type: ignore
 
-from .core import _schemas_dir
+from .core import _schema_file_path, PathOutsideConfiguredRoot
 
 # Alias mapping: accept nested alias but validate against canonical schema
 _SCHEMA_ALIASES = {
@@ -44,10 +44,10 @@ def _size_okay(obj: Any) -> bool:
         return False
 
 
-def _load_schema(name: str) -> Dict[str, Any]:
+def _load_schema(name: str) -> tuple[Dict[str, Any], Path]:
     canonical = _SCHEMA_ALIASES.get(name, name)
-    p = _schemas_dir() / f"{canonical}.schema.json"
-    return json.loads(Path(p).read_text())
+    path = _schema_file_path(canonical)
+    return json.loads(path.read_text()), path
 
 def _build_local_registry():
     if Registry is None or Resource is None:
@@ -127,7 +127,13 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
         payload = asset
 
     try:
-        schema_obj = _load_schema(schema)
+        schema_obj, schema_path = _load_schema(schema)
+    except PathOutsideConfiguredRoot:
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "/schema", "msg": "schema_outside_configured_root"}],
+        }
     except Exception as e:
         return {
             "ok": False,
@@ -137,10 +143,8 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
 
     # Establish base_uri for $ref resolution from file path if $id missing
     base_uri = None
-    canonical = _SCHEMA_ALIASES.get(schema, schema)
-    p = _schemas_dir() / f"{canonical}.schema.json"
-    if p.exists():
-        base_uri = p.resolve().as_uri()
+    if schema_path.exists():
+        base_uri = schema_path.resolve().as_uri()
     schema_copy = dict(schema_obj)
     if base_uri and "$id" not in schema_copy:
         schema_copy["$id"] = base_uri

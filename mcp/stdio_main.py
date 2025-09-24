@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-import json
 import sys
 from typing import Any, Dict
 
-from .core import get_example, get_schema, list_examples, list_schemas
-from .validate import validate_asset, MAX_BYTES
-from .diff import diff_assets
 from .backend import populate_backend
+from .core import get_example, get_schema, list_examples, list_schemas
+from .diff import diff_assets
+from .transport import process_line
+from .validate import validate_asset
 
 
-def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
+def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
     if method == "list_schemas":
         return list_schemas()
     if method == "get_schema":
@@ -20,15 +20,16 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
     if method == "get_example":
         return get_example(params.get("path", ""))
     if method in ("validate", "validate_asset"):
+        # "validate" is the deprecated alias; keep accepting it for compatibility.
         asset = params.get("asset", {})
         if "schema" not in params or not params["schema"]:
             return {
                 "ok": False,
                 "reason": "validation_failed",
-                "errors": [{"path": "/schema", "msg": "schema param is required"}]
+                "errors": [{"path": "/schema", "msg": "schema param is required"}],
             }
         schema = params["schema"]
-        return validate_asset(asset, schema)    
+        return validate_asset(asset, schema)
     if method == "diff_assets":
         return diff_assets(params.get("base", {}), params.get("new", {}))
     if method == "populate_backend":
@@ -45,35 +46,11 @@ def _handle(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
 def main() -> None:
     # Minimal newline-delimited JSON-RPC-ish loop: {"id","method","params"}
     for line in sys.stdin:
-        line = line.strip()
-        if not line:
+        stripped = line.strip()
+        if not stripped:
             continue
-        rid = None
-        try:
-            if len(line.encode("utf-8")) > MAX_BYTES:
-                result = {
-                    "ok": False,
-                    "reason": "validation_failed",
-                    "errors": [{"path": "", "msg": "payload_too_large"}],
-                }
-                out = {"jsonrpc": "2.0", "id": rid, "result": result}
-                sys.stdout.write(json.dumps(out) + "\n")
-                sys.stdout.flush()
-                continue
-
-            req = json.loads(line)
-            rid = req.get("id")
-            method = req.get("method", "")
-            params = req.get("params", {}) or {}
-            result = _handle(method, params)
-            out = {"jsonrpc": "2.0", "id": rid, "result": result}
-        except Exception as e:
-            out = {
-                "jsonrpc": "2.0",
-                "id": rid,
-                "error": {"code": -32603, "message": str(e)},
-            }
-        sys.stdout.write(json.dumps(out) + "\n")
+        out = process_line(stripped, dispatch)
+        sys.stdout.write(out + "\n")
         sys.stdout.flush()
 
 

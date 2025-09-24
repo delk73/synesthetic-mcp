@@ -9,6 +9,21 @@ SUBMODULE_SCHEMAS_DIR = "libs/synesthetic-schemas/jsonschema"
 SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/examples"
 
 
+class PathOutsideConfiguredRoot(ValueError):
+    """Raised when a requested file escapes the configured root directory."""
+
+
+def _resolve_within_root(root: Path, relative: str) -> Path:
+    base = root.resolve(strict=False)
+    fragment = Path(relative)
+    if fragment.is_absolute():
+        raise PathOutsideConfiguredRoot(relative)
+    candidate = (base / fragment).resolve(strict=False)
+    if base == candidate or base not in candidate.parents:
+        raise PathOutsideConfiguredRoot(relative)
+    return candidate
+
+
 def _schemas_dir() -> Path:
     # Env override takes precedence
     env = os.environ.get("SYN_SCHEMAS_DIR")
@@ -35,6 +50,22 @@ def _examples_dir() -> Path:
     return sub
 
 
+def _schema_file_path(name: str) -> Path:
+    name = str(name)
+    if not name or not name.strip():
+        raise PathOutsideConfiguredRoot(name)
+    root = _schemas_dir()
+    return _resolve_within_root(root, f"{name}.schema.json")
+
+
+def _example_file_path(relative: str) -> Path:
+    relative = str(relative)
+    if not relative or not relative.strip():
+        raise PathOutsideConfiguredRoot(relative)
+    root = _examples_dir()
+    return _resolve_within_root(root, relative)
+
+
 def list_schemas() -> Dict[str, Any]:
     d = _schemas_dir()
     items: List[Dict[str, str]] = []
@@ -56,7 +87,15 @@ def list_schemas() -> Dict[str, Any]:
 
 
 def get_schema(name: str) -> Dict[str, Any]:
-    p = _schemas_dir() / f"{name}.schema.json"
+    try:
+        p = _schema_file_path(name)
+    except PathOutsideConfiguredRoot:
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "/name", "msg": "invalid_path"}],
+        }
+
     if not p.exists():
         return {"ok": False, "reason": "not_found"}
     data = json.loads(p.read_text())
@@ -106,9 +145,15 @@ def _infer_schema_name_from_example(p: Path, data: Dict[str, Any]) -> str:
 
 
 def get_example(path: str) -> Dict[str, Any]:
-    p = Path(path)
-    if not p.is_absolute():
-        p = _examples_dir() / path
+    try:
+        p = _example_file_path(path)
+    except PathOutsideConfiguredRoot:
+        return {
+            "ok": False,
+            "reason": "validation_failed",
+            "errors": [{"path": "/path", "msg": "invalid_path"}],
+        }
+
     if not p.exists():
         return {"ok": False, "reason": "not_found"}
     data = json.loads(p.read_text())

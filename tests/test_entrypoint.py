@@ -6,7 +6,10 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import List, TextIO
+
+import pytest
 
 
 def _wait_for_line(stream: TextIO, proc: subprocess.Popen, needle: str, timeout: float = 10.0) -> str:
@@ -107,7 +110,7 @@ def test_non_stdio_endpoint_rejected(tmp_path):
 
     assert proc.returncode == 2
     assert "mcp:error reason=setup_failed" in combined
-    assert "Only STDIO transport is supported" in combined
+    assert "Unsupported MCP transport" in combined
 
 
 def test_validate_flag_failure(tmp_path):
@@ -146,3 +149,45 @@ def test_validate_flag_failure(tmp_path):
     payload = json.loads(proc.stdout.strip().splitlines()[-1])
     assert payload["ok"] is False
     assert payload["schema"] == "asset"
+
+
+def test_socket_endpoint_invokes_socket_server(monkeypatch, tmp_path):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+
+    monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
+    monkeypatch.setenv("MCP_ENDPOINT", "socket")
+    socket_path = tmp_path / "server.sock"
+    monkeypatch.setenv("MCP_SOCKET_PATH", str(socket_path))
+    ready_file = tmp_path / "mcp.ready"
+    monkeypatch.setenv("MCP_READY_FILE", str(ready_file))
+
+    calls = {}
+
+    class DummyServer:
+        def __init__(self, path, mode):
+            calls["init"] = (Path(path), mode)
+
+        def start(self):
+            calls["started"] = True
+
+        def serve_forever(self, handler):
+            calls["handler"] = handler
+            raise KeyboardInterrupt
+
+        def close(self):
+            calls["closed"] = True
+
+    monkeypatch.setattr("mcp.socket_main.SocketServer", DummyServer)
+
+    from mcp import __main__ as cli
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main([])
+
+    assert excinfo.value.code == 0
+    assert calls["init"][0] == socket_path
+    assert calls["started"] is True
+    assert callable(calls["handler"])
+    assert calls.get("closed") is True
+    assert not ready_file.exists()
