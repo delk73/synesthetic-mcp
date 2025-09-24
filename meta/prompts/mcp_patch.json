@@ -1,75 +1,44 @@
 {
-  "task": "Implement v0.2.5 MCP features",
-  "objective": "Add multi-client socket support, enforce MCP_MAX_BATCH, harden container to non-root, extend readiness logs, and log deprecation warning for 'validate' alias.",
+  "task": "Close MCP v0.2.5 divergences",
+  "objective": "Add missing tests for alias deprecation warning and payload size guards, and introduce golden request/response examples to complete v0.2.5 exit criteria.",
   "changes": [
     {
-      "id": "socket_multi_client",
-      "description": "Refactor socket server to support multiple concurrent clients with FIFO per connection.",
+      "id": "alias_warning_test",
+      "description": "Add test to confirm 'validate' alias emits deprecation warning to stderr.",
       "edits": [
-        "mcp/socket_main.py: listen(backlog>1), accept loop spawns thread/selector per client.",
-        "Per-connection handler preserves request order.",
-        "Shutdown unlinks socket once after all clients closed.",
-        "tests/test_socket.py: add concurrent client test with interleaved requests."
+        "tests/test_stdio.py: add a case that calls the 'validate' alias and captures stderr, asserting the warning message is present."
       ]
     },
     {
-      "id": "batch_guard",
-      "description": "Enforce MCP_MAX_BATCH limit in validate_many.",
+      "id": "payload_guard_tests",
+      "description": "Add explicit oversize payload tests for STDIO and validate_many.",
       "edits": [
-        "mcp/validate.py: before processing, check len(assets) <= MCP_MAX_BATCH (default 100).",
-        "Return {ok:false, reason:'unsupported'} if exceeded.",
-        "tests/test_validate_many.py: assert oversized batch rejected."
+        "tests/test_stdio.py: add test that sends oversized JSON-RPC request (>1 MiB) and asserts 'payload_too_large' error.",
+        "tests/test_validate.py: add test that passes oversized list to validate_many and asserts rejection with reason 'validation_failed'."
       ]
     },
     {
-      "id": "alias_deprecation",
-      "description": "Keep 'validate' alias but log warning in stderr.",
+      "id": "golden_examples",
+      "description": "Create golden request/response examples for all MCP methods.",
       "edits": [
-        "mcp/validate.py: if method == 'validate', emit 'deprecated alias used' to stderr before routing to validate_asset.",
-        "tests/test_stdio.py: cover alias call + warning log."
-      ]
-    },
-    {
-      "id": "container_non_root",
-      "description": "Switch container to non-root execution.",
-      "edits": [
-        "Dockerfile: add USER directive with dedicated app user.",
-        "docker-compose.yml: service user override removed (inherits non-root).",
-        "tests/test_container.py: assert process runs as non-root uid != 0."
-      ]
-    },
-    {
-      "id": "logging_expansion",
-      "description": "Include schemas/examples dir in readiness logs.",
-      "edits": [
-        "mcp/__main__.py: when logging 'mcp:ready', append schemas_dir and examples_dir env values.",
-        "tests/test_entrypoint.py: assert readiness log includes paths."
-      ]
-    },
-    {
-      "id": "docs_refresh",
-      "description": "Update documentation for v0.2.5 features.",
-      "edits": [
-        "docs/mcp_spec.md: add v0.2.5 scope and exit criteria.",
-        "README.md: correct serve instructions, describe socket concurrency, MCP_MAX_BATCH, alias deprecation, non-root container."
+        "tests/fixtures/golden.jsonl: add canonical NDJSON frames covering list_schemas, get_schema, validate_asset, validate alias, validate_many, get_example (success + validation_failed), diff_assets, populate_backend, and malformed JSON-RPC.",
+        "tests/test_golden.py: add smoke test that loads golden.jsonl, feeds each request into MCP server, and asserts outputs match expected responses."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No new external dependencies; stdlib only (threading/selectors/socket).",
-      "Preserve existing 1 MiB guard and determinism.",
-      "Each client must maintain strict FIFO response order.",
-      "Tests must cover new features: multi-client socket, batch guard, alias warning, non-root container, expanded logging."
+      "No new dependencies; use only pytest and stdlib.",
+      "Golden examples must match spec shapes exactly.",
+      "Tests must cover alias warning, oversize guards, and golden flows.",
+      "All existing tests must remain green."
     ]
   },
   "exit_criteria": [
-    "Socket server supports concurrent clients; tests pass.",
-    "validate_many enforces MCP_MAX_BATCH; oversized batches rejected.",
-    "'validate' alias accepted with deprecation warning logged.",
-    "Container runs as non-root.",
-    "Readiness logs include schemas/examples dir.",
-    "README/docs updated for v0.2.5.",
-    "All tests (old + new) pass."
+    "tests/test_stdio.py includes stderr assertion for alias deprecation warning.",
+    "tests/test_validate.py and tests/test_stdio.py include explicit oversize payload rejection cases.",
+    "tests/fixtures/golden.jsonl contains full canonical request/response set.",
+    "tests/test_golden.py verifies golden fixtures run cleanly.",
+    "All tests pass and v0.2.5 audit re-run shows no divergences."
   ]
 }
