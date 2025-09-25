@@ -167,3 +167,19 @@ def test_backend_assets_path_normalization(monkeypatch):
 
     assert res["ok"] is True
     assert res["asset_id"] == "normalized"
+
+
+def test_backend_http_error_maps_to_503(monkeypatch):
+    monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
+
+    def boom(self, path, json=None, **kwargs):
+        raise httpx.HTTPError("boom")
+
+    monkeypatch.setattr(httpx.Client, "post", boom)
+
+    res = populate_backend({"schema": "asset"}, validate_first=False)
+
+    assert res["ok"] is False
+    assert res["reason"] == "backend_error"
+    assert res["status"] == 503
+    assert res["detail"] == "HTTPError"

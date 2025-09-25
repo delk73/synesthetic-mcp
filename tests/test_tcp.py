@@ -328,6 +328,120 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="unreliable TCP shutdown timing on Windows CI")
+def test_tcp_validate_requests(tmp_path):
+    host = "127.0.0.1"
+    port = _available_port(host)
+
+    ready_file = tmp_path / "mcp.ready"
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    minimal_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+            "schema": {"type": "string", "const": "asset"},
+            "id": {"type": "string", "minLength": 1},
+        },
+        "required": ["schema", "id"],
+        "additionalProperties": False,
+    }
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
+
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONUNBUFFERED": "1",
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
+            "MCP_ENDPOINT": "tcp",
+            "MCP_HOST": host,
+            "MCP_PORT": str(port),
+            "MCP_READY_FILE": str(ready_file),
+        }
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        if proc.stderr is None:
+            raise AssertionError("stderr not captured")
+        ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        assert "mode=tcp" in ready_line
+
+        bound_port = port
+        for part in ready_line.split():
+            if part.startswith("port="):
+                bound_port = int(part.split("=", 1)[1])
+                break
+
+        asset = {"schema": "asset", "id": "asset-123"}
+        validate_request = {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "validate_asset",
+            "params": {"asset": asset, "schema": "asset"},
+        }
+        alias_request = {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "validate",
+            "params": {"asset": asset, "schema": "asset"},
+        }
+
+        with socket.create_connection((host, bound_port), timeout=5.0) as client:
+            reader = client.makefile("r", encoding="utf-8")
+            writer = client.makefile("w", encoding="utf-8")
+
+            writer.write(json.dumps(validate_request) + "\n")
+            writer.flush()
+            response = reader.readline()
+            if not response:
+                raise AssertionError("no validate_asset response received")
+            payload = json.loads(response)
+            assert payload["id"] == 10
+            result = payload.get("result", {})
+            assert result.get("ok") is True
+            assert result.get("errors") == []
+
+            writer.write(json.dumps(alias_request) + "\n")
+            writer.flush()
+            alias_response = reader.readline()
+            if not alias_response:
+                raise AssertionError("no validate alias response received")
+            payload_alias = json.loads(alias_response)
+            assert payload_alias["id"] == 11
+            alias_result = payload_alias.get("result", {})
+            assert alias_result.get("ok") is True
+            assert alias_result.get("errors") == []
+
+        warning_line = _wait_for_line(proc.stderr, proc, "deprecated_alias")
+        assert "method=validate" in warning_line
+
+        proc.send_signal(signal.SIGINT)
+        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "mode=tcp" in shutdown_line
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=5)
+        with contextlib.suppress(FileNotFoundError):
+            ready_file.unlink()
+
+    assert proc.returncode == 0
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="unreliable TCP shutdown timing on Windows CI")
 def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
     host = "127.0.0.1"
 
@@ -417,4 +531,3 @@ def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
                 proc.wait(timeout=5)
         with contextlib.suppress(FileNotFoundError):
             ready_file.unlink()
-
