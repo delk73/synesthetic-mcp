@@ -1,41 +1,42 @@
 {
-  "task": "Add hardening tests for MCP v0.2.6.1",
-  "objective": "Close remaining test gaps by asserting STDIO ready-file cleanup, exercising TCP multi-client ordering, and verifying ephemeral port logging with MCP_PORT=0.",
+  "task": "Add missing test coverage for MCP v0.2.6",
+  "objective": "Close test gaps without touching runtime or docs. Ensure TCP validate flows, socket permission defaults, and backend HTTP error mapping are covered.",
   "changes": [
     {
-      "id": "stdio_readyfile_cleanup",
-      "description": "Add assertion that shutdown removes the ready file.",
+      "id": "tcp_validate_test",
+      "description": "Add an integration test that sends `validate_asset` (and alias) over TCP.",
       "edits": [
-        "tests/test_stdio.py: extend shutdown test to assert MCP_READY_FILE no longer exists after process exit."
+        "tests/test_tcp.py: add a case connecting to the TCP server, sending a minimal valid asset against 'synesthetic-asset', and asserting `{ok:true}`.",
+        "Include alias 'validate' call and assert deprecation warning is captured on stderr."
       ]
     },
     {
-      "id": "tcp_multi_client",
-      "description": "Add regression test for concurrent TCP clients.",
+      "id": "socket_mode_test",
+      "description": "Verify Unix Domain Socket file permissions default to 0600.",
       "edits": [
-        "tests/test_tcp.py: spawn two or more client threads, issue requests concurrently, and assert per-connection ordering is preserved and server cleans up threads."
+        "tests/test_socket.py: after server readiness, use `os.stat` on MCP_SOCKET_PATH and assert `stat.S_IMODE(...) == 0o600`."
       ]
     },
     {
-      "id": "tcp_ephemeral_port",
-      "description": "Add regression test for MCP_PORT=0 ephemeral port logging.",
+      "id": "backend_http_error_test",
+      "description": "Cover the httpx.HTTPError → 503 mapping in populate_backend.",
       "edits": [
-        "tests/test_tcp.py: set MCP_PORT=0, start server, parse readiness log for actual bound port, assert it is nonzero and connections succeed."
+        "tests/test_backend.py: mock `httpx.post` to raise `httpx.HTTPError`, call `populate_backend`, and assert result matches `{ok:false, reason:'backend_error', status:503}`."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No changes to core code, docs, or spec — tests only.",
-      "Reuse pytest fixtures and helpers where possible.",
-      "Use temp files/ports safely and clean up in test teardown.",
-      "Tests must pass deterministically across CI runs."
+      "No edits outside tests/; runtime and docs remain untouched.",
+      "Use pytest stdlib mocking (`monkeypatch` or `pytest.raises`) only; no new deps.",
+      "Keep tests deterministic and aligned with spec v0.2.6.",
+      "Update existing test files in-place (no new modules unless necessary)."
     ]
   },
   "exit_criteria": [
-    "tests/test_stdio.py asserts ready-file removal after shutdown.",
-    "tests/test_tcp.py includes multi-client concurrency test.",
-    "tests/test_tcp.py includes ephemeral port (MCP_PORT=0) logging test.",
-    "pytest -q passes with all new tests green."
+    "TCP validate integration test passes and captures alias warning.",
+    "Socket mode assertion proves default 0600 permission in CI.",
+    "Backend test surfaces 503 mapping from simulated httpx error.",
+    "All tests green with no regressions; coverage report shows new lines covered."
   ]
 }
