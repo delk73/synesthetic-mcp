@@ -246,6 +246,11 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
         if proc.stdin:
             proc.stdin.close()
         proc.wait(timeout=5)
+
+        deadline = time.time() + 5
+        while time.time() < deadline and ready_file.exists():
+            time.sleep(0.05)
+        assert not ready_file.exists()
     finally:
         if proc.poll() is None:
             proc.terminate()

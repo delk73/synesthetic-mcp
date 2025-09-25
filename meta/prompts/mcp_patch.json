@@ -1,57 +1,41 @@
 {
-  "task": "Close MCP v0.2.6 divergences",
-  "objective": "Implement TCP transport, upgrade logging for ISO-8601 and shutdown metadata, and fix error classification so semantic failures surface inside result objects.",
+  "task": "Add hardening tests for MCP v0.2.6.1",
+  "objective": "Close remaining test gaps by asserting STDIO ready-file cleanup, exercising TCP multi-client ordering, and verifying ephemeral port logging with MCP_PORT=0.",
   "changes": [
     {
-      "id": "tcp_transport",
-      "description": "Add TCP server alongside STDIO and socket.",
+      "id": "stdio_readyfile_cleanup",
+      "description": "Add assertion that shutdown removes the ready file.",
       "edits": [
-        "mcp/__main__.py: add case for MCP_ENDPOINT=tcp that binds to MCP_HOST:MCP_PORT, logs readiness, serves NDJSON frames, and unlinks/tears down on shutdown.",
-        "mcp/tcp_main.py: implement TCP accept loop with per-connection framing, 1 MiB guard, multi-client ordering preserved.",
-        "tests/test_tcp.py: add coverage for list_schemas, validate, payload_too_large, and shutdown unlink."
+        "tests/test_stdio.py: extend shutdown test to assert MCP_READY_FILE no longer exists after process exit."
       ]
     },
     {
-      "id": "logging_upgrade",
-      "description": "Upgrade logs to include ISO-8601 UTC timestamps and shutdown metadata.",
+      "id": "tcp_multi_client",
+      "description": "Add regression test for concurrent TCP clients.",
       "edits": [
-        "mcp/__main__.py: prepend ISO-8601 timestamp to startup and shutdown logs; include schemas_dir and examples_dir on shutdown.",
-        "tests/test_entrypoint.py: assert logs contain timestamps and directories."
+        "tests/test_tcp.py: spawn two or more client threads, issue requests concurrently, and assert per-connection ordering is preserved and server cleans up threads."
       ]
     },
     {
-      "id": "error_model_fix",
-      "description": "Move semantic request errors into result payloads.",
+      "id": "tcp_ephemeral_port",
+      "description": "Add regression test for MCP_PORT=0 ephemeral port logging.",
       "edits": [
-        "mcp/transport.py: when params are missing/invalid, emit JSON-RPC result with {ok:false, reason:validation_failed|unsupported} instead of JSON-RPC error.",
-        "tests/test_stdio.py: add case with malformed params verifying result.reason=validation_failed not top-level error."
-      ]
-    },
-    {
-      "id": "docs_and_env",
-      "description": "Update docs and config to advertise TCP.",
-      "edits": [
-        "docs/mcp_spec.md: document TCP transport (MCP_ENDPOINT=tcp, MCP_HOST, MCP_PORT).",
-        "README.md: bump version to 0.2.6 and add TCP usage examples.",
-        ".env.example: add MCP_HOST and MCP_PORT entries with defaults.",
-        "docker-compose.yml: add MCP_HOST/PORT env wiring for serve service."
+        "tests/test_tcp.py: set MCP_PORT=0, start server, parse readiness log for actual bound port, assert it is nonzero and connections succeed."
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "Do not break existing STDIO or socket tests.",
-      "TCP must use same NDJSON framing and 1 MiB payload guard as STDIO/socket.",
-      "All startup/shutdown logs MUST carry ISO-8601 UTC timestamps.",
-      "All semantic errors MUST surface inside JSON-RPC result, never JSON-RPC error.",
-      "Docs must match implementation exactly."
+      "No changes to core code, docs, or spec — tests only.",
+      "Reuse pytest fixtures and helpers where possible.",
+      "Use temp files/ports safely and clean up in test teardown.",
+      "Tests must pass deterministically across CI runs."
     ]
   },
   "exit_criteria": [
-    "New TCP tests pass and show parity with socket behavior.",
-    "Entry/exit logs include ISO-8601 timestamp and schema/example dirs.",
-    "Invalid params test shows result.reason=validation_failed not JSON-RPC error.",
-    "README, docs, and env samples document TCP mode.",
-    "pytest -q passes fully and audit rerun shows no divergences."
+    "tests/test_stdio.py asserts ready-file removal after shutdown.",
+    "tests/test_tcp.py includes multi-client concurrency test.",
+    "tests/test_tcp.py includes ephemeral port (MCP_PORT=0) logging test.",
+    "pytest -q passes with all new tests green."
   ]
 }
