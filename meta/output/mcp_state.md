@@ -1,94 +1,83 @@
-### Summary of repo state
-- Shared NDJSON dispatcher applies the 1 MiB guard across STDIO, socket, and TCP while ready/shutdown logs and ready-file cleanup stay consistent under test (`mcp/transport.py:26`; `mcp/socket_main.py:110`; `mcp/tcp_main.py:113`; `mcp/__main__.py:165`; `tests/test_stdio.py:189`; `tests/test_socket.py:100`; `tests/test_tcp.py:90`).
-- Validation, discovery, diff, and backend flows remain deterministic with guarded paths, alias handling, and payload checks validated against fixtures (`mcp/validate.py:16`; `mcp/core.py:44`; `mcp/diff.py:42`; `mcp/backend.py:38`; `tests/test_validate.py:56`; `tests/test_path_traversal.py:34`; `tests/test_backend.py:56`).
-- Spec/docs/docker assets reflect the v0.2.6 transport matrix and non-root container defaults (`docs/mcp_spec.md:13`; `README.md:35`; `docker-compose.yml:19`; `.env.example:1`; `Dockerfile:24`).
+**Summary of repo state**
+- STDIO, socket, and TCP share an NDJSON dispatcher with a 1 MiB guard and ISO ready/shutdown logging validated end-to-end (`mcp/transport.py:26`; `mcp/__main__.py:54`; `tests/test_stdio.py:101`; `tests/test_socket.py:288`; `tests/test_tcp.py:311`).
+- Schema discovery, validation, diffing, and traversal checks remain deterministic with alias folding and sorted outputs (`mcp/core.py:69`; `mcp/validate.py:176`; `mcp/diff.py:22`; `tests/test_validate.py:46`; `tests/test_path_traversal.py:32`).
+- Backend population, batching, and golden STDIO flows cover success/error paths including alias warnings and HTTP failures (`mcp/backend.py:34`; `mcp/validate.py:200`; `tests/test_backend.py:172`; `tests/test_golden.py:18`).
 
-### Top gaps & fixes (3-5 bullets)
-- Update the README feature list to call out that the 1 MiB guard covers TCP as well as STDIO/socket, matching the transport tests (`README.md:36`; `tests/test_tcp.py:135`).
-- Adjust the README Error Model text so “payload too large” is described as a cross-transport guard rather than STDIO-only (`README.md:138`; `mcp/tcp_main.py:113`).
-- Add a quick Serving Locally example for connecting to the TCP transport (e.g., `nc`) to showcase the new endpoint alongside list/validate coverage (`README.md:147`; `tests/test_tcp.py:104`).
+**Top gaps & fixes**
+- Update README payload-guard text to state that TCP is also protected so docs match implementation (`README.md:36`; `README.md:147`; `mcp/tcp_main.py:114`).
+- Extend "Serving Locally" guidance with a TCP client example (e.g., `nc`) to highlight the new transport exercised in tests (`README.md:172`; `tests/test_tcp.py:296`).
+- Note in README that SIGINT shutdowns return `-SIGINT`, matching the lifecycle test expectation (`README.md:174`; `tests/test_entrypoint.py:80`).
 
-### Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
+**Alignment with mcp_spec.md**
 | Spec item | Status | Evidence |
 | - | - | - |
-| STDIO dispatcher, ready file, and guard | Present | `mcp/transport.py:26`; `mcp/__main__.py:165`; `tests/test_stdio.py:189` |
-| Socket transport (chmod 0600, multi-client, cleanup) | Present | `mcp/socket_main.py:27`; `mcp/socket_main.py:35`; `tests/test_socket.py:107`; `tests/test_socket.py:175` |
-| TCP transport readiness, validate round-trip, concurrency | Present | `mcp/tcp_main.py:56`; `tests/test_tcp.py:135`; `tests/test_tcp.py:210` |
-| Ready/shutdown logs include mode + dirs + ISO timestamp | Present | `mcp/__main__.py:165`; `tests/test_entrypoint.py:62` |
-| Payload guard across transports and backend | Present | `mcp/tcp_main.py:113`; `mcp/backend.py:38`; `tests/test_backend.py:56` |
-| Semantic errors resolved inside JSON-RPC result payloads | Present | `mcp/transport.py:77`; `tests/test_socket.py:120` |
-| `validate` alias accepted with warning | Present | `mcp/stdio_main.py:23`; `tests/test_stdio.py:118` |
-| `validate_many` enforces `MCP_MAX_BATCH` | Present | `mcp/validate.py:167`; `tests/test_validate.py:118` |
-| Backend HTTPError maps to `backend_error` 503 | Present | `mcp/backend.py:60`; `tests/test_backend.py:172` |
-| Container drops root before serving | Present | `Dockerfile:24` |
+| STDIO NDJSON loop with 1 MiB guard | Present | `mcp/transport.py:26`; `tests/test_stdio.py:56` |
+| Socket multi-client ordering + 0600 perms | Present | `mcp/socket_main.py:18`; `tests/test_socket.py:108`; `tests/test_socket.py:228` |
+| TCP transport logs + guard + alias coverage | Present | `mcp/tcp_main.py:25`; `tests/test_tcp.py:381`; `tests/test_tcp.py:402` |
+| Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:134`; `tests/test_tcp.py:317` |
+| `validate` alias warns to stderr | Present | `mcp/stdio_main.py:23`; `tests/test_stdio.py:137` |
+| `validate_many` enforces `MCP_MAX_BATCH` | Present | `mcp/validate.py:200`; `tests/test_validate.py:118` |
+| Backend HTTPError → 503 mapping | Present | `mcp/backend.py:55`; `tests/test_backend.py:172` |
+| Container runs as non-root | Present | `Dockerfile:25` |
+| Docs state guard limited to STDIO/socket | Divergent | `README.md:36`; `README.md:147`; `mcp/tcp_main.py:114` |
 
-### Transports
-- STDIO remains the default, reusing the shared dispatcher and ready-file lifecycle before restoring signal handlers (`mcp/__main__.py:157`; `tests/test_stdio.py:201`).
-- Socket server unlinks stale paths, applies the configured mode, and serves each client on a thread with deterministic ordering tests (`mcp/socket_main.py:27`; `tests/test_socket.py:175`).
-- TCP server binds the requested or ephemeral port with `SO_REUSEADDR`, serves concurrent clients, and reports the bound host/port in logs (`mcp/tcp_main.py:25`; `tests/test_tcp.py:210`; `tests/test_tcp.py:492`).
-- No HTTP/gRPC transports exist, aligning with the roadmap-only guidance (`mcp/__main__.py:81`; `docs/mcp_spec.md:9`).
+**Transports**
+- STDIO is default and processes newline-delimited JSON-RPC, returning deterministic results and exiting when stdin closes (`mcp/stdio_main.py:18`; `tests/test_stdio.py:143`).
+- Socket server enforces payload limits, spawns per-client threads, and removes the socket file on shutdown with tests covering concurrent clients (`mcp/socket_main.py:17`; `tests/test_socket.py:228`; `tests/test_socket.py:294`).
+- TCP server mirrors socket behavior, supports dynamic ports, and preserves ordering across multiple clients (`mcp/tcp_main.py:25`; `tests/test_tcp.py:210`; `tests/test_tcp.py:296`).
 
-### STDIO entrypoint & process model
-- `_run_stdio` writes `<pid> <ISO8601>` to the ready file, logs readiness/shutdown, and cleans up regardless of exit path (`mcp/__main__.py:157`; `mcp/__main__.py:170`; `tests/test_stdio.py:201`).
-- `--validate` CLI mode loads JSON, infers schema, and returns deterministic exit codes with schema echoed in the payload (`mcp/__main__.py:299`; `tests/test_entrypoint.py:130`).
-- `validate` alias routes to `validate_asset` while emitting the deprecation warning on stderr (`mcp/stdio_main.py:23`; `tests/test_stdio.py:118`).
+**STDIO entrypoint & process model**
+- Readiness and shutdown logs include mode, schema/example directories, and ISO timestamps before signals are handled (`mcp/__main__.py:120`; `tests/test_entrypoint.py:62`).
+- SIGINT maps to SIGTERM to guarantee cleanup, and ready-file writes `<pid> <ISO8601>` before unlinking (`mcp/__main__.py:69`; `mcp/__main__.py:134`; `tests/test_entrypoint.py:80`).
 
-### Socket server (multi-client handling, perms, unlink, logs)
-- `SocketServer.start()` removes stale sockets, binds, and `chmod`s to the requested mode before listening (`mcp/socket_main.py:27`; `mcp/socket_main.py:35`).
-- Connections stream NDJSON with guard checks and close cleanup that joins client threads and unlinks the path (`mcp/socket_main.py:53`; `mcp/socket_main.py:95`).
-- Tests assert ISO ready/shutdown logs, permission mode 0600, multi-client ordering, and ready-file deletion (`tests/test_socket.py:101`; `tests/test_socket.py:107`; `tests/test_socket.py:175`).
+**Socket server (multi-client handling, perms, unlink, logs)**
+- Server binds, chmods, and listens with a configurable mode defaulting to 0600, and integration tests assert both the file mode and unlink on shutdown (`mcp/socket_main.py:24`; `tests/test_socket.py:108`; `tests/test_socket.py:173`).
+- Multi-client test ensures requests can interleave while maintaining per-connection ordering (`tests/test_socket.py:228`).
 
-### TCP server (binding, perms, multi-client, shutdown logs)
-- `TCPServer.start()` binds host/port, exposes the bound address, and closes clients with shutdown protection (`mcp/tcp_main.py:25`; `mcp/tcp_main.py:44`).
-- Integration tests validate payload guard, schema requests, alias warnings, multi-client ordering, and shutdown logs (`tests/test_tcp.py:135`; `tests/test_tcp.py:210`; `tests/test_tcp.py:331`).
-- Ephemeral port flow logs the actual bound port and clears ready files on exit (`tests/test_tcp.py:492`; `tests/test_tcp.py:523`).
+**TCP server (binding, perms, multi-client, shutdown logs)**
+- TCP server binds requested host/port (or OS-assigned), logs ready/shutdown with bound port, and closes clients gracefully (`mcp/tcp_main.py:25`; `tests/test_tcp.py:447`).
+- Multi-client threads confirm ordering and continued service after concurrent sessions (`tests/test_tcp.py:233`; `tests/test_tcp.py:296`).
 
-### Golden request/response examples
-- Golden replay drives list/get/validate/diff/backend/malformed flows with expected responses and stderr alias warnings (`tests/test_golden.py:18`; `tests/fixtures/golden.jsonl:1`).
+**Golden request/response examples**
+- Golden replay exercises schema listing/get, validate/alias, batch validation, example retrieval (success + invalid), diff, backend populate, and malformed input (`tests/test_golden.py:18`; `tests/fixtures/golden.jsonl:1`).
 
-### Payload size guard
-- Transport and validation layers enforce `MAX_BYTES` before parsing or POSTing (`mcp/transport.py:26`; `mcp/socket_main.py:110`; `mcp/tcp_main.py:113`; `mcp/validate.py:56`; `mcp/backend.py:38`).
-- Tests craft oversized frames across STDIO, socket, TCP, batch validation, and backend populate to assert `payload_too_large` responses (`tests/test_stdio.py:189`; `tests/test_socket.py:137`; `tests/test_tcp.py:135`; `tests/test_validate.py:145`; `tests/test_backend.py:56`).
+**Payload size guard**
+- Payload guard enforced before parsing across transports and validation/backends, with tests covering oversize requests and assets (`mcp/transport.py:26`; `mcp/validate.py:128`; `mcp/backend.py:42`; `tests/test_validate.py:56`; `tests/test_backend.py:38`).
 
-### Schema validation contract
-- `validate_asset` requires a non-empty schema, resolves aliases, strips `$schemaRef`, and sorts error pointers deterministically (`mcp/validate.py:90`; `mcp/validate.py:130`).
-- Path traversal and missing schema cases return `validation_failed` with targeted errors, exercised across API and transport tests (`tests/test_stdio.py:27`; `tests/test_path_traversal.py:34`; `tests/test_validate.py:66`).
+**Schema validation contract**
+- Alias folding and `$schemaRef` stripping implemented with deterministic error ordering (`mcp/validate.py:17`; `mcp/validate.py:136`; `tests/test_validate.py:46`).
+- Path traversal safeguards prevent schemas/examples outside configured roots (`mcp/core.py:16`; `tests/test_path_traversal.py:31`).
 
-### Batching
-- `validate_many` enforces `MCP_MAX_BATCH`, returns `unsupported` with the limit, and propagates per-item errors (`mcp/validate.py:167`).
-- Tests override the batch limit and assert both limit metadata and oversized entry handling (`tests/test_validate.py:118`; `tests/test_validate.py:150`).
+**Batching**
+- `validate_many` enforces limits from `MCP_MAX_BATCH`, returns per-item results, and handles oversize payloads (`mcp/validate.py:200`; `tests/test_validate.py:118`; `tests/test_validate.py:145`).
 
-### Logging hygiene
-- `_log_event` records mode, location, and directories with ISO timestamps for ready/shutdown across transports (`mcp/__main__.py:165`; `mcp/__main__.py:181`).
-- Integration tests read stderr to confirm timestamps, directories, and shutdown coverage while stdout carries JSON-RPC frames only (`tests/test_entrypoint.py:62`; `tests/test_socket.py:100`; `tests/test_tcp.py:90`; `tests/test_golden.py:45`).
+**Logging hygiene**
+- `_log_event` emits ISO timestamps and key fields, and startup logs stay on stderr while stdout only carries JSON-RPC frames (`mcp/__main__.py:54`; `tests/test_stdio.py:101`).
 
-### Container & health
-- Docker image installs dependencies, adds user `mcp`, and switches to the non-root user before executing (`Dockerfile:23`; `Dockerfile:27`).
-- Compose `serve` service exposes transport env vars, mounts `/tmp` for ready-file health checks, and ships a file-based health probe (`docker-compose.yml:19`; `docker-compose.yml:30`; `docker-compose.yml:34`).
+**Container & health**
+- Docker image installs dependencies, drops to `USER mcp`, and compose health check watches the ready file (`Dockerfile:25`; `docker-compose.yml:35`).
 
-### Schema discovery & validation
-- Listings gather schemas/examples from env overrides or the submodule with deterministic sorting, rejecting traversal attempts (`mcp/core.py:44`; `mcp/core.py:70`; `tests/test_env_discovery.py:32`; `tests/test_path_traversal.py:34`).
-- Submodule integration test validates that examples load and pass validation when the fixtures are present (`tests/test_submodule_integration.py:28`).
+**Schema discovery & validation**
+- Env overrides determine schema/example roots with deterministic listings and inferred schema names for examples (`mcp/core.py:27`; `mcp/core.py:126`; `tests/test_env_discovery.py:32`).
 
-### Test coverage
-- STDIO subprocess tests cover alias warning, ready-file lifecycle, and oversized frames (`tests/test_stdio.py:66`; `tests/test_stdio.py:189`).
-- Socket and TCP integration suites exercise readiness logs, multi-client concurrency, payload guards, alias warnings, and shutdown cleanup (`tests/test_socket.py:175`; `tests/test_tcp.py:210`; `tests/test_tcp.py:331`).
-- Backend, diff, traversal, batching, and golden flows are covered by targeted unit and integration tests (`tests/test_backend.py:28`; `tests/test_diff.py:4`; `tests/test_path_traversal.py:34`; `tests/test_validate.py:118`; `tests/test_golden.py:18`).
+**Test coverage**
+- Transport suites cover guards, alias warnings, multi-client scenarios, ready file cleanup, and TCP validate flows (`tests/test_stdio.py:105`; `tests/test_socket.py:228`; `tests/test_tcp.py:389`).
+- Backend, diff, batching, traversal, and golden tests keep deterministic behavior under regression (`tests/test_backend.py:172`; `tests/test_diff.py:11`; `tests/test_path_traversal.py:32`).
 
-### Dependencies & runtime
-- Runtime deps are restricted to `jsonschema` and `httpx`, with `pytest` for tests and optional `referencing` guarded at import (`requirements.txt:1`; `mcp/validate.py:8`; `mcp/backend.py:7`; `mcp/validate.py:10`).
+**Dependencies & runtime**
+- Runtime pinned to `jsonschema`, `httpx`, and `pytest`, all installed in the container (`requirements.txt:1`; `Dockerfile:12`).
 
-### Environment variables
-- CLI validates transport env vars (`MCP_ENDPOINT`, socket path/mode, TCP host/port) and surfaces errors before startup (`mcp/__main__.py:81`; `mcp/__main__.py:95`; `mcp/__main__.py:118`).
-- README, Compose, and `.env.example` document the transport, backend, and batching env knobs with defaults (`README.md:94`; `docker-compose.yml:19`; `.env.example:1`).
+**Environment variables**
+- Transport, ready-file, and batch env vars are validated and influence behavior, with tests covering invalid endpoint and env overrides (`mcp/__main__.py:81`; `mcp/validate.py:27`; `tests/test_entrypoint.py:94`; `tests/test_env_discovery.py:29`).
 
-### Documentation accuracy
-- README already describes transports and env vars but still frames the payload guard as “STDIO/socket” only instead of including TCP (`README.md:36`; `README.md:138`).
+**Documentation accuracy**
+- Spec doc reflects v0.2.6 transport/logging additions (`docs/mcp_spec.md:12`).
+- README still scopes the payload guard to STDIO/socket, missing TCP mention (`README.md:36`; `README.md:147`).
 
-### Detected divergences
-- None; only STDIO/socket/TCP transports are implemented per spec with consistent behavior across docs and tests (`mcp/__main__.py:81`; `docs/mcp_spec.md:13`).
+**Detected divergences**
+- Only documentation gap: README under-reports TCP coverage of the 1 MiB guard (`README.md:36`; `mcp/tcp_main.py:114`).
 
-### Recommendations
-- Refresh README feature and error-model descriptions so the 1 MiB guard is documented for all transports, matching the TCP guard implementation and tests (`README.md:36`; `README.md:138`; `tests/test_tcp.py:135`).
-- Extend the Serving Locally section with a brief TCP connection example (e.g. `nc <host> <port>`) to demonstrate the new transport beyond STDIO/socket (`README.md:147`; `tests/test_tcp.py:104`).
-- Keep the existing integration suites in CI to ensure the guard, alias warning, and backend error flows remain covered across transports (`tests/test_stdio.py:118`; `tests/test_socket.py:137`; `tests/test_backend.py:172`).
+**Recommendations**
+- Clarify README payload guard text and error model bullets to include TCP, matching code/tests (`README.md:36`; `README.md:147`; `tests/test_tcp.py:381`).
+- Add a TCP connection example (e.g., `nc host port`) under Serving Locally to surface the new transport (`README.md:172`; `tests/test_tcp.py:296`).
+- Mention SIGINT exit semantics so operators expect `-SIGINT` exit codes after signal-driven shutdowns (`README.md:174`; `tests/test_entrypoint.py:80`).

@@ -58,7 +58,7 @@ def test_tcp_transport_end_to_end(tmp_path):
         "required": ["schema"],
         "additionalProperties": True,
     }
-    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
+    (schemas_dir / "synesthetic-asset.schema.json").write_text(json.dumps(minimal_schema))
 
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
@@ -339,16 +339,19 @@ def test_tcp_validate_requests(tmp_path):
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-            "schema": {"type": "string", "const": "asset"},
+            "schema": {"type": "string", "const": "synesthetic-asset"},
             "id": {"type": "string", "minLength": 1},
         },
         "required": ["schema", "id"],
         "additionalProperties": False,
     }
-    (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
+    (schemas_dir / "synesthetic-asset.schema.json").write_text(json.dumps(minimal_schema))
 
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
+
+    asset = {"schema": "synesthetic-asset", "id": "asset-123"}
+    (examples_dir / "asset.valid.json").write_text(json.dumps(asset))
 
     env = os.environ.copy()
     env.update(
@@ -383,18 +386,17 @@ def test_tcp_validate_requests(tmp_path):
                 bound_port = int(part.split("=", 1)[1])
                 break
 
-        asset = {"schema": "asset", "id": "asset-123"}
         validate_request = {
             "jsonrpc": "2.0",
             "id": 10,
             "method": "validate_asset",
-            "params": {"asset": asset, "schema": "asset"},
+            "params": {"asset": asset, "schema": "synesthetic-asset"},
         }
         alias_request = {
             "jsonrpc": "2.0",
             "id": 11,
             "method": "validate",
-            "params": {"asset": asset, "schema": "asset"},
+            "params": {"asset": asset, "schema": "synesthetic-asset"},
         }
 
         with socket.create_connection((host, bound_port), timeout=5.0) as client:

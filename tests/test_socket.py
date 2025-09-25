@@ -105,8 +105,9 @@ def test_socket_transport_end_to_end(tmp_path):
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
         assert socket_path.exists()
-        mode = stat.S_IMODE(os.stat(socket_path).st_mode)
-        assert mode == 0o600
+        socket_stat = os.stat(socket_path)
+        assert stat.S_ISSOCK(socket_stat.st_mode)
+        assert stat.S_IMODE(socket_stat.st_mode) == 0o600
 
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.connect(str(socket_path))

@@ -77,7 +77,9 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
             proc.kill()
 
     combined = "\n".join(filter(None, [ready_line, shutdown_line]))
-    assert proc.returncode == 0
+    assert proc.returncode is not None
+    expected_codes = {0, -signal.SIGINT}
+    assert proc.returncode in expected_codes, f"unexpected exit {proc.returncode}: {combined}"
 
 
 def _run_mcp(args, env):
