@@ -20,9 +20,11 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
   * Same NDJSON JSON-RPC framing as STDIO/Socket.  
   * Preserves per-connection frame ordering.  
   * Logs `mcp:ready mode=tcp host=<h> port=<p>` on startup.  
+  * Shutdown log mirrors the ready event and includes schema/example directories.  
 * **Docs & scripts:** Up/down scripts, Dockerfile, and compose definitions updated to support TCP as first-class alongside STDIO and socket.  
 * **Audit hardening:** Integration tests MUST cover TCP round-trip (list_schemas + validate).  
 * **Observability:** Ready/shutdown logs MUST now include `schemas_dir` and `examples_dir` for all transports (STDIO, socket, TCP).  
+* **Timestamps:** Ready and shutdown logs emit ISO-8601 UTC timestamps with each event.  
 
 ---
 

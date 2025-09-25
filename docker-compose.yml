@@ -17,6 +17,7 @@ services:
     image: synesthetic-mcp
     environment:
       MCP_ENDPOINT: ${MCP_ENDPOINT:-stdio}
+      MCP_HOST: ${MCP_HOST:-0.0.0.0}
       MCP_SOCKET_PATH: ${MCP_SOCKET_PATH:-/tmp/mcp.sock}
       MCP_SOCKET_MODE: ${MCP_SOCKET_MODE:-0600}
       MCP_PORT: ${MCP_PORT:-7000}

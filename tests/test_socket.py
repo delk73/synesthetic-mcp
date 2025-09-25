@@ -6,11 +6,22 @@ import socket
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 
 from mcp.validate import MAX_BYTES
+
+
+def _assert_iso_timestamp(line: str) -> None:
+    token = None
+    for part in line.split():
+        if part.startswith("timestamp="):
+            token = part.split("=", 1)[1]
+            break
+    assert token, f"timestamp field missing in log: {line}"
+    datetime.fromisoformat(token)
 
 
 _MINIMAL_SCHEMA = {
@@ -90,6 +101,8 @@ def test_socket_transport_end_to_end(tmp_path):
         assert "mode=socket" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
         assert socket_path.exists()
 
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -112,9 +125,14 @@ def test_socket_transport_end_to_end(tmp_path):
             }
             writer.write(json.dumps(malformed) + "\n")
             writer.flush()
-            error_frame = json.loads(reader.readline())
-            assert error_frame["id"] == 2
-            assert error_frame.get("error", {}).get("code") == -32603
+            invalid_frame = json.loads(reader.readline())
+            assert invalid_frame["id"] == 2
+            result_payload = invalid_frame.get("result", {})
+            assert result_payload.get("ok") is False
+            assert result_payload.get("reason") == "validation_failed"
+            assert any(
+                err.get("path") == "/params" for err in result_payload.get("errors", [])
+            )
 
             oversized = {
                 "jsonrpc": "2.0",
@@ -136,6 +154,10 @@ def test_socket_transport_end_to_end(tmp_path):
         proc.send_signal(signal.SIGINT)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=socket" in shutdown_line
+        assert "timestamp=" in shutdown_line
+        assert "schemas_dir=" in shutdown_line
+        assert "examples_dir=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
@@ -194,7 +216,9 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
 
     try:
         assert proc.stderr is not None
-        _wait_for_line(proc.stderr, proc, "mcp:ready")
+        ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
 
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client_one:
             client_one.connect(str(socket_path))
@@ -258,7 +282,11 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             writer_one.close()
 
         proc.send_signal(signal.SIGINT)
-        _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "timestamp=" in shutdown_line
+        assert "schemas_dir=" in shutdown_line
+        assert "examples_dir=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:

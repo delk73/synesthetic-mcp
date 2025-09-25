@@ -14,6 +14,16 @@ import pytest
 from mcp.validate import MAX_BYTES
 
 
+def _assert_iso_timestamp(line: str) -> None:
+    token = None
+    for part in line.split():
+        if part.startswith("timestamp="):
+            token = part.split("=", 1)[1]
+            break
+    assert token, f"timestamp field missing in log: {line}"
+    datetime.fromisoformat(token)
+
+
 def test_validate_asset_requires_schema(tmp_path):
     from subprocess import Popen, PIPE
     import json, sys
@@ -89,6 +99,8 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
             code = proc.poll()
             raise AssertionError(f"mcp process exited early with code {code}")
         assert "mcp:ready" in ready_line
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
 
         request = {
             "jsonrpc": "2.0",
@@ -129,6 +141,7 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
         assert "method=validate" in warning_line
 
         shutdown_seen = False
+        shutdown_line = ""
         if proc.stdin:
             proc.stdin.close()
         if proc.stdout:
@@ -142,9 +155,12 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
                 continue
             if "mcp:shutdown" in line:
                 shutdown_seen = True
+                shutdown_line = line
                 break
         proc.wait(timeout=5)
         assert shutdown_seen
+        assert "timestamp=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
     finally:
         if proc.poll() is None:
             proc.terminate()
@@ -179,6 +195,8 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
             raise AssertionError(f"mcp process exited early with code {code}")
         assert "mcp:ready" in line
         assert "mode=stdio" in line
+        assert "timestamp=" in line
+        _assert_iso_timestamp(line)
 
         # Ensure the ready file is created for health checks.
         deadline = time.time() + 5
@@ -256,9 +274,13 @@ def test_stdio_error_includes_request_id(monkeypatch):
 
     assert payload.get("jsonrpc") == "2.0"
     assert payload.get("id") == 7
-    error = payload.get("error")
-    assert isinstance(error, dict)
-    assert error.get("code") == -32603
+    result = payload.get("result")
+    assert isinstance(result, dict)
+    assert result.get("ok") is False
+    assert result.get("reason") == "validation_failed"
+    errors = result.get("errors")
+    assert isinstance(errors, list)
+    assert any(err.get("path") == "/params" for err in errors)
 
 
 def test_stdio_unsupported_uses_detail(monkeypatch):

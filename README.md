@@ -1,5 +1,5 @@
 ---
-version: v0.2.5
+version: v0.2.6
 owner: delk73
 lastReviewed: 2025-09-12
 ---
@@ -32,7 +32,7 @@ flowchart LR
 - Batch validation via `validate_many` with `MCP_MAX_BATCH` (default 100)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
-- Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`)
+- Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`) and TCP transport (`MCP_ENDPOINT=tcp`, `MCP_HOST`, `MCP_PORT`)
 - Per-request 1 MiB payload guard enforced before parsing (STDIO and socket)
 - Deprecated `validate` alias remains available but logs a warning; prefer `validate_asset`
 
@@ -40,7 +40,7 @@ flowchart LR
 
 1. Install deps: `pip install -r requirements.txt && pip install -e .`
 2. Initialize schemas/examples: `git submodule update --init --recursive`.
-3. Serve via Compose: `docker compose up serve` (runs the transport, logs `mcp:ready mode=stdio`, and exposes `/tmp/mcp.ready` for health checks).
+3. Serve via Compose: `docker compose up serve` (runs the transport, logs `mcp:ready mode=<endpoint>` with ISO-8601 timestamps, and exposes `/tmp/mcp.ready` for health checks).
 4. Or run the helper: `./up.sh` builds the image and starts the serve service in the background; follow with `docker compose logs -f serve` if you want to tail logs.
 5. Validate an asset locally: `python -m mcp --validate libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json`.
 
@@ -79,7 +79,7 @@ tests/
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
-  - `python -m mcp` (STDIO by default; set `MCP_ENDPOINT=socket` for the Unix-domain socket server. Logs `mcp:ready mode=<endpoint>` on readiness).
+  - `python -m mcp` (STDIO by default; set `MCP_ENDPOINT=socket` for the Unix-domain socket server or `MCP_ENDPOINT=tcp` for TCP. Logs `mcp:ready mode=<endpoint>` with ISO-8601 timestamps on readiness).
   - `python -m mcp.stdio_main` (invoke the STDIO loop directly when embedding).
 
 ## Dependencies
@@ -93,10 +93,12 @@ tests/
 
 | Variable | Default | Behaviour |
 | - | - | - |
-| `MCP_ENDPOINT` | `stdio` | Transport selector. `stdio` runs over stdin/stdout; `socket` enables the Unix-domain socket server. |
+| `MCP_ENDPOINT` | `stdio` | Transport selector. `stdio` runs over stdin/stdout; `socket` enables the Unix-domain socket server; `tcp` binds a TCP listener. |
 | `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup with `<pid> <ISO8601>` and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
 | `MCP_SOCKET_PATH` | `/tmp/mcp.sock` | Socket path when `MCP_ENDPOINT=socket`. The server unlinks the file on shutdown. |
 | `MCP_SOCKET_MODE` | `0600` | Octal file mode applied to the socket on startup. Increase only when the socket must be shared. |
+| `MCP_HOST` | `0.0.0.0` | TCP bind address when `MCP_ENDPOINT=tcp`. Use `127.0.0.1` for local development. |
+| `MCP_PORT` | `7000` | TCP port when `MCP_ENDPOINT=tcp`. Set to `0` to request an ephemeral port (logged on startup). |
 | `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
@@ -171,7 +173,7 @@ Notes:
 
 - `docker compose up serve` builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and keeps logs attached.
 - `./up.sh` builds the image and starts the `serve` service in detached mode; run `docker compose logs -f serve` to follow output after startup.
-- STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path.
+- STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path, or `MCP_ENDPOINT=tcp` (optionally with `MCP_HOST`/`MCP_PORT`) to expose a TCP listener.
 - STDIO requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large`.
 
 ## Spec

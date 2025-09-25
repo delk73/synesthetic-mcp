@@ -6,6 +6,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import List, TextIO
 
@@ -61,9 +62,15 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
 
         proc.send_signal(signal.SIGINT)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "schemas_dir=" in shutdown_line
+        assert "examples_dir=" in shutdown_line
+        assert "timestamp=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
@@ -198,3 +205,11 @@ def test_socket_endpoint_invokes_socket_server(monkeypatch, tmp_path):
     assert callable(calls["handler"])
     assert calls.get("closed") is True
     assert not ready_file.exists()
+def _assert_iso_timestamp(line: str) -> None:
+    token = None
+    for part in line.split():
+        if part.startswith("timestamp="):
+            token = part.split("=", 1)[1]
+            break
+    assert token, f"timestamp field missing in log: {line}"
+    datetime.fromisoformat(token)
