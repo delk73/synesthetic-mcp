@@ -184,3 +184,38 @@ See `docs/mcp_spec.md` for deterministic IO contracts and limits.
 
 ✅ Spec pinned in `docs/mcp_spec.md`
 ✅ Minimal implementation with tests
+
+
+### Validating it
+
+**Quick host check with `nc`:**
+
+```bash
+nc localhost 8765
+```
+
+Paste this request:
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"list_schemas"}
+```
+
+You should get a JSON response with available schemas.
+
+**Labs connection env** (pointing to the MCP container via TCP):
+
+```bash
+MCP_ENDPOINT=tcp
+MCP_HOST=localhost      # or 'synesthetic-mcp-serve-1' if inside Docker network
+MCP_PORT=8765
+LABS_FAIL_FAST=1
+
+SYN_SCHEMAS_DIR=libs/synesthetic-schemas/jsonschema
+SYN_EXAMPLES_DIR=libs/synesthetic-schemas/examples
+```
+
+**Run Labs against it:**
+
+```bash
+python -m labs.cli generate --prompt "hello world shader test"
+```
