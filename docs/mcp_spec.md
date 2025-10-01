@@ -25,12 +25,15 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 
 * **TCP transport fully aligned**  
   * TCP enforces the same **1 MiB guard** as STDIO/socket.  
-  * Ready logs: `mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...>`.  
+  * Ready logs:  
+    ```
+    mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...>
+    ```  
   * Shutdown logs mirror ready event with ISO-8601 UTC timestamps.  
   * Documentation updated with **example usage**:  
     ```bash
     nc 127.0.0.1 8765
-    ```
+    ```  
     to send JSON-RPC frames over TCP.  
 
 * **Lifecycle signals**  
@@ -65,7 +68,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * Shutdown log mirrors ready event with schema/example dirs.  
 * Integration tests must cover TCP.  
 * Ready/shutdown logs must include schema/example dirs for all transports.  
-* Ready/shutdown logs emit ISO-8601 UTC timestamps.
+* Ready/shutdown logs emit ISO-8601 UTC timestamps.  
 
 ### Exit Criteria (v0.2.6)
 
@@ -73,7 +76,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * Up/down scripts support TCP alongside socket.  
 * Readiness logs include mode + address/path + schemas_dir + examples_dir.  
 * All transports pass golden request/response tests.  
-* Implementation, docs, and tests aligned.
+* Implementation, docs, and tests aligned.  
 
 ---
 
@@ -82,4 +85,4 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * Drop `"validate"` alias entirely.  
 * Add gRPC transport for typed schemas and streaming.  
 * Structured metrics/telemetry hooks.  
-* Schema hot-reload or live discovery.
+* Schema hot-reload or live discovery.  

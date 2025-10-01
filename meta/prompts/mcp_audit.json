@@ -1,6 +1,6 @@
 {
-  "task": "Audit synesthetic-mcp repo state (v0.2.6 features)",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.6). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "task": "Audit synesthetic-mcp repo state (v0.2.7 features)",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.7). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -11,7 +11,7 @@
       "Ground all findings in visible code/tests/docs; no speculation",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes",
       "Always overwrite meta/output/mcp_state.md and AGENTS.md with non-empty content",
-      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MAY exist if implemented per v0.2.6; HTTP/gRPC are roadmap-only (Divergent if present)",
+      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard per v0.2.7; HTTP/gRPC are roadmap-only (Divergent if present)",
       "Payload cap: 1 MiB guard enforced across all methods in STDIO, Socket, and TCP; explicit guard + failing test required",
       "validate_asset: schema param REQUIRED; error if missing/empty",
       "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (until ≥ v0.3)",
@@ -21,7 +21,8 @@
       "Determinism: sorting for listings, error ordering, diff ordering MUST be implemented + tested",
       "Security: Socket/TCP perms default to least-privilege; Container must run non-root",
       "Process model: STDIO exits when stdin closes; Socket/TCP log readiness + unlink/close on shutdown",
-      "Logging: startup log includes mode, path/host:port, schemas_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
+      "Logging: startup log includes mode, path/host:port, schemas_dir, examples_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
+      "Signal handling: SIGINT/SIGTERM shutdowns return documented exit codes (-SIGINT, -SIGTERM)",
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -32,6 +33,7 @@
       "STDIO entrypoint & process model",
       "Socket server (multi-client handling, perms, unlink, logs)",
       "TCP server (binding, perms, multi-client, shutdown logs)",
+      "Lifecycle signals",
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
@@ -78,13 +80,14 @@
   "exit_criteria": [
     "meta/output/mcp_state.md written and non-empty",
     "AGENTS.md snapshot updated",
-    "Spec v0.2.6 features mapped to Present/Missing/Divergent with evidence",
-    "STDIO, Socket, and TCP behavior explicitly verified (multi-client ordering, logs, shutdown)",
+    "Spec v0.2.7 features mapped to Present/Missing/Divergent with evidence",
+    "STDIO, Socket, and TCP behavior explicitly verified (multi-client ordering, logs, shutdown, lifecycle signals)",
     "Golden examples cover list_schemas, get_schema, validate_asset+alias, get_example success+validation_failed, diff_assets, malformed JSON-RPC",
     "Payload guard verified across all transports and methods",
     "Batching (validate_many) verified or marked",
     "Determinism + schema safety verified",
-    "Logging verified (mode, path/host:port, schemas_dir, ISO timestamps)",
+    "Logging verified (mode, path/host:port, schemas_dir, examples_dir, ISO timestamps)",
+    "Signal exit codes verified (-SIGINT, -SIGTERM)",
     "Container non-root verified",
     "README cross-checked with docs/mcp_spec.md"
   ]
