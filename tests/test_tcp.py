@@ -177,6 +177,73 @@ def test_tcp_transport_end_to_end(tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="unreliable TCP shutdown timing on Windows CI")
+def test_tcp_sigterm_cleans_up(tmp_path):
+    host = "127.0.0.1"
+    port = _available_port(host)
+    ready_file = tmp_path / "mcp.ready"
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    (schemas_dir / "asset.schema.json").write_text(json.dumps({
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {"schema": {"type": "string", "const": "asset"}},
+        "required": ["schema"],
+        "additionalProperties": True,
+    }))
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONUNBUFFERED": "1",
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
+            "MCP_ENDPOINT": "tcp",
+            "MCP_HOST": host,
+            "MCP_PORT": str(port),
+            "MCP_READY_FILE": str(ready_file),
+        }
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        assert proc.stderr is not None
+        try:
+            ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        except AssertionError as exc:
+            message = str(exc)
+            if "tcp_start_failed" in message:
+                pytest.skip("tcp sockets unavailable in sandbox")
+            raise
+        assert "mode=tcp" in ready_line
+        deadline = time.time() + 5
+        while time.time() < deadline and not ready_file.exists():
+            time.sleep(0.05)
+        assert ready_file.exists(), "ready file not created"
+
+        proc.send_signal(signal.SIGTERM)
+        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "mode=tcp" in shutdown_line
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        with contextlib.suppress(FileNotFoundError):
+            ready_file.unlink()
+
+    assert proc.returncode == -signal.SIGTERM
+    assert not ready_file.exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="unreliable TCP shutdown timing on Windows CI")
 def test_tcp_allows_multiple_concurrent_clients(tmp_path):
     host = "127.0.0.1"
     port = _available_port(host)

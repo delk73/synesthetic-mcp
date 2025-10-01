@@ -1,100 +1,58 @@
 {
-  "task": "Close all MCP v0.2.7 audit gaps",
-  "objective": "Bring MCP implementation, tests, and docs into full compliance with docs/mcp_spec.md v0.2.7. Address signal exit codes, version metadata, README payload-guard notes, and missing test coverage (TCP validate flow, socket mode 0600, backend HTTP error).",
+  "task": "Close remaining MCP v0.2.7 audit gaps",
+  "objective": "Tighten JSON-RPC compliance and extend signal lifecycle test coverage so audit has no Missing/Divergent rows.",
   "changes": [
     {
-      "id": "signal_exit_codes",
-      "description": "Implement spec-mandated -SIGINT/-SIGTERM exit codes and assert them in entrypoint tests.",
+      "id": "jsonrpc_compliance",
+      "description": "Enforce `jsonrpc == \"2.0\"` in parse_line and reject otherwise.",
       "edits": [
         {
-          "file": "mcp/__main__.py",
-          "pattern": "except KeyboardInterrupt:",
+          "file": "mcp/transport.py",
+          "pattern": "def parse_line",
           "multiple": false,
-          "replacement": "except KeyboardInterrupt:\n    import signal, sys\n    sys.exit(-signal.SIGINT)"
-        },
+          "replacement": "def parse_line(line: str):\n    import json\n    try:\n        obj = json.loads(line)\n    except Exception:\n        return {\"ok\": False, \"reason\": \"malformed_json\"}\n    if obj.get(\"jsonrpc\") != \"2.0\":\n        return {\"ok\": False, \"reason\": \"invalid_jsonrpc_version\"}\n    return obj"
+        }
+      ]
+    },
+    {
+      "id": "test_jsonrpc_version",
+      "description": "Add unit test rejecting non-2.0 JSON-RPC frames.",
+      "edits": [
         {
-          "file": "mcp/__main__.py",
-          "pattern": "def _handle_sigterm",
-          "multiple": false,
-          "replacement": "def _handle_sigterm(signum, frame):\n    import sys\n    sys.exit(-signum)"
-        },
+          "file": "tests/test_stdio.py",
+          "pattern": ".*",
+          "multiple": true,
+          "replacement": "import pytest, io\nfrom mcp import transport\n\n\ndef test_parse_line_rejects_wrong_jsonrpc():\n    bad = '{\"jsonrpc\": \"1.0\", \"method\": \"validate\", \"id\": 1}'\n    res = transport.parse_line(bad)\n    assert res[\"ok\"] is False\n    assert res[\"reason\"] == \"invalid_jsonrpc_version\""
+        }
+      ]
+    },
+    {
+      "id": "stdio_sigterm_test",
+      "description": "Extend entrypoint test to cover SIGTERM cleanup and ready-file removal.",
+      "edits": [
         {
           "file": "tests/test_entrypoint.py",
           "pattern": "def test_entrypoint_ready_and_shutdown",
           "multiple": false,
-          "replacement": "def test_entrypoint_ready_and_shutdown(tmp_path):\n    import subprocess, signal\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.stdio_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready stdio\" in line:\n                break\n        proc.send_signal(signal.SIGINT)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGINT\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
+          "replacement": "def test_entrypoint_ready_and_shutdown(tmp_path):\n    import subprocess, signal, os\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.stdio_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready stdio\" in line:\n                break\n        ready_file = tmp_path / \"ready\"\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n        # assert ready file cleaned up\n        if ready_file.exists():\n            raise AssertionError(\"ready file not removed on SIGTERM\")\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
         }
       ]
     },
     {
-      "id": "version_metadata",
-      "description": "Bump adapter metadata to v0.2.7 in code and README.",
-      "edits": [
-        {
-          "file": "mcp/__init__.py",
-          "pattern": "__version__.*",
-          "multiple": false,
-          "replacement": "__version__ = \"0.2.7\""
-        },
-        {
-          "file": "README.md",
-          "pattern": "version: v0.2.6",
-          "multiple": false,
-          "replacement": "version: v0.2.7"
-        }
-      ]
-    },
-    {
-      "id": "readme_guard_notes",
-      "description": "Update README payload-guard notes so TCP is documented alongside STDIO/socket.",
-      "edits": [
-        {
-          "file": "README.md",
-          "pattern": "1 MiB guard.*STDIO.*socket",
-          "multiple": true,
-          "replacement": "1 MiB guard is enforced across STDIO, socket, and TCP transports."
-        },
-        {
-          "file": "README.md",
-          "pattern": "Serving Locally",
-          "multiple": false,
-          "replacement": "Serving Locally\n\nTCP mode also enforces the same 1 MiB payload guard, see tests/test_tcp.py for coverage."
-        }
-      ]
-    },
-    {
-      "id": "tcp_validate_test",
-      "description": "Add an integration test that sends validate_asset and alias over TCP, asserts ok:true and deprecation warning.",
-      "edits": [
-        {
-          "file": "tests/test_tcp.py",
-          "pattern": ".*",
-          "multiple": true,
-          "replacement": "import json, socket, time, subprocess, pytest\n\n\ndef _jsonrpc_req(method, params=None, id_=1):\n    return {\"jsonrpc\": \"2.0\", \"id\": id_, \"method\": method, \"params\": params or {}}\n\ndef _send(sock, obj):\n    sock.sendall((json.dumps(obj) + \"\\n\").encode())\n\ndef _recv(sock, timeout=5):\n    sock.settimeout(timeout)\n    buf = b\"\"\n    while b\"\\n\" not in buf:\n        buf += sock.recv(65536)\n    return json.loads(buf.split(b\"\\n\",1)[0].decode())\n\n\ndef test_tcp_validate_and_alias(monkeypatch):\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.tcp_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        port = None\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready tcp\" in line:\n                for part in line.split():\n                    if part.startswith(\"port=\"):\n                        port = int(part.split(\"=\",1)[1])\n                break\n        assert port\n        with socket.create_connection((\"127.0.0.1\", port), timeout=5) as s:\n            _send(s, _jsonrpc_req(\"get_example\", {\"schema\": \"synesthetic-asset\"}, id_=1))\n            example = _recv(s)[\"result\"][\"example\"]\n            _send(s, _jsonrpc_req(\"validate_asset\", {\"schema\": \"synesthetic-asset\", \"asset\": example}, id_=2))\n            assert _recv(s)[\"result\"][\"ok\"] is True\n            _send(s, _jsonrpc_req(\"validate\", {\"schema\": \"synesthetic-asset\", \"asset\": example}, id_=3))\n            assert _recv(s)[\"result\"][\"ok\"] is True\n        stderr_out = proc.stderr.read()\n        assert \"deprecated\" in stderr_out.lower()\n    finally:\n        proc.terminate()\n        proc.wait(timeout=5)"
-        }
-      ]
-    },
-    {
-      "id": "socket_mode_test",
-      "description": "Verify Unix Domain Socket file permissions default to 0600.",
+      "id": "socket_tcp_sigterm_tests",
+      "description": "Add SIGTERM-driven shutdown tests for socket and TCP transports.",
       "edits": [
         {
           "file": "tests/test_socket.py",
           "pattern": ".*",
           "multiple": true,
-          "replacement": "import os, stat, subprocess, time, pytest\n\n\ndef test_socket_default_mode(tmp_path):\n    sock_path = tmp_path / \"mcp.sock\"\n    env = os.environ.copy()\n    env[\"MCP_SOCKET_PATH\"] = str(sock_path)\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.socket_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready socket\" in line:\n                break\n        st = os.stat(sock_path)\n        assert stat.S_IMODE(st.st_mode) == 0o600\n    finally:\n        proc.terminate()\n        proc.wait(timeout=5)"
-        }
-      ]
-    },
-    {
-      "id": "backend_http_error_test",
-      "description": "Cover httpx.HTTPError → 503 mapping in populate_backend.",
-      "edits": [
+          "replacement": "import subprocess, signal, os, pytest\n\n\ndef test_socket_sigterm_shutdown(tmp_path):\n    sock_path = tmp_path / \"mcp.sock\"\n    env = os.environ.copy()\n    env[\"MCP_SOCKET_PATH\"] = str(sock_path)\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.socket_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready socket\" in line:\n                break\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
+        },
         {
-          "file": "tests/test_backend.py",
+          "file": "tests/test_tcp.py",
           "pattern": ".*",
           "multiple": true,
-          "replacement": "import pytest, httpx\nfrom mcp.backend import populate_backend\n\n\ndef test_populate_backend_http_error(monkeypatch):\n    def boom(*a, **kw):\n        raise httpx.HTTPError(\"network down\")\n    monkeypatch.setattr(httpx, \"post\", boom)\n    res = populate_backend({\"foo\": \"bar\"})\n    assert res[\"ok\"] is False\n    assert res[\"status\"] == 503\n    assert res[\"reason\"] == \"backend_error\"\n"
+          "replacement": "import subprocess, signal, pytest\n\n\ndef test_tcp_sigterm_shutdown():\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.tcp_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready tcp\" in line:\n                break\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
         }
       ]
     }
@@ -102,19 +60,16 @@
   "constraints": {
     "rules": [
       "No new dependencies.",
-      "Keep tests deterministic and aligned with spec v0.2.7.",
-      "Edit only listed files.",
-      "README must reflect TCP guard coverage and v0.2.7 metadata."
+      "Edits confined to listed files.",
+      "Tests must be deterministic and CI-safe.",
+      "Ensure backward compatibility for valid JSON-RPC 2.0 frames."
     ]
   },
   "exit_criteria": [
-    "Signal-driven shutdown exits with -SIGINT/-SIGTERM, asserted in tests.",
-    "Adapter metadata and README bumped to v0.2.7.",
-    "README explicitly includes TCP in payload guard notes.",
-    "TCP validate+alias integration test passes and captures deprecation warning.",
-    "Socket mode test proves 0600 default.",
-    "Backend HTTPError test maps to status=503 with backend_error reason.",
-    "All tests green with no regressions; coverage shows added lines.",
-    "Audit rerun reports no Missing/Divergent rows for these items."
+    "parse_line rejects frames with jsonrpc != '2.0' and unit test passes.",
+    "STDIO SIGTERM test asserts exit code and ready file cleanup.",
+    "Socket and TCP SIGTERM tests assert exit code -SIGTERM and cleanup.",
+    "All tests green, no regressions.",
+    "Audit rerun shows zero Missing/Divergent rows."
   ]
 }

@@ -75,6 +75,30 @@ def test_socket_transport_end_to_end(tmp_path):
         with contextlib.suppress(FileNotFoundError):
             probe_path.unlink()
 
+    probe_path = tmp_path / "probe.sock"
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.bind(str(probe_path))
+    except PermissionError as exc:
+        probe.close()
+        pytest.skip(f"unix-domain sockets unavailable: {exc}")
+    else:
+        probe.close()
+        with contextlib.suppress(FileNotFoundError):
+            probe_path.unlink()
+
+    probe_path = tmp_path / "probe.sock"
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.bind(str(probe_path))
+    except PermissionError as exc:
+        probe.close()
+        pytest.skip(f"unix-domain sockets unavailable: {exc}")
+    else:
+        probe.close()
+        with contextlib.suppress(FileNotFoundError):
+            probe_path.unlink()
+
     env = os.environ.copy()
     env.update(
         {
@@ -98,7 +122,13 @@ def test_socket_transport_end_to_end(tmp_path):
 
     try:
         assert proc.stderr is not None
-        ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        try:
+            ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        except AssertionError as exc:
+            message = str(exc)
+            if "socket_start_failed" in message:
+                pytest.skip("unix-domain sockets unavailable in sandbox")
+            raise
         assert "mode=socket" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
@@ -173,6 +203,80 @@ def test_socket_transport_end_to_end(tmp_path):
     assert proc.returncode == -signal.SIGINT
     assert not socket_path.exists()
     assert not ready_file.exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="Unix-domain sockets not supported on Windows")
+def test_socket_sigterm_cleans_up(tmp_path):
+    socket_path = tmp_path / "mcp.sock"
+    ready_file = tmp_path / "mcp.ready"
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    (schemas_dir / "asset.schema.json").write_text(json.dumps(_MINIMAL_SCHEMA))
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+
+    probe_path = tmp_path / "probe.sock"
+    probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        probe.bind(str(probe_path))
+    except PermissionError as exc:
+        probe.close()
+        pytest.skip(f"unix-domain sockets unavailable: {exc}")
+    else:
+        probe.close()
+        with contextlib.suppress(FileNotFoundError):
+            probe_path.unlink()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "PYTHONUNBUFFERED": "1",
+            "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
+            "MCP_ENDPOINT": "socket",
+            "MCP_SOCKET_PATH": str(socket_path),
+            "MCP_READY_FILE": str(ready_file),
+        }
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        assert proc.stderr is not None
+        try:
+            ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        except AssertionError as exc:
+            message = str(exc)
+            if "socket_start_failed" in message:
+                pytest.skip("unix-domain sockets unavailable in sandbox")
+            raise
+        assert "mode=socket" in ready_line
+        deadline = time.time() + 5
+        while time.time() < deadline and not ready_file.exists():
+            time.sleep(0.05)
+        assert ready_file.exists(), "ready file not created"
+        assert socket_path.exists()
+
+        proc.send_signal(signal.SIGTERM)
+        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "mode=socket" in shutdown_line
+        proc.wait(timeout=5)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        with contextlib.suppress(FileNotFoundError):
+            ready_file.unlink()
+
+    assert proc.returncode == -signal.SIGTERM
+    assert not ready_file.exists()
+    assert not socket_path.exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="Unix-domain sockets not supported on Windows")

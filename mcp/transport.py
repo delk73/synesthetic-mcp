@@ -28,6 +28,13 @@ def parse_line(line: str) -> Tuple[Any, str, Dict[str, Any]]:
     if len(encoded) > MAX_BYTES:
         raise PayloadTooLarge
     data = json.loads(line)
+    version = data.get("jsonrpc")
+    if version is not None and version != "2.0":
+        raise InvalidRequest(
+            data.get("id"),
+            "validation_failed",
+            [{"path": "/jsonrpc", "msg": "jsonrpc must be '2.0'"}],
+        )
     rid = data.get("id")
     method = data.get("method", "")
     if not isinstance(method, str) or not method.strip():

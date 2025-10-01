@@ -12,7 +12,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Tuple
+from typing import Callable, List, Tuple
 
 from . import socket_main, stdio_main, tcp_main
 from .core import (
@@ -58,7 +58,13 @@ def _log_event(event: str, **fields: object) -> None:
     for key, value in fields.items():
         parts.append(f"{key}={value}")
     message = " ".join(parts)
-    logging.info("mcp:%s %s", event, message)
+    line = f"mcp:{event} {message}\n"
+    try:
+        sys.stderr.write(line)
+        sys.stderr.flush()
+    except Exception as exc:
+        logging.info("mcp:%s %s", event, message)
+        raise
 class _SignalShutdown(BaseException):
     """Raised internally when a termination signal arrives."""
 
@@ -67,10 +73,15 @@ class _SignalShutdown(BaseException):
         self.signum = signum
 
 
-def _install_signal_handlers() -> List[Tuple[int, object]]:
+def _install_signal_handlers(on_signal: Callable[[int], None] | None = None) -> List[Tuple[int, object]]:
     handlers: List[Tuple[int, object]] = []
 
     def _handle(signum: int, _frame: object) -> None:  # pragma: no cover - signal
+        if on_signal is not None:
+            try:
+                on_signal(signum)
+            except Exception:
+                pass
         raise _SignalShutdown(signum)
 
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -160,7 +171,20 @@ def _clear_ready_file(path: Path | None) -> None:
 
 
 def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
-    handlers = _install_signal_handlers()
+    shutdown_logged = False
+
+    def _on_signal(_signum: int) -> None:
+        nonlocal shutdown_logged
+        if not shutdown_logged:
+            _log_event(
+                "shutdown",
+                mode="stdio",
+                schemas_dir=schemas_dir,
+                examples_dir=examples_dir,
+            )
+            shutdown_logged = True
+
+    handlers = _install_signal_handlers(_on_signal)
 
     examples_dir = _examples_dir_for_log()
     _log_event(
@@ -181,12 +205,14 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
         logging.exception("mcp:error reason=runtime_failure mode=stdio")
         exit_code = 1
     finally:
-        _log_event(
-            "shutdown",
-            mode="stdio",
-            schemas_dir=schemas_dir,
-            examples_dir=examples_dir,
-        )
+        if not shutdown_logged:
+            _log_event(
+                "shutdown",
+                mode="stdio",
+                schemas_dir=schemas_dir,
+                examples_dir=examples_dir,
+            )
+            shutdown_logged = True
         for sig, previous in handlers:
             try:
                 signal.signal(sig, previous)
@@ -413,7 +439,7 @@ def main(argv: list[str] | None = None) -> None:
         logging.shutdown()
         with contextlib.suppress(Exception):
             sys.stderr.flush()
-        time.sleep(0.05)
+        time.sleep(0.2)
         os.kill(os.getpid(), signum)
         sys.exit(128 + signum)
 

@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
 
+from mcp import transport
+
 import pytest
 
 from mcp.validate import MAX_BYTES
@@ -305,6 +307,24 @@ def test_stdio_unsupported_uses_detail(monkeypatch):
     result = payload.get("result", {})
     assert result.get("reason") == "unsupported"
     assert result.get("detail") == "tool not implemented"
+
+
+def test_jsonrpc_version_must_be_2_0():
+    line = json.dumps({
+        "jsonrpc": "1.0",
+        "id": 13,
+        "method": "list_schemas",
+        "params": {},
+    })
+
+    frame = transport.process_line(line, lambda _method, _params: {"ok": True})
+    payload = json.loads(frame)
+
+    assert payload["id"] == 13
+    result = payload["result"]
+    assert result["ok"] is False
+    assert result["reason"] == "validation_failed"
+    assert {"path": "/jsonrpc", "msg": "jsonrpc must be '2.0'"} in result["errors"]
 
 
 def test_stdio_rejects_oversized_request(monkeypatch):

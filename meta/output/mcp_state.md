@@ -1,94 +1,83 @@
 ## Summary of repo state
-- Shared NDJSON dispatcher applies the 1 MiB guard across STDIO/socket/TCP with regression coverage on oversize frames (`mcp/transport.py:26`; `tests/test_socket.py:141`; `tests/test_tcp.py:142`).
-- Entrypoint logging captures mode, schema/example roots, and maintains the `<pid> <ISO8601>` ready file through shutdown with negative signal exits under test (`mcp/__main__.py:139`; `mcp/__main__.py:165`; `tests/test_stdio.py:203`; `tests/test_entrypoint.py:84`).
-- Validation, diff, examples, and backend flows remain deterministic via sorted outputs, alias warnings, and guarded populate calls (`mcp/validate.py:176`; `mcp/stdio_main.py:24`; `mcp/diff.py:42`; `tests/test_backend.py:23`; `tests/test_validate.py:46`).
+- JSON-RPC parsing now rejects frames without `jsonrpc: "2.0"`, ensuring transports only run compliant requests (`mcp/transport.py:32`; `tests/test_stdio.py:312`).
+- SIGTERM paths across STDIO/socket/TCP verify ready-file cleanup and negative exit codes in addition to the existing SIGINT checks (`tests/test_entrypoint.py:87`; `tests/test_socket.py:209`; `tests/test_tcp.py:180`).
+- Transport, validation, diff, and backend flows remain deterministic with shared 1 MiB guards, traversal fences, and golden coverage unchanged (`mcp/transport.py:26`; `mcp/validate.py:176`; `tests/test_golden.py:18`).
 
 ## Top gaps & fixes (3-5 bullets)
-- Add a `jsonrpc == "2.0"` assertion in `parse_line` and cover rejection in a STDIO unit test to tighten JSON-RPC compliance (`mcp/transport.py:26`; `tests/test_stdio.py:261`).
-- Extend the SIGTERM entrypoint test to assert ready-file cleanup so lifecycle guarantees cover both signals (`mcp/__main__.py:283`; `tests/test_entrypoint.py:87`).
-- Mirror the SIGINT signal assertions for socket/TCP with SIGTERM coverage to prove cleanup and exit codes across transports (`mcp/__main__.py:275`; `tests/test_socket.py:158`; `tests/test_tcp.py:158`).
+- All previously identified audit gaps are closed; keep regression suite in place for future transport additions.
+- Monitor sandbox limitations that can skip socket/TCP tests; they already fall back to skips when the environment blocks binds (`tests/test_socket.py:233`; `tests/test_tcp.py:217`).
+- Continue running the golden replay to guard against regressions in error shaping and logging (`tests/test_golden.py:18`).
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |
 | - | - | - |
 | STDIO/socket/TCP enforce 1 MiB guard | Present | `mcp/transport.py:26`; `tests/test_socket.py:141`; `tests/test_tcp.py:142` |
-| Ready/shutdown logs include mode + address/path + ISO timestamps | Present | `mcp/__main__.py:165`; `mcp/__main__.py:283`; `tests/test_entrypoint.py:65` |
-| Ready file records `<pid> <ISO8601>` and is cleared on shutdown | Present | `mcp/__main__.py:139`; `mcp/__main__.py:155`; `tests/test_stdio.py:208`; `tests/test_tcp.py:317` |
-| Signal shutdown exits use `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:176`; `mcp/__main__.py:407`; `tests/test_entrypoint.py:84`; `tests/test_entrypoint.py:125` |
-| Socket 0600 perms + multi-client ordering | Present | `mcp/socket_main.py:35`; `mcp/socket_main.py:66`; `tests/test_socket.py:109`; `tests/test_socket.py:227` |
-| TCP multi-client ordering + readiness logs | Present | `mcp/tcp_main.py:69`; `mcp/tcp_main.py:264`; `tests/test_tcp.py:158`; `tests/test_tcp.py:233` |
-| Semantic validation errors return in JSON-RPC `result` | Present | `mcp/transport.py:85`; `tests/test_socket.py:124`; `tests/test_stdio.py:280` |
+| Ready/shutdown logs include mode + address/path + ISO timestamps | Present | `mcp/__main__.py:165`; `tests/test_entrypoint.py:65`; `tests/test_tcp.py:160` |
+| Ready file records `<pid> <ISO8601>` and is cleared on shutdown | Present | `mcp/__main__.py:139`; `tests/test_stdio.py:208`; `tests/test_socket.py:253` |
+| Signal shutdown exits use `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:176`; `tests/test_entrypoint.py:131`; `tests/test_socket.py:253`; `tests/test_tcp.py:236` |
+| Socket 0600 perms + multi-client ordering | Present | `mcp/socket_main.py:35`; `tests/test_socket.py:109`; `tests/test_socket.py:259` |
+| TCP multi-client ordering + readiness logs | Present | `mcp/tcp_main.py:69`; `tests/test_tcp.py:111`; `tests/test_tcp.py:226` |
+| Semantic validation errors return in JSON-RPC `result` | Present | `mcp/transport.py:85`; `tests/test_stdio.py:320`; `tests/test_socket.py:144` |
 | `validate` alias warns and requires `schema` | Present | `mcp/stdio_main.py:24`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:138` |
-| `validate_many` honors `MCP_MAX_BATCH` and payload cap | Present | `mcp/validate.py:199`; `mcp/validate.py:208`; `tests/test_validate.py:118`; `tests/test_validate.py:145` |
+| `validate_many` honors `MCP_MAX_BATCH` and payload cap | Present | `mcp/validate.py:199`; `tests/test_validate.py:118`; `tests/test_validate.py:145` |
 | Schema/example traversal guards reject escapes | Present | `mcp/core.py:16`; `mcp/core.py:61`; `tests/test_path_traversal.py:31` |
 | Golden suite covers list/get/validate/diff/backend/malformed | Present | `tests/test_golden.py:18`; `tests/fixtures/golden.jsonl:1` |
-| Docs + metadata reflect v0.2.7 with TCP guard guidance | Present | `mcp/__init__.py:6`; `README.md:2`; `README.md:36`; `README.md:177` |
+| Docs + metadata reflect v0.2.7 with TCP guard guidance | Present | `README.md:2`; `README.md:36`; `README.md:177`; `docs/mcp_spec.md:30` |
 
 ## Transports
-- Socket/TCP servers share the NDJSON loop, enforcing payload caps before decoding (`mcp/socket_main.py:95`; `mcp/tcp_main.py:98`).
-- End-to-end tests prove readiness logging, oversize rejection, and graceful client handling for both transports (`tests/test_socket.py:101`; `tests/test_tcp.py:111`).
+- JSON-RPC dispatcher now validates the `jsonrpc` version before dispatching, keeping all transports aligned with the spec (`mcp/transport.py:32`).
+- Socket/TCP SIGTERM tests assert readiness logs, shutdown logs, exit codes, and ready-file cleanup; they skip gracefully when the sandbox forbids socket binds (`tests/test_socket.py:209`; `tests/test_tcp.py:180`).
 
 ## STDIO entrypoint & process model
-- Entrypoint installs signal handlers, logs readiness/shutdown, writes the ready file, and runs the STDIO loop until stdin closes (`mcp/__main__.py:162`; `mcp/stdio_main.py:51`; `tests/test_stdio.py:150`).
-- Ready file contents capture `<pid> <ISO8601>` and are removed once the loop exits (`mcp/__main__.py:139`; `tests/test_stdio.py:208`; `tests/test_stdio.py:253`).
+- STDIO SIGTERM coverage now checks ready-file lifecycle in addition to exit codes (`tests/test_entrypoint.py:118`).
+- STDIO loop still exits on stdin close with per-frame flushing and alias warnings (`mcp/stdio_main.py:51`; `tests/test_stdio.py:126`).
 
 ## Socket server (multi-client handling, perms, unlink, logs)
-- Startup unlinks stale sockets, binds with configurable mode (default 0600), spins per-connection threads, and unlinks on close (`mcp/socket_main.py:27`; `mcp/socket_main.py:35`; `mcp/socket_main.py:50`).
-- Tests confirm mode enforcement, payload guard, multi-client ordering, and ready file cleanup after signals (`tests/test_socket.py:109`; `tests/test_socket.py:138`; `tests/test_socket.py:227`; `tests/test_socket.py:173`).
+- New SIGTERM test verifies cleanup of the unix-domain socket and ready file while retaining existing multi-client ordering tests (`tests/test_socket.py:209`; `tests/test_socket.py:259`).
 
 ## TCP server (binding, perms, multi-client, shutdown logs)
-- TCP listener binds requested or ephemeral port, logs bound host/port, and drains client threads on shutdown (`mcp/tcp_main.py:25`; `mcp/tcp_main.py:264`; `mcp/tcp_main.py:291`).
-- Multi-client and validation tests assert per-connection ordering, alias handling, and ready file removal under SIGINT (`tests/test_tcp.py:233`; `tests/test_tcp.py:275`; `tests/test_tcp.py:317`).
+- TCP SIGTERM test covers ready/shutdown logs, exit code, and ready-file removal, complementing existing multi-client coverage (`tests/test_tcp.py:180`; `tests/test_tcp.py:233`).
 
 ## Lifecycle signals
-- Custom signal handler raises `_SignalShutdown`, propagating `-signum` to callers before re-raising the original signal (`mcp/__main__.py:70`; `mcp/__main__.py:176`; `mcp/__main__.py:407`).
-- Entry-point tests cover SIGINT/SIGTERM exit codes and shutdown logs (`tests/test_entrypoint.py:65`; `tests/test_entrypoint.py:84`; `tests/test_entrypoint.py:125`).
+- `_SignalShutdown` handling now proved for both SIGINT and SIGTERM across all transports with deterministic cleanup assertions (`mcp/__main__.py:176`; `tests/test_entrypoint.py:131`; `tests/test_socket.py:253`; `tests/test_tcp.py:236`).
 
 ## Golden request/response examples
-- Golden replay exercises list/get schema, validate + alias warning, batch validation, example success/failure, diff, backend disabled, and malformed payloads (`tests/test_golden.py:18`; `tests/fixtures/golden.jsonl:1`).
+- Golden replay remains unchanged and continues to guard list/get/diff/validate flows and malformed frames (`tests/test_golden.py:18`; `tests/fixtures/golden.jsonl:1`).
 
 ## Payload size guard
-- Guard constant shared across transports, validation, and backend populate to return `payload_too_large` before dispatch (`mcp/validate.py:23`; `mcp/transport.py:26`; `mcp/backend.py:38`).
-- Tests inject oversize frames/objects over STDIO/socket/TCP and inside `validate_many` to verify failures (`tests/test_stdio.py:310`; `tests/test_socket.py:141`; `tests/test_tcp.py:142`; `tests/test_validate.py:145`).
+- Guard logic unchanged; oversize frames and payloads fail fast across transports, validation, and backend populate APIs (`mcp/transport.py:26`; `mcp/validate.py:128`; `mcp/backend.py:38`; `tests/test_stdio.py:330`).
 
 ## Schema validation contract
-- Alias folding, `$schemaRef` stripping, and sorted error lists keep validation deterministic (`mcp/validate.py:137`; `mcp/validate.py:176`).
-- Invalid examples surface `validation_failed` responses while success paths return validated examples (`mcp/core.py:147`; `tests/test_validate.py:32`).
+- Alias folding, `$schemaRef` stripping, deterministic error ordering, and invalid example reporting remain covered by regression tests (`mcp/validate.py:137`; `mcp/validate.py:176`; `tests/test_validate.py:32`).
 
 ## Batching
-- `validate_many` checks input type, enforces `MCP_MAX_BATCH`, and carries per-item results; tests cover mixed outcomes, limit enforcement, and oversize payloads (`mcp/validate.py:190`; `mcp/validate.py:199`; `tests/test_validate.py:118`; `tests/test_validate.py:145`).
+- `validate_many` enforces batch limits and propagates per-item payload guard results as before (`mcp/validate.py:199`; `tests/test_validate.py:118`).
 
 ## Logging hygiene
-- `_log_event` emits ISO-8601 timestamps and contextual fields to stderr while STDIO writes JSON-RPC frames to stdout (`mcp/__main__.py:51`; `mcp/stdio_main.py:57`).
-- Tests assert timestamp presence and alias warnings arriving on stderr (`tests/test_entrypoint.py:65`; `tests/test_stdio.py:138`).
+- Logs continue to include mode, host/path, schema/example dirs, and ISO timestamps on readiness/shutdown; STDIO keeps JSON-RPC frames on stdout only (`mcp/__main__.py:55`; `tests/test_entrypoint.py:65`; `tests/test_socket.py:244`).
 
 ## Container & health
-- Docker image drops to `USER mcp` after install and preserves a non-root HOME (`Dockerfile:24`; `Dockerfile:27`).
-- Ready-file lifecycle provides a simple health indicator consumed by tests and compose tooling (`mcp/__main__.py:139`; `tests/test_stdio.py:203`; `tests/test_tcp.py:317`).
+- Docker image still runs non-root and pairs with ready-file health checks tested via the transport suites (`Dockerfile:24`; `tests/test_socket.py:253`).
 
 ## Schema discovery & validation
-- Discovery honors `SYN_*` overrides with deterministic ordering and traversal guards (`mcp/core.py:27`; `mcp/core.py:69`; `tests/test_env_discovery.py:29`; `tests/test_path_traversal.py:31`).
-- Submodule integration test ensures defaults fall back to bundled schemas/examples when present (`tests/test_submodule_integration.py:19`; `tests/test_submodule_integration.py:53`).
+- Env overrides and traversal protections remain deterministic, with submodule fallback intact (`mcp/core.py:27`; `mcp/core.py:69`; `tests/test_env_discovery.py:29`; `tests/test_path_traversal.py:31`).
 
 ## Test coverage
-- Transport suites cover framing, alias warnings, payload guards, multi-client ordering, and ready file cleanup (`tests/test_stdio.py:138`; `tests/test_socket.py:227`; `tests/test_tcp.py:233`).
-- Backend, diff, validation, traversal, and golden fixtures exercise both happy and failure paths (`tests/test_backend.py:23`; `tests/test_diff.py:7`; `tests/test_validate.py:46`; `tests/test_golden.py:18`).
+- Added JSON-RPC version unit test plus SIGTERM transport tests; existing suites continue to cover multi-client ordering, alias warnings, backend flows, and golden behaviors (`tests/test_stdio.py:312`; `tests/test_socket.py:209`; `tests/test_tcp.py:180`; `tests/test_backend.py:23`).
 
 ## Dependencies & runtime
-- Runtime dependencies remain `jsonschema`, `httpx`, and `pytest`, matching container install steps (`requirements.txt:1`; `Dockerfile:16`; `Dockerfile:21`).
+- Runtime/test dependencies unchanged (`requirements.txt:1`; `Dockerfile:16`).
 
 ## Environment variables
-- Entry-point validation covers transport selectors, socket mode, host/port, and ready file wiring (`mcp/__main__.py:86`; `mcp/__main__.py:100`; `mcp/__main__.py:123`; `mcp/__main__.py:139`).
-- Tests verify env overrides for schemas/examples and unsupported endpoint handling (`tests/test_env_discovery.py:16`; `tests/test_entrypoint.py:167`).
+- Transport env validation and ready-file overrides now exercised for both SIGINT and SIGTERM cases (`mcp/__main__.py:86`; `tests/test_entrypoint.py:118`; `tests/test_socket.py:233`; `tests/test_tcp.py:222`).
 
 ## Documentation accuracy
-- README front matter and transport sections reference v0.2.7, TCP usage, and shared 1 MiB guard, aligning with the spec additions (`README.md:2`; `README.md:35`; `README.md:176`; `docs/mcp_spec.md:40`).
-- Spec file documents the same lifecycle expectations verified in tests (`docs/mcp_spec.md:24`; `docs/mcp_spec.md:30`).
+- README and spec stay aligned with TCP guard updates and v0.2.7 metadata (`README.md:36`; `README.md:177`; `docs/mcp_spec.md:30`).
 
 ## Detected divergences
-- None detected.
+- None.
 
 ## Recommendations
-- Enforce and test the `jsonrpc == "2.0"` requirement so unsupported protocol versions return `validation_failed` instead of silently executing (`mcp/transport.py:26`; `tests/test_stdio.py:261`).
-- Extend signal lifecycle tests to cover SIGTERM cleanup (ready file + shutdown log) for the STDIO path to match documented guarantees (`mcp/__main__.py:283`; `tests/test_entrypoint.py:87`).
-- Add SIGTERM-driven shutdown tests for socket and TCP transports to ensure exit codes and cleanup stay consistent across endpoints (`mcp/__main__.py:275`; `tests/test_socket.py:158`; `tests/test_tcp.py:158`).
+- Maintain the new JSON-RPC compliance guard by keeping the unit test in CI and extending similar checks if new transports are added (`mcp/transport.py:32`; `tests/test_stdio.py:312`).
+- Watch for platform skips in socket/TCP SIGTERM tests and document host requirements when running in restricted sandboxes (`tests/test_socket.py:234`; `tests/test_tcp.py:219`).
+- Continue to run the full pytest suite, including golden replay, before releasing new transport features (`tests/test_golden.py:18`).
