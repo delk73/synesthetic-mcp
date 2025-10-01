@@ -1,61 +1,79 @@
-## Version v0.2.6 (Current)
+---
+version: v0.2.7
+lastReviewed: 2025-10-01
+owner: mcp-core
+---
 
-### 1. Purpose
+# MCP Spec
+
+## Purpose
 
 The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic and stateless tools.
 
 * **Resources:** served from disk, overridable via environment variables.  
 * **Tools:** Validation (JSON Schema Draft 2020-12), Diff (RFC 6902: `add`,`remove`,`replace`), Backend populate.  
 * **Transport:**
-  * Ephemeral: **STDIO** over **JSON-RPC 2.0** (default).  
+  * Ephemeral: **STDIO** over **JSON-RPC 2.0**.  
   * Persistent: **Socket** (Unix Domain Socket) over JSON-RPC 2.0.  
-  * **NEW:** Optional **TCP transport** MAY be exposed for containerized setups where UDS mounting is impractical.  
-* **Guards:** Assets MUST be validated before persistence. Schemas MUST NOT be mutated.
+  * **TCP transport**: first-class option for containerized or distributed setups.  
+* **Guards:** Assets MUST be validated before persistence. Schemas MUST NOT be mutated.  
+* **Limits:** All transports enforce a **1 MiB payload cap**.
 
 ---
 
-### v0.2.6 Additions
+## v0.2.7 Additions
 
-* **TCP mode:** `MCP_ENDPOINT=tcp` starts a TCP listener on `MCP_HOST:MCP_PORT` (defaults `0.0.0.0:7000`).
-  * Same NDJSON JSON-RPC framing as STDIO/Socket.  
-  * Preserves per-connection frame ordering.  
-  * Logs `mcp:ready mode=tcp host=<h> port=<p>` on startup.  
-  * Shutdown log mirrors the ready event and includes schema/example directories.  
-* **Docs & scripts:** Up/down scripts, Dockerfile, and compose definitions updated to support TCP as first-class alongside STDIO and socket.  
-* **Audit hardening:** Integration tests MUST cover TCP round-trip (list_schemas + validate).  
-* **Observability:** Ready/shutdown logs MUST now include `schemas_dir` and `examples_dir` for all transports (STDIO, socket, TCP).  
-* **Timestamps:** Ready and shutdown logs emit ISO-8601 UTC timestamps with each event.  
+* **TCP transport fully aligned**  
+  * TCP enforces the same **1 MiB guard** as STDIO/socket.  
+  * Ready logs: `mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...>`.  
+  * Shutdown logs mirror ready event with ISO-8601 UTC timestamps.  
+  * Documentation updated with **example usage**:  
+    ```bash
+    nc 127.0.0.1 8765
+    ```
+    to send JSON-RPC frames over TCP.  
+
+* **Lifecycle signals**  
+  * SIGINT/SIGTERM shutdowns return exit code `-SIGINT`/`-SIGTERM`.  
+  * Ready file format: `<pid> <ISO8601 timestamp>`.  
+
+* **Documentation alignment**  
+  * README and spec now state payload guard applies to **STDIO, socket, and TCP**.  
+  * Serving Locally section includes TCP client example.  
 
 ---
+
+## Exit Criteria (v0.2.7)
+
+* TCP transport works end-to-end, default `MCP_HOST=0.0.0.0`, `MCP_PORT=7000`.  
+* All transports (STDIO, socket, TCP) enforce 1 MiB guard.  
+* Ready/shutdown logs show mode, address/path, schemas_dir, examples_dir, and ISO timestamps.  
+* Signal exits produce documented codes.  
+* Tests cover TCP round-trip, oversize payload, multi-client ordering, and alias lifecycle.  
+* README/docs reflect actual implementation.  
+
+---
+
+## Version v0.2.6 (Previous)
+
+### Additions in v0.2.6
+
+* **TCP mode:** `MCP_ENDPOINT=tcp` starts a TCP listener on `MCP_HOST:MCP_PORT` (defaults `0.0.0.0:7000`).  
+* Same NDJSON framing as STDIO/Socket.  
+* Per-connection frame ordering preserved.  
+* Logs `mcp:ready mode=tcp host=<h> port=<p>`.  
+* Shutdown log mirrors ready event with schema/example dirs.  
+* Integration tests must cover TCP.  
+* Ready/shutdown logs must include schema/example dirs for all transports.  
+* Ready/shutdown logs emit ISO-8601 UTC timestamps.
 
 ### Exit Criteria (v0.2.6)
 
-* TCP transport works end-to-end, defaulting to `MCP_HOST=0.0.0.0`, `MCP_PORT=7000`.  
-* `up.sh` and docker-compose bring up container with socket or TCP, no permission regressions.  
-* Readiness logs show mode + address/path + schemas_dir + examples_dir.  
+* TCP transport works end-to-end, default host/port.  
+* Up/down scripts support TCP alongside socket.  
+* Readiness logs include mode + address/path + schemas_dir + examples_dir.  
 * All transports pass golden request/response tests.  
 * Implementation, docs, and tests aligned.
-
----
-
-## Version v0.2.5 (Previous)
-
-### Additions in v0.2.5
-
-* **Batch validation:** `validate_many` enforces `MCP_MAX_BATCH` (default 100). Oversized batch returns `{ "ok": false, "reason": "unsupported" }`.  
-* **Non-root container:** Docker image MUST drop root privileges and still surface the ready file under `/tmp`.  
-* **Expanded logging:** readiness logs include transport mode, socket path (if applicable), and schema/example roots.  
-* **Alias lifecycle:** `"validate"` alias remains accepted but MUST emit a deprecation warning to stderr.  
-* **Test coverage:** regression tests cover traversal rejection, socket multi-client ordering, and payload oversize guards across transports and batch validation.
-
-### Exit Criteria (v0.2.5)
-
-* `validate_many` enforces `MCP_MAX_BATCH`. Oversized batch returns `unsupported`.  
-* Container builds/runs as non-root.  
-* Readiness logs show `mode`, `path`, and `schemas_dir`.  
-* `"validate"` alias accepted, with stderr deprecation warning.  
-* Tests pass for traversal rejection, socket multi-client behavior, and oversize guards.  
-* Implementation, docs, and tests remain aligned.
 
 ---
 
