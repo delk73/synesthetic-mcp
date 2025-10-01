@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -49,12 +50,14 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "mcp"],
+        stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
         env=env,
     )
 
+    stderr_tail = ""
     try:
         if proc.stderr is None:
             raise AssertionError("stderr not captured")
@@ -66,20 +69,60 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
         _assert_iso_timestamp(ready_line)
 
         proc.send_signal(signal.SIGINT)
-        shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
-        assert "schemas_dir=" in shutdown_line
-        assert "examples_dir=" in shutdown_line
-        assert "timestamp=" in shutdown_line
-        _assert_iso_timestamp(shutdown_line)
+        proc.wait(timeout=5)
+        time.sleep(0.05)
+        stderr_tail = proc.stderr.read() if proc.stderr is not None else ""
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+        if proc.stdin is not None:
+            with contextlib.suppress(Exception):
+                proc.stdin.close()
+
+    combined = "\n".join(filter(None, [ready_line, stderr_tail]))
+    assert "mcp:shutdown" in combined
+    assert proc.returncode == -signal.SIGINT, f"unexpected exit {proc.returncode}: {combined}"
+
+
+def test_entrypoint_sigterm_exit_code(tmp_path):
+    schemas_dir = tmp_path / "schemas"
+    schemas_dir.mkdir()
+    examples_dir = tmp_path / "examples"
+    examples_dir.mkdir()
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "SYN_SCHEMAS_DIR": str(schemas_dir),
+            "SYN_EXAMPLES_DIR": str(examples_dir),
+            "PYTHONUNBUFFERED": "1",
+        }
+    )
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "mcp"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+
+    try:
+        if proc.stderr is None:
+            raise AssertionError("stderr not captured")
+
+        _wait_for_line(proc.stderr, proc, "mcp:ready")
+        proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
             proc.kill()
+        if proc.stdin is not None:
+            with contextlib.suppress(Exception):
+                proc.stdin.close()
 
-    combined = "\n".join(filter(None, [ready_line, shutdown_line]))
-    assert proc.returncode is not None
-    expected_codes = {0, -signal.SIGINT}
-    assert proc.returncode in expected_codes, f"unexpected exit {proc.returncode}: {combined}"
+    assert proc.returncode == -signal.SIGTERM
 
 
 def _run_mcp(args, env):

@@ -1,5 +1,5 @@
 ---
-version: v0.2.6
+version: v0.2.7
 owner: delk73
 lastReviewed: 2025-09-12
 ---
@@ -33,7 +33,7 @@ flowchart LR
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
 - Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`) and TCP transport (`MCP_ENDPOINT=tcp`, `MCP_HOST`, `MCP_PORT`)
-- Per-request 1 MiB payload guard enforced before parsing (STDIO and socket)
+- Per-request 1 MiB payload guard enforced before parsing across STDIO, socket, and TCP transports
 - Deprecated `validate` alias remains available but logs a warning; prefer `validate_asset`
 
 ## Quickstart
@@ -144,7 +144,7 @@ git submodule update --init --recursive
 - Backend error: `{ ok:false, reason:'backend_error', status, detail }`
 - Unsupported tool/resource: `{ ok:false, reason:'unsupported', detail }`
 - Network errors map to backend_error with `status:503` and a brief `detail`.
-- Payload too large (>1 MiB on STDIO): `{ ok:false, reason:'validation_failed', errors:[{ path:'', msg:'payload_too_large' }] }`
+- Payload too large (>1 MiB on STDIO/socket/TCP): `{ ok:false, reason:'validation_failed', errors:[{ path:'', msg:'payload_too_large' }] }`
 
 ## CLI Usage
 
@@ -174,7 +174,7 @@ Notes:
 - `docker compose up serve` builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and keeps logs attached.
 - `./up.sh` builds the image and starts the `serve` service in detached mode; run `docker compose logs -f serve` to follow output after startup.
 - STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path, or `MCP_ENDPOINT=tcp` (optionally with `MCP_HOST`/`MCP_PORT`) to expose a TCP listener.
-- STDIO requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large`.
+- Requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large` on STDIO, socket, and TCP (see `tests/test_stdio.py`, `tests/test_socket.py`, and `tests/test_tcp.py`).
 
 ## Spec
 

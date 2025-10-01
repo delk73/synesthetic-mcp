@@ -170,7 +170,7 @@ def test_socket_transport_end_to_end(tmp_path):
             if ready_file.exists():
                 ready_file.unlink()
 
-    assert proc.returncode == 0
+    assert proc.returncode == -signal.SIGINT
     assert not socket_path.exists()
     assert not ready_file.exists()
 
@@ -299,4 +299,4 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             if ready_file.exists():
                 ready_file.unlink()
 
-    assert proc.returncode == 0
+    assert proc.returncode == -signal.SIGINT

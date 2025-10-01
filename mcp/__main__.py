@@ -9,9 +9,10 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, List, Tuple
+from typing import List, Tuple
 
 from . import socket_main, stdio_main, tcp_main
 from .core import (
@@ -58,20 +59,24 @@ def _log_event(event: str, **fields: object) -> None:
         parts.append(f"{key}={value}")
     message = " ".join(parts)
     logging.info("mcp:%s %s", event, message)
+class _SignalShutdown(BaseException):
+    """Raised internally when a termination signal arrives."""
+
+    def __init__(self, signum: int) -> None:
+        super().__init__(signum)
+        self.signum = signum
 
 
-def _install_signal_handlers(
-    shutdown_handler: Callable[[int, object], None]
-) -> List[Tuple[int, object]]:
+def _install_signal_handlers() -> List[Tuple[int, object]]:
     handlers: List[Tuple[int, object]] = []
-    mapping = {
-        signal.SIGTERM: shutdown_handler,
-        signal.SIGINT: lambda *_: os.kill(os.getpid(), signal.SIGTERM),
-    }
-    for sig, handler in mapping.items():
+
+    def _handle(signum: int, _frame: object) -> None:  # pragma: no cover - signal
+        raise _SignalShutdown(signum)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
         try:
             previous = signal.getsignal(sig)
-            signal.signal(sig, handler)
+            signal.signal(sig, _handle)
             handlers.append((sig, previous))
         except Exception:  # pragma: no cover - platform-specific limitations
             continue
@@ -155,10 +160,7 @@ def _clear_ready_file(path: Path | None) -> None:
 
 
 def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
-    def _sigterm_handler(signum: int, _frame: object) -> None:  # pragma: no cover - signal
-        raise KeyboardInterrupt
-
-    handlers = _install_signal_handlers(_sigterm_handler)
+    handlers = _install_signal_handlers()
 
     examples_dir = _examples_dir_for_log()
     _log_event(
@@ -171,6 +173,8 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
     exit_code = 0
     try:
         stdio_main.main()
+    except _SignalShutdown as exc:
+        exit_code = -exc.signum
     except KeyboardInterrupt:
         exit_code = 0
     except Exception:
@@ -195,10 +199,7 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
 def _run_socket(
     socket_path: Path, mode: int, ready_file: Path | None, schemas_dir: str
 ) -> int:
-    def _sigterm_handler(signum: int, _frame: object) -> None:  # pragma: no cover - signal
-        raise KeyboardInterrupt
-
-    handlers = _install_signal_handlers(_sigterm_handler)
+    handlers = _install_signal_handlers()
 
     server = socket_main.SocketServer(socket_path, mode)
     exit_code = 0
@@ -219,6 +220,8 @@ def _run_socket(
         _write_ready_file(ready_file)
         try:
             server.serve_forever(stdio_main.dispatch)
+        except _SignalShutdown as exc:
+            exit_code = -exc.signum
         except KeyboardInterrupt:
             exit_code = 0
         except Exception:
@@ -246,10 +249,7 @@ def _run_socket(
 def _run_tcp(
     host: str, port: int, ready_file: Path | None, schemas_dir: str
 ) -> int:
-    def _sigterm_handler(signum: int, _frame: object) -> None:  # pragma: no cover - signal
-        raise KeyboardInterrupt
-
-    handlers = _install_signal_handlers(_sigterm_handler)
+    handlers = _install_signal_handlers()
 
     server = tcp_main.TCPServer(host, port)
     exit_code = 0
@@ -271,6 +271,8 @@ def _run_tcp(
         _write_ready_file(ready_file)
         try:
             server.serve_forever(stdio_main.dispatch)
+        except _SignalShutdown as exc:
+            exit_code = -exc.signum
         except KeyboardInterrupt:
             exit_code = 0
         except Exception:
@@ -397,8 +399,24 @@ def main(argv: list[str] | None = None) -> None:
                 logging.error("mcp:error reason=setup_failed detail=%s", exc)
                 sys.exit(2)
             code = _run_tcp(host, port, ready_file, schemas_dir)
+    except _SignalShutdown as exc:
+        code = -exc.signum
     except KeyboardInterrupt:
         code = 0
+
+    if code < 0:
+        signum = -code
+        try:
+            signal.signal(signum, signal.SIG_DFL)
+        except Exception:
+            pass
+        logging.shutdown()
+        with contextlib.suppress(Exception):
+            sys.stderr.flush()
+        time.sleep(0.05)
+        os.kill(os.getpid(), signum)
+        sys.exit(128 + signum)
+
     sys.exit(code)
 
 
