@@ -9,7 +9,6 @@ import logging
 import os
 import signal
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, List, Tuple
@@ -200,10 +199,8 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
             schemas_dir=schemas_dir,
             examples_dir=examples_dir,
         )
-        try:
+        with contextlib.suppress(Exception):
             sys.stderr.flush()
-        except Exception:
-            pass
         for sig, previous in handlers:
             try:
                 signal.signal(sig, previous)
@@ -253,10 +250,8 @@ def _run_socket(
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
             )
-            try:
+            with contextlib.suppress(Exception):
                 sys.stderr.flush()
-            except Exception:
-                pass
             server.close()
             _clear_ready_file(ready_file)
     finally:
@@ -309,10 +304,8 @@ def _run_tcp(
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
             )
-            try:
+            with contextlib.suppress(Exception):
                 sys.stderr.flush()
-            except Exception:
-                pass
             server.close()
             _clear_ready_file(ready_file)
     finally:
@@ -432,18 +425,9 @@ def main(argv: list[str] | None = None) -> None:
 
     if code < 0:
         signum = -code
-        try:
-            signal.signal(signum, signal.SIG_DFL)
-        except Exception:
-            pass
-        logging.shutdown()
-        with contextlib.suppress(Exception):
-            sys.stderr.flush()
-        time.sleep(0.2)
-        os.kill(os.getpid(), signum)
         sys.exit(128 + signum)
-
-    sys.exit(code)
+    else:
+        sys.exit(code)
 
 
 if __name__ == "__main__":
