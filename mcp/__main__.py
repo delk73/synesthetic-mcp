@@ -64,6 +64,8 @@ def _log_event(event: str, **fields: object) -> None:
     except Exception as exc:
         logging.info("mcp:%s %s", event, message)
         raise
+
+
 class _SignalShutdown(BaseException):
     """Raised internally when a termination signal arrives."""
 
@@ -72,7 +74,9 @@ class _SignalShutdown(BaseException):
         self.signum = signum
 
 
-def _install_signal_handlers(on_signal: Callable[[int], None] | None = None) -> List[Tuple[int, object]]:
+def _install_signal_handlers(
+    on_signal: Callable[[int], None] | None = None,
+) -> List[Tuple[int, object]]:
     handlers: List[Tuple[int, object]] = []
 
     def _handle(signum: int, _frame: object) -> None:  # pragma: no cover - signal
@@ -161,7 +165,9 @@ def _write_ready_file(path: Path | None) -> None:
             "mcp:warning reason=ready_file_interrupted path=%s", path, exc_info=True
         )
     except Exception:
-        logging.warning("mcp:warning reason=ready_file_failed path=%s", path, exc_info=True)
+        logging.warning(
+            "mcp:warning reason=ready_file_failed path=%s", path, exc_info=True
+        )
 
 
 def _clear_ready_file(path: Path | None) -> None:
@@ -206,9 +212,7 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
                 signal.signal(sig, previous)
             except Exception:
                 pass
-        _clear_ready_file(ready_file)
     return exit_code
-
 
 
 def _run_socket(
@@ -253,7 +257,6 @@ def _run_socket(
             with contextlib.suppress(Exception):
                 sys.stderr.flush()
             server.close()
-            _clear_ready_file(ready_file)
     finally:
         for sig, previous in handlers:
             try:
@@ -263,9 +266,7 @@ def _run_socket(
     return exit_code
 
 
-def _run_tcp(
-    host: str, port: int, ready_file: Path | None, schemas_dir: str
-) -> int:
+def _run_tcp(host: str, port: int, ready_file: Path | None, schemas_dir: str) -> int:
     handlers = _install_signal_handlers()
 
     server = tcp_main.TCPServer(host, port)
@@ -274,7 +275,9 @@ def _run_tcp(
     try:
         bound_host, bound_port = server.start()
     except Exception:
-        logging.exception("mcp:error reason=tcp_start_failed host=%s port=%s", host, port)
+        logging.exception(
+            "mcp:error reason=tcp_start_failed host=%s port=%s", host, port
+        )
         exit_code = 1
     else:
         _log_event(
@@ -307,7 +310,6 @@ def _run_tcp(
             with contextlib.suppress(Exception):
                 sys.stderr.flush()
             server.close()
-            _clear_ready_file(ready_file)
     finally:
         for sig, previous in handlers:
             try:
@@ -345,7 +347,10 @@ def _run_validation(path: str) -> int:
             "ok": False,
             "reason": "parse_error",
             "errors": [
-                {"path": "/", "msg": f"json_decode_error: line {exc.lineno} column {exc.colno}"}
+                {
+                    "path": "/",
+                    "msg": f"json_decode_error: line {exc.lineno} column {exc.colno}",
+                }
             ],
         }
         print(json.dumps(result))
@@ -422,6 +427,9 @@ def main(argv: list[str] | None = None) -> None:
         code = -exc.signum
     except KeyboardInterrupt:
         code = 0
+    finally:
+        # THIS IS THE FIX: Centralized cleanup, guaranteed to run last.
+        _clear_ready_file(ready_file)
 
     if code < 0:
         signum = -code
