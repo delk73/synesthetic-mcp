@@ -1,17 +1,11 @@
 {
-  "task": "Harden shutdown logging and test robustness",
-  "objective": "Ensure shutdown logs are always observable before process exit, fixing CI race conditions.",
+  "task": "Harden shutdown logging and test robustness (with grace period)",
+  "objective": "Ensure shutdown logs are always observable before process exit while avoiding long hangs on CI failures.",
   "changes": [
     {
       "id": "flush_shutdown_logs",
       "description": "Explicitly flush stderr after each shutdown log event.",
       "edits": [
-        {
-          "file": "mcp/__main__.py",
-          "pattern": "_log_event\\(",
-          "multiple": true,
-          "replacement": "_log_event("
-        },
         {
           "file": "mcp/__main__.py",
           "pattern": "shutdown_logged = True",
@@ -21,14 +15,14 @@
       ]
     },
     {
-      "id": "robust_wait_for_line",
-      "description": "Update _wait_for_line to keep draining stderr even if proc.poll() is non-None, giving shutdown log time to flush.",
+      "id": "robust_wait_for_line_with_grace",
+      "description": "Update _wait_for_line to allow a short grace period after process exit for stderr flush, instead of waiting full timeout.",
       "edits": [
         {
           "file": "tests/conftest.py",
           "pattern": "def _wait_for_line",
           "multiple": false,
-          "replacement": "def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:\n    import time\n    deadline = time.time() + timeout\n    lines = []\n    while time.time() < deadline:\n        line = stream.readline()\n        if not line:\n            # Even if process exited, give stderr time to flush\n            if proc.poll() is not None:\n                time.sleep(0.05)\n                continue\n            time.sleep(0.05)\n            continue\n        text = line.strip()\n        lines.append(text)\n        if needle in text:\n            return text\n    raise AssertionError(f\"did not observe '{needle}' in output: {lines}\")"
+          "replacement": "def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:\n    import time\n    deadline = time.time() + timeout\n    lines = []\n    grace_period = 1.0  # allow stderr flush after exit\n    exited_at = None\n\n    while time.time() < deadline:\n        line = stream.readline()\n        if not line:\n            if proc.poll() is not None:\n                if exited_at is None:\n                    exited_at = time.time()\n                # after grace period, stop waiting\n                if time.time() - exited_at > grace_period:\n                    break\n                time.sleep(0.05)\n                continue\n            time.sleep(0.05)\n            continue\n        text = line.strip()\n        lines.append(text)\n        if needle in text:\n            return text\n    raise AssertionError(f\"did not observe '{needle}' in output: {lines}\")"
         }
       ]
     }
@@ -44,7 +38,8 @@
   "exit_criteria": [
     "Shutdown logs are flushed explicitly and observed reliably.",
     "All transports emit shutdown logs before exit.",
-    "_wait_for_line drains stderr after process exit to reduce race conditions.",
-    "All tests pass under the local dev Python version." 
+    "_wait_for_line drains stderr for up to 1s after process exit to reduce race conditions without long hangs.",
+    "All tests pass under the local dev Python version.",
+    "Cloud CI shows stable results across configured Python versions."
   ]
 }

@@ -200,6 +200,10 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
             schemas_dir=schemas_dir,
             examples_dir=examples_dir,
         )
+        try:
+            sys.stderr.flush()
+        except Exception:
+            pass
         for sig, previous in handlers:
             try:
                 signal.signal(sig, previous)
@@ -249,6 +253,10 @@ def _run_socket(
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
             )
+            try:
+                sys.stderr.flush()
+            except Exception:
+                pass
             server.close()
             _clear_ready_file(ready_file)
     finally:
@@ -301,6 +309,10 @@ def _run_tcp(
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
             )
+            try:
+                sys.stderr.flush()
+            except Exception:
+                pass
             server.close()
             _clear_ready_file(ready_file)
     finally:
