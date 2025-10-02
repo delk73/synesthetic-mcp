@@ -8,6 +8,7 @@ import subprocess
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -30,6 +31,24 @@ def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:
         if needle in text:
             return text
     raise AssertionError(f"did not observe '{needle}' in output: {lines}")
+
+
+def _assert_iso_timestamp(line: str) -> None:
+    token = None
+    for part in line.split():
+        if part.startswith("timestamp="):
+            token = part.split("=", 1)[1]
+            break
+    assert token, f"timestamp field missing in log: {line}"
+    datetime.fromisoformat(token)
+
+
+def _fields_without_timestamp(line: str) -> set[str]:
+    return {
+        part
+        for part in line.split()
+        if "=" in part and not part.startswith("timestamp=")
+    }
 
 
 def _available_port(host: str = "127.0.0.1") -> int:
@@ -224,6 +243,9 @@ def test_tcp_sigterm_cleans_up(tmp_path):
                 pytest.skip("tcp sockets unavailable in sandbox")
             raise
         assert "mode=tcp" in ready_line
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
+        ready_fields = _fields_without_timestamp(ready_line)
         deadline = time.time() + 5
         while time.time() < deadline and not ready_file.exists():
             time.sleep(0.05)
@@ -232,6 +254,10 @@ def test_tcp_sigterm_cleans_up(tmp_path):
         proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=tcp" in shutdown_line
+        assert "timestamp=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
+        shutdown_fields = _fields_without_timestamp(shutdown_line)
+        assert ready_fields.issubset(shutdown_fields)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:

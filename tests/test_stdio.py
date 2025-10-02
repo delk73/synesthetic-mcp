@@ -41,7 +41,7 @@ def test_validate_asset_requires_schema(tmp_path):
 def test_stdio_loop_smoke(monkeypatch):
 
     # Prepare a single JSON-RPC request line for list_schemas
-    request: Dict[str, Any] = {"id": 1, "method": "list_schemas", "params": {}}
+    request: Dict[str, Any] = {"jsonrpc": "2.0", "id": 1, "method": "list_schemas", "params": {}}
     stdin = io.StringIO(json.dumps(request) + "\n")
     stdout = io.StringIO()
 
@@ -225,6 +225,7 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
         example = json.loads(asset_path.read_text())
 
         request = {
+            "jsonrpc": "2.0",
             "id": 99,
             "method": "validate_asset",
             "params": {"asset": example, "schema": "nested-synesthetic-asset"},
@@ -262,6 +263,7 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
 
 def test_stdio_error_includes_request_id(monkeypatch):
     request: Dict[str, Any] = {
+        "jsonrpc": "2.0",
         "id": 7,
         "method": "get_schema",
         "params": "not-a-dict",
@@ -291,7 +293,7 @@ def test_stdio_error_includes_request_id(monkeypatch):
 
 
 def test_stdio_unsupported_uses_detail(monkeypatch):
-    request: Dict[str, Any] = {"id": 5, "method": "nope", "params": {}}
+    request: Dict[str, Any] = {"jsonrpc": "2.0", "id": 5, "method": "nope", "params": {}}
     stdin = io.StringIO(json.dumps(request) + "\n")
     stdout = io.StringIO()
 
@@ -309,6 +311,28 @@ def test_stdio_unsupported_uses_detail(monkeypatch):
     assert result.get("detail") == "tool not implemented"
 
 
+def test_parse_line_rejects_wrong_jsonrpc():
+    bad = json.dumps({
+        "jsonrpc": "1.0",
+        "id": 1,
+        "method": "list_schemas",
+        "params": {},
+    })
+    with pytest.raises(transport.InvalidRequest) as excinfo:
+        transport.parse_line(bad)
+    assert excinfo.value.reason == "invalid_jsonrpc_version"
+    assert {"path": "/jsonrpc", "msg": "jsonrpc must be '2.0'"} in excinfo.value.errors
+
+    missing = json.dumps({
+        "id": 2,
+        "method": "list_schemas",
+        "params": {},
+    })
+    with pytest.raises(transport.InvalidRequest) as excinfo_missing:
+        transport.parse_line(missing)
+    assert excinfo_missing.value.reason == "invalid_jsonrpc_version"
+
+
 def test_jsonrpc_version_must_be_2_0():
     line = json.dumps({
         "jsonrpc": "1.0",
@@ -323,7 +347,7 @@ def test_jsonrpc_version_must_be_2_0():
     assert payload["id"] == 13
     result = payload["result"]
     assert result["ok"] is False
-    assert result["reason"] == "validation_failed"
+    assert result["reason"] == "invalid_jsonrpc_version"
     assert {"path": "/jsonrpc", "msg": "jsonrpc must be '2.0'"} in result["errors"]
 
 

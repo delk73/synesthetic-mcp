@@ -53,6 +53,14 @@ def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:
     raise AssertionError(f"did not observe '{needle}' in output: {lines}")
 
 
+def _fields_without_timestamp(line: str) -> set[str]:
+    return {
+        part
+        for part in line.split()
+        if "=" in part and not part.startswith("timestamp=")
+    }
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="Unix-domain sockets not supported on Windows")
 def test_socket_transport_end_to_end(tmp_path):
     socket_path = tmp_path / "mcp.sock"
@@ -258,6 +266,9 @@ def test_socket_sigterm_cleans_up(tmp_path):
                 pytest.skip("unix-domain sockets unavailable in sandbox")
             raise
         assert "mode=socket" in ready_line
+        assert "timestamp=" in ready_line
+        _assert_iso_timestamp(ready_line)
+        ready_fields = _fields_without_timestamp(ready_line)
         deadline = time.time() + 5
         while time.time() < deadline and not ready_file.exists():
             time.sleep(0.05)
@@ -267,6 +278,10 @@ def test_socket_sigterm_cleans_up(tmp_path):
         proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=socket" in shutdown_line
+        assert "timestamp=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
+        shutdown_fields = _fields_without_timestamp(shutdown_line)
+        assert ready_fields.issubset(shutdown_fields)
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:

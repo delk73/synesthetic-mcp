@@ -38,6 +38,7 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
     schemas_dir.mkdir()
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
+    ready_file = tmp_path / "mcp.ready"
 
     env = os.environ.copy()
     env.update(
@@ -45,6 +46,7 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
             "PYTHONUNBUFFERED": "1",
+            "MCP_READY_FILE": str(ready_file),
         }
     )
 
@@ -57,20 +59,42 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
         env=env,
     )
 
-    stderr_tail = ""
     try:
         if proc.stderr is None:
             raise AssertionError("stderr not captured")
 
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        assert "mode=stdio" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
 
-        proc.send_signal(signal.SIGINT)
-        proc.wait(timeout=5)
+        deadline = time.time() + 5
+        while time.time() < deadline and not ready_file.exists():
+            time.sleep(0.05)
+        assert ready_file.exists(), "ready file not created before shutdown"
+
+        ready_fields = {
+            part
+            for part in ready_line.split()
+            if "=" in part and not part.startswith("timestamp=")
+        }
+
+        proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
+        assert "mode=stdio" in shutdown_line
+        assert "timestamp=" in shutdown_line
+        _assert_iso_timestamp(shutdown_line)
+
+        shutdown_fields = {
+            part
+            for part in shutdown_line.split()
+            if "=" in part and not part.startswith("timestamp=")
+        }
+        assert ready_fields.issubset(shutdown_fields)
+
+        proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
             proc.kill()
@@ -78,8 +102,11 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
             with contextlib.suppress(Exception):
                 proc.stdin.close()
 
-    combined = "\n".join([ready_line, shutdown_line])
-    assert proc.returncode == -signal.SIGINT, f"unexpected exit {proc.returncode}: {combined}"
+    assert proc.returncode == -signal.SIGTERM
+    deadline = time.time() + 5
+    while time.time() < deadline and ready_file.exists():
+        time.sleep(0.05)
+    assert not ready_file.exists(), "ready file not removed on SIGTERM"
 
 
 def test_entrypoint_sigterm_exit_code(tmp_path):

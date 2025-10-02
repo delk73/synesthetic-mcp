@@ -29,10 +29,10 @@ def parse_line(line: str) -> Tuple[Any, str, Dict[str, Any]]:
         raise PayloadTooLarge
     data = json.loads(line)
     version = data.get("jsonrpc")
-    if version is not None and version != "2.0":
+    if version != "2.0":
         raise InvalidRequest(
             data.get("id"),
-            "validation_failed",
+            "invalid_jsonrpc_version",
             [{"path": "/jsonrpc", "msg": "jsonrpc must be '2.0'"}],
         )
     rid = data.get("id")
