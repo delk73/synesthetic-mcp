@@ -1,6 +1,6 @@
 {
   "task": "Close remaining MCP v0.2.7 audit gaps",
-  "objective": "Tighten JSON-RPC compliance and extend signal lifecycle test coverage so audit has no Missing/Divergent rows.",
+  "objective": "Tighten JSON-RPC compliance and extend signal lifecycle/shutdown coverage so audit has no Missing/Divergent rows.",
   "changes": [
     {
       "id": "jsonrpc_compliance",
@@ -22,37 +22,37 @@
           "file": "tests/test_stdio.py",
           "pattern": ".*",
           "multiple": true,
-          "replacement": "import pytest, io\nfrom mcp import transport\n\n\ndef test_parse_line_rejects_wrong_jsonrpc():\n    bad = '{\"jsonrpc\": \"1.0\", \"method\": \"validate\", \"id\": 1}'\n    res = transport.parse_line(bad)\n    assert res[\"ok\"] is False\n    assert res[\"reason\"] == \"invalid_jsonrpc_version\""
+          "replacement": "import pytest\nfrom mcp import transport\n\n\ndef test_parse_line_rejects_wrong_jsonrpc():\n    bad = '{\"jsonrpc\": \"1.0\", \"method\": \"validate\", \"id\": 1}'\n    res = transport.parse_line(bad)\n    assert res[\"ok\"] is False\n    assert res[\"reason\"] == \"invalid_jsonrpc_version\""
         }
       ]
     },
     {
       "id": "stdio_sigterm_test",
-      "description": "Extend entrypoint test to cover SIGTERM cleanup and ready-file removal.",
+      "description": "Extend entrypoint test to cover SIGTERM cleanup, ready-file removal, and shutdown log invariant.",
       "edits": [
         {
           "file": "tests/test_entrypoint.py",
           "pattern": "def test_entrypoint_ready_and_shutdown",
           "multiple": false,
-          "replacement": "def test_entrypoint_ready_and_shutdown(tmp_path):\n    import subprocess, signal, os\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.stdio_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready stdio\" in line:\n                break\n        ready_file = tmp_path / \"ready\"\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n        # assert ready file cleaned up\n        if ready_file.exists():\n            raise AssertionError(\"ready file not removed on SIGTERM\")\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
+          "replacement": "def test_entrypoint_ready_and_shutdown(tmp_path):\n    import subprocess, signal, os, time\n    ready_file = tmp_path / \"mcp.ready\"\n    env = os.environ.copy()\n    env[\"MCP_READY_FILE\"] = str(ready_file)\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        # Wait for ready\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready\" in line:\n                break\n        # Send SIGTERM\n        proc.send_signal(signal.SIGTERM)\n        deadline = time.time() + 5\n        shutdown_line = None\n        while time.time() < deadline:\n            line = proc.stderr.readline()\n            if \"mcp:shutdown\" in line:\n                shutdown_line = line.strip()\n                break\n        proc.wait(timeout=5)\n        # Assertions\n        assert proc.returncode == -signal.SIGTERM\n        assert shutdown_line is not None and \"mode=stdio\" in shutdown_line\n        assert not ready_file.exists(), \"ready file not removed on SIGTERM\"\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
         }
       ]
     },
     {
       "id": "socket_tcp_sigterm_tests",
-      "description": "Add SIGTERM-driven shutdown tests for socket and TCP transports.",
+      "description": "Add SIGTERM-driven shutdown tests for socket and TCP transports, asserting shutdown log invariant.",
       "edits": [
         {
           "file": "tests/test_socket.py",
           "pattern": ".*",
           "multiple": true,
-          "replacement": "import subprocess, signal, os, pytest\n\n\ndef test_socket_sigterm_shutdown(tmp_path):\n    sock_path = tmp_path / \"mcp.sock\"\n    env = os.environ.copy()\n    env[\"MCP_SOCKET_PATH\"] = str(sock_path)\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.socket_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready socket\" in line:\n                break\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
+          "replacement": "import subprocess, signal, os, time, pytest\n\n\ndef test_socket_sigterm_shutdown(tmp_path):\n    sock_path = tmp_path / \"mcp.sock\"\n    env = os.environ.copy()\n    env[\"MCP_SOCKET_PATH\"] = str(sock_path)\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        # Wait for ready\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready\" in line and \"mode=socket\" in line:\n                break\n        # Send SIGTERM and capture shutdown log\n        proc.send_signal(signal.SIGTERM)\n        deadline = time.time() + 5\n        shutdown_line = None\n        while time.time() < deadline:\n            line = proc.stderr.readline()\n            if \"mcp:shutdown\" in line:\n                shutdown_line = line.strip()\n                break\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n        assert shutdown_line is not None and \"mode=socket\" in shutdown_line\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
         },
         {
           "file": "tests/test_tcp.py",
           "pattern": ".*",
           "multiple": true,
-          "replacement": "import subprocess, signal, pytest\n\n\ndef test_tcp_sigterm_shutdown():\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp.tcp_main\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)\n    try:\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready tcp\" in line:\n                break\n        proc.send_signal(signal.SIGTERM)\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
+          "replacement": "import subprocess, signal, time, os, pytest\n\n\ndef test_tcp_sigterm_shutdown(tmp_path):\n    env = os.environ.copy()\n    env[\"MCP_HOST\"] = \"127.0.0.1\"\n    env[\"MCP_PORT\"] = \"0\"\n    proc = subprocess.Popen([\"python\", \"-m\", \"mcp\"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)\n    try:\n        # Wait for ready\n        while True:\n            line = proc.stderr.readline()\n            if \"mcp:ready\" in line and \"mode=tcp\" in line:\n                break\n        # Send SIGTERM and capture shutdown log\n        proc.send_signal(signal.SIGTERM)\n        deadline = time.time() + 5\n        shutdown_line = None\n        while time.time() < deadline:\n            line = proc.stderr.readline()\n            if \"mcp:shutdown\" in line:\n                shutdown_line = line.strip()\n                break\n        proc.wait(timeout=5)\n        assert proc.returncode == -signal.SIGTERM\n        assert shutdown_line is not None and \"mode=tcp\" in shutdown_line\n    finally:\n        try: proc.terminate()\n        except Exception: pass"
         }
       ]
     }
@@ -62,14 +62,15 @@
       "No new dependencies.",
       "Edits confined to listed files.",
       "Tests must be deterministic and CI-safe.",
-      "Ensure backward compatibility for valid JSON-RPC 2.0 frames."
+      "Ensure backward compatibility for valid JSON-RPC 2.0 frames.",
+      "Shutdown log invariant MUST be tested: log visible before exit, mirrors ready log fields."
     ]
   },
   "exit_criteria": [
     "parse_line rejects frames with jsonrpc != '2.0' and unit test passes.",
-    "STDIO SIGTERM test asserts exit code and ready file cleanup.",
-    "Socket and TCP SIGTERM tests assert exit code -SIGTERM and cleanup.",
+    "STDIO SIGTERM test asserts shutdown log visible, exit code, and ready file cleanup.",
+    "Socket and TCP SIGTERM tests assert shutdown log visible and exit code -SIGTERM.",
     "All tests green, no regressions.",
-    "Audit rerun shows zero Missing/Divergent rows."
+    "Audit rerun shows zero Missing/Divergent rows, including shutdown logging invariant."
   ]
 }
