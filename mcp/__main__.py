@@ -404,7 +404,6 @@ def main(argv: list[str] | None = None) -> None:
 
     ready_file = _ready_file_path()
 
-    #some lame shit
     code = 0
     try:
         if endpoint == "stdio":
@@ -430,7 +429,6 @@ def main(argv: list[str] | None = None) -> None:
     except KeyboardInterrupt:
         code = 0
     finally:
-        # THIS IS THE FIX: Centralized cleanup, guaranteed to run last.
         _clear_ready_file(ready_file)
 
         # HACK: A small delay to mitigate race conditions during shutdown in

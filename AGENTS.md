@@ -1,55 +1,49 @@
 # AGENTS.md — Repo Snapshot (v0.2.7 Audit)
 
 ## Repo Summary
-This snapshot reflects a successful audit against the `v0.2.7` specification. The repository is fully compliant.
-- **Transports**: STDIO, Unix Domain Socket, and TCP are fully implemented and tested, including multi-client support, 1 MiB payload guards, and graceful shutdown.
-- **Lifecycle**: Process lifecycle is robust, with correct signal handling (SIGINT/SIGTERM), readiness logging (`mcp:ready`), shutdown logging, and ready-file management (`/tmp/mcp.ready`).
-- **Features**: All specified features, including `validate_asset`, the `validate` alias, `validate_many` batching, `get_example`, and `diff_assets`, are present and work as specified.
-- **Security & Determinism**: The container runs as a non-root user, socket permissions are restrictive by default, path traversal is blocked, and API outputs are deterministic.
+- Transports and lifecycle flows satisfy v0.2.7 readiness/shutdown requirements with multi-client coverage (`mcp/__main__.py:185`, `tests/test_tcp.py:272`).
+- Validation, batching, diff, and backend tooling enforce deterministic errors and guards (`mcp/validate.py:52`, `mcp/diff.py:16`, `tests/test_validate.py:103`).
+- Documentation, env defaults, and container configuration align with runtime behavior (`README.md:94`, `.env.example:2`, `Dockerfile:24`).
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
 | - | - | - | - |
 | jsonschema | Draft 2020-12 validation | Required | `requirements.txt:1`; `mcp/validate.py:8` |
-| httpx | Backend populate client | Required (backend path) | `requirements.txt:2`; `mcp/backend.py:24` |
-| pytest | Test runner | Required (tests) | `requirements.txt:3`; `tests/test_tcp.py:13` |
-| referencing | Local schema registry support | Optional | `mcp/validate.py:10`; `mcp/validate.py:70` |
+| httpx | Backend populate client | Required (backend path) | `requirements.txt:2`; `mcp/backend.py:30` |
+| pytest | Test runner | Required (tests) | `requirements.txt:3`; `tests/test_tcp.py:63` |
+| referencing | Local schema registry support | Optional | `mcp/validate.py:10`; `mcp/validate.py:93` |
 
 ## Environment Variables
-Environment variables are the primary means of configuration. All variables listed in the `README.md` and `.env.example` are correctly implemented.
-- **Transport Control**: `MCP_ENDPOINT`, `MCP_HOST`, `MCP_PORT`, `MCP_SOCKET_PATH`, `MCP_SOCKET_MODE`.
-- **Lifecycle**: `MCP_READY_FILE` for health checks.
-- **Resource Paths**: `SYN_SCHEMAS_DIR`, `SYN_EXAMPLES_DIR`.
-- **Backend**: `SYN_BACKEND_URL`, `SYN_BACKEND_ASSETS_PATH`.
-- **Limits**: `MCP_MAX_BATCH`.
+- Runtime reads transport, lifecycle, backend, and batching envs with validation (`mcp/__main__.py:103`, `mcp/backend.py:18`, `mcp/validate.py:92`).
+- README and `.env.example` document defaults (`README.md:94`, `.env.example:9`).
 
 ## Tests Overview
 | Focus | Status | Evidence |
 | - | - | - |
-| STDIO Transport & Features | ✅ Present | `tests/test_stdio.py` |
-| Socket Transport & Features | ✅ Present | `tests/test_socket.py` |
-| TCP Transport & Features | ✅ Present | `tests/test_tcp.py` |
-| Backend Population Logic | ✅ Present | `tests/test_backend.py` |
-| Path Traversal Rejection | ✅ Present | `tests/test_path_traversal.py` |
-| Process Lifecycle & Signals | ✅ Present | `tests/test_entrypoint.py` |
-| Validation Contracts & Batching | ✅ Present | `tests/test_validate.py` |
-| Golden Master Replay | ✅ Present | `tests/test_golden.py` |
-| Container Security (non-root) | ✅ Present | `tests/test_container.py`, `Dockerfile` |
+| STDIO transport & lifecycle | ✅ | `tests/test_stdio.py:173` |
+| Socket transport & concurrency | ✅ | `tests/test_socket.py:146`; `tests/test_socket.py:346` |
+| TCP transport & signals | ✅ | `tests/test_tcp.py:117`; `tests/test_tcp.py:411` |
+| Backend populate | ✅ | `tests/test_backend.py:21`; `tests/test_backend.py:96` |
+| Schema/path guards | ✅ | `tests/test_path_traversal.py:34` |
+| Validation & batching | ✅ | `tests/test_validate.py:46`; `tests/test_validate.py:103` |
+| Golden replay | ✅ | `tests/test_golden.py:45`; `tests/fixtures/golden.jsonl:1` |
+| Container security | ✅ | `tests/test_container.py:4`; `Dockerfile:27` |
 
 ## Spec Alignment (v0.2.7)
 | Spec Item | Status | Evidence |
 | - | - | - |
-| STDIO/socket/TCP 1 MiB guard | Present | `mcp/transport.py:26`; `tests/test_stdio.py:352`; `tests/test_socket.py:141` |
-| Ready/shutdown logs include all required fields | Present | `mcp/__main__.py:165`; `tests/test_entrypoint.py:65` |
-| Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:139`; `tests/test_stdio.py:208` |
-| Signal exit codes `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:176`; `tests/test_entrypoint.py:118` |
-| `validate` alias warns + requires schema | Present | `mcp/stdio_main.py:24`; `tests/test_stdio.py:88` |
-| `validate_many` enforces `MCP_MAX_BATCH` | Present | `mcp/validate.py:199`; `tests/test_validate.py:118` |
-| Socket default perms `0600` + multi-client ordering | Present | `mcp/socket_main.py:35`; `tests/test_socket.py:109` |
-| TCP ready/shutdown logs, guard, multi-client | Present | `mcp/tcp_main.py:264`; `tests/test_tcp.py` |
-| Schema/example traversal guard | Present | `mcp/core.py:16`; `tests/test_path_traversal.py` |
+| 1 MiB guard across STDIO/socket/TCP | Present | `mcp/transport.py:28`; `tests/test_stdio.py:355`; `tests/test_socket.py:185`; `tests/test_tcp.py:167` |
+| Ready/shutdown logs mirror metadata | Present | `mcp/__main__.py:185`; `mcp/__main__.py:304`; `tests/test_entrypoint.py:85`; `tests/test_socket.py:283` |
+| Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:156`; `tests/test_stdio.py:210`; `tests/test_tcp.py:252` |
+| Signal exit codes `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:295`; `mcp/__main__.py:439`; `tests/test_entrypoint.py:105` |
+| `validate` alias warns + schema required | Present | `mcp/stdio_main.py:23`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:68`; `tests/test_stdio.py:35` |
+| `validate_many` enforces `MCP_MAX_BATCH` | Present | `mcp/validate.py:92`; `tests/test_validate.py:103` |
+| Socket perms 0600 + multi-client ordering | Present | `mcp/socket_main.py:27`; `tests/test_socket.py:146`; `tests/test_socket.py:346` |
+| TCP multi-client + shutdown logging | Present | `mcp/tcp_main.py:25`; `mcp/tcp_main.py:304`; `tests/test_tcp.py:321`; `tests/test_tcp.py:411` |
+| Schema/example traversal guard | Present | `mcp/core.py:18`; `mcp/core.py:62`; `tests/test_path_traversal.py:34`; `tests/test_path_traversal.py:61` |
+| JSON-RPC error reserved for malformed frames | Present | `mcp/transport.py:70`; `mcp/transport.py:100`; `tests/fixtures/golden.jsonl:10` |
 
 ## Recommendations
-- **Maintain Test Rigor**: Continue to ensure all new features or transport changes are accompanied by comprehensive tests covering functionality, security, and lifecycle.
-- **Update Golden Files**: Ensure `tests/fixtures/golden.jsonl` is updated whenever API request/response contracts change.
-- **Preserve Compliance Checks**: Protect critical tests for spec compliance (e.g., JSON-RPC version enforcement) from accidental removal.
+- Keep transport regression tests in CI to protect shutdown invariants and multi-client handling (`tests/test_socket.py:278`, `tests/test_tcp.py:411`).
+- Update golden fixtures whenever RPC contracts change to maintain deterministic assertions (`tests/test_golden.py:45`, `tests/fixtures/golden.jsonl:1`).
+- Retain non-root container posture during dependency upgrades (`Dockerfile:24`, `tests/test_container.py:4`).
