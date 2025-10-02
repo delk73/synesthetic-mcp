@@ -403,6 +403,7 @@ def main(argv: list[str] | None = None) -> None:
 
     ready_file = _ready_file_path()
 
+    #some lame shit
     code = 0
     try:
         if endpoint == "stdio":
