@@ -173,7 +173,7 @@ def _clear_ready_file(path: Path | None) -> None:
 def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
     shutdown_logged = False
 
-    def _on_signal(_signum: int) -> None:
+    async def shutdown(signame: str, exit_code: int) -> None:
         nonlocal shutdown_logged
         if not shutdown_logged:
             _log_event(
@@ -183,6 +183,10 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
                 examples_dir=examples_dir,
             )
             shutdown_logged = True
+        await cleanup_ready_file()
+
+    def _on_signal(_signum: int) -> None:
+        loop.create_task(shutdown("SIGINT", 0))
 
     handlers = _install_signal_handlers(_on_signal)
 
