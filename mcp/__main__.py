@@ -9,6 +9,7 @@ import logging
 import os
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, List, Tuple
@@ -431,6 +432,11 @@ def main(argv: list[str] | None = None) -> None:
     finally:
         # THIS IS THE FIX: Centralized cleanup, guaranteed to run last.
         _clear_ready_file(ready_file)
+
+        # HACK: A small delay to mitigate race conditions during shutdown in
+        # some test environments.
+        time.sleep(0.05)
+
 
     if code < 0:
         signum = -code
