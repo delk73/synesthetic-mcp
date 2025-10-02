@@ -1,6 +1,6 @@
 {
-  "task": "Audit synesthetic-mcp repo state (v0.2.7 features)",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.7). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "task": "Audit synesthetic-mcp repo state (v0.2.8 features)",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.8). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -11,9 +11,8 @@
       "Ground all findings in visible code/tests/docs; no speculation",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes",
       "Always overwrite meta/output/mcp_state.md and AGENTS.md with non-empty content",
-      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard per v0.2.7; HTTP/gRPC are roadmap-only (Divergent if present)",
+      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard per v0.2.8; HTTP/gRPC are roadmap-only (Divergent if present)",
       "Payload cap: 1 MiB guard enforced across all methods in STDIO, Socket, and TCP; explicit guard + failing test required",
-      "validate_asset: schema param REQUIRED; error if missing/empty",
       "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (until ≥ v0.3)",
       "Batching: validate_many MUST honor MCP_MAX_BATCH",
       "get_example: MUST return validation_failed when example invalid",
@@ -24,6 +23,7 @@
       "Logging: startup log includes mode, path/host:port, schemas_dir, examples_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
       "Signal handling: SIGINT/SIGTERM shutdowns return documented exit codes (-SIGINT, -SIGTERM)",
       "Shutdown logging: Shutdown logs MUST mirror ready logs (mode, address/path, schemas_dir, examples_dir, timestamp) and MUST be emitted before process exit; self-kill MUST NOT pre-empt log emission",
+      "Schema validation contract (v0.2.8): Assets MUST include top-level \"$schema\" per JSON Schema Draft 2020-12; assets missing it MUST yield validation_failed with path=\"/$schema\"; use of \"schema\" (no $) or \"$schemaRef\" is Divergent and MUST be rejected",
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -82,7 +82,7 @@
   "exit_criteria": [
     "meta/output/mcp_state.md written and non-empty",
     "AGENTS.md snapshot updated",
-    "Spec v0.2.7 features mapped to Present/Missing/Divergent with evidence",
+    "Spec v0.2.8 features mapped to Present/Missing/Divergent with evidence",
     "STDIO, Socket, and TCP behavior explicitly verified (multi-client ordering, logs, shutdown, lifecycle signals)",
     "Golden examples cover list_schemas, get_schema, validate_asset+alias, get_example success+validation_failed, diff_assets, malformed JSON-RPC",
     "Payload guard verified across all transports and methods",
@@ -92,6 +92,7 @@
     "Shutdown logging invariant verified (shutdown log emitted before exit, mirrors ready log)",
     "Signal exit codes verified (-SIGINT, -SIGTERM)",
     "Container non-root verified",
-    "README cross-checked with docs/mcp_spec.md"
+    "README cross-checked with docs/mcp_spec.md",
+    "Assets with \"$schema\" pass strict validation; assets using \"schema\" or \"$schemaRef\" are rejected with validation_failed"
   ]
 }

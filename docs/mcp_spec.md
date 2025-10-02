@@ -1,6 +1,6 @@
 ---
-version: v0.2.7
-lastReviewed: 2025-10-01
+version: v0.2.8
+lastReviewed: 2025-10-02
 owner: mcp-core
 ---
 
@@ -17,11 +17,19 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
   * Persistent: **Socket** (Unix Domain Socket) over JSON-RPC 2.0.  
   * **TCP transport**: first-class option for containerized or distributed setups.  
 * **Guards:** Assets MUST be validated before persistence. Schemas MUST NOT be mutated.  
-* **Limits:** All transports enforce a **1 MiB payload cap**.
+* **Limits:** All transports enforce a **1 MiB payload cap**.  
+* **Schema key:** Assets MUST include a top-level `"$schema"` field, per JSON Schema Draft 2020-12.  
+  * MCP validators MUST reject assets missing this field.  
+  * `"schema"` (no `$`) is not valid and MUST NOT be used.
 
 ---
 
-## v0.2.7 Additions
+## v0.2.8 Additions
+
+* **Schema alignment**  
+  * All assets MUST declare their validating schema with `"$schema"`.  
+  * Strict validation enforces presence of `"$schema"`.  
+  * `$schemaRef` and `"schema"` are deprecated and MUST NOT be emitted.  
 
 * **TCP transport fully aligned**  
   * TCP enforces the same **1 MiB guard** as STDIO/socket.  
@@ -47,7 +55,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 
 ---
 
-## Exit Criteria (v0.2.7)
+## Exit Criteria (v0.2.8)
 
 * TCP transport works end-to-end, default `MCP_HOST=0.0.0.0`, `MCP_PORT=7000`.  
 * All transports (STDIO, socket, TCP) enforce 1 MiB guard.  
@@ -55,30 +63,16 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * **Shutdown log invariant holds across all transports.**  
 * Signal exits produce documented codes.  
 * Tests cover TCP round-trip, oversize payload, multi-client ordering, and alias lifecycle.  
+* Assets with `"$schema"` pass strict validation.  
+* Assets with `"schema"` or `$schemaRef` are rejected.  
 * README/docs reflect actual implementation.  
 
 ---
 
-## Version v0.2.6 (Previous)
+## Version v0.2.7 (Previous)
 
-### Additions in v0.2.6
-
-* **TCP mode:** `MCP_ENDPOINT=tcp` starts a TCP listener on `MCP_HOST:MCP_PORT` (defaults `0.0.0.0:7000`).  
-* Same NDJSON framing as STDIO/Socket.  
-* Per-connection frame ordering preserved.  
-* Logs `mcp:ready mode=tcp host=<h> port=<p>`.  
-* Shutdown log mirrors ready event with schema/example dirs.  
-* Integration tests must cover TCP.  
-* Ready/shutdown logs must include schema/example dirs for all transports.  
-* Ready/shutdown logs emit ISO-8601 UTC timestamps.  
-
-### Exit Criteria (v0.2.6)
-
-* TCP transport works end-to-end, default host/port.  
-* Up/down scripts support TCP alongside socket.  
-* Readiness logs include mode + address/path + schemas_dir + examples_dir.  
-* All transports pass golden request/response tests.  
-* Implementation, docs, and tests aligned.  
+* Schema key field was ambiguous (`"schema"`, `$schemaRef`).  
+* v0.2.8 standardizes to `"$schema"` only.  
 
 ---
 
