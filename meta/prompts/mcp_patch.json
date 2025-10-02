@@ -1,7 +1,19 @@
 {
-  "task": "Harden shutdown logging and test robustness (with grace period)",
-  "objective": "Ensure shutdown logs are always observable before process exit while avoiding long hangs on CI failures.",
+  "task": "Harden shutdown lifecycle and test robustness (with grace period)",
+  "objective": "Make shutdown deterministic: run loop always cleans up, logs always flush, tests don’t flake on CI.",
   "changes": [
+    {
+      "id": "remove_self_kill",
+      "description": "Stop main() from re-sending SIGTERM to itself. Let the run loop handle cleanup and file removal.",
+      "edits": [
+        {
+          "file": "mcp/__main__.py",
+          "pattern": "if code < 0:[\\s\\S]*?sys.exit\\([^)]*\\)",
+          "multiple": false,
+          "replacement": "if code < 0:\n        signum = -code\n        sys.exit(128 + signum)\n    else:\n        sys.exit(code)"
+        }
+      ]
+    },
     {
       "id": "flush_shutdown_logs",
       "description": "Explicitly flush stderr after each shutdown log event.",
@@ -22,24 +34,24 @@
           "file": "tests/conftest.py",
           "pattern": "def _wait_for_line",
           "multiple": false,
-          "replacement": "def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:\n    import time\n    deadline = time.time() + timeout\n    lines = []\n    grace_period = 1.0  # allow stderr flush after exit\n    exited_at = None\n\n    while time.time() < deadline:\n        line = stream.readline()\n        if not line:\n            if proc.poll() is not None:\n                if exited_at is None:\n                    exited_at = time.time()\n                # after grace period, stop waiting\n                if time.time() - exited_at > grace_period:\n                    break\n                time.sleep(0.05)\n                continue\n            time.sleep(0.05)\n            continue\n        text = line.strip()\n        lines.append(text)\n        if needle in text:\n            return text\n    raise AssertionError(f\"did not observe '{needle}' in output: {lines}\")"
+          "replacement": "def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:\n    import time\n    deadline = time.time() + timeout\n    lines = []\n    grace_period = 1.0  # allow stderr flush after exit\n    exited_at = None\n\n    while time.time() < deadline:\n        line = stream.readline()\n        if not line:\n            if proc.poll() is not None:\n                if exited_at is None:\n                    exited_at = time.time()\n                if time.time() - exited_at > grace_period:\n                    break\n                time.sleep(0.05)\n                continue\n            time.sleep(0.05)\n            continue\n        text = line.strip()\n        lines.append(text)\n        if needle in text:\n            return text\n    raise AssertionError(f\"did not observe '{needle}' in output: {lines}\")"
         }
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "Do not add new dependencies.",
+      "No new dependencies.",
       "Only modify the listed files.",
-      "Ensure changes remain backward-compatible with existing tests.",
-      "Shutdown logs must be flushed synchronously."
+      "One control path handles shutdown (run loop only).",
+      "Tests must remain deterministic."
     ]
   },
   "exit_criteria": [
-    "Shutdown logs are flushed explicitly and observed reliably.",
-    "All transports emit shutdown logs before exit.",
-    "_wait_for_line drains stderr for up to 1s after process exit to reduce race conditions without long hangs.",
-    "All tests pass under the local dev Python version.",
-    "Cloud CI shows stable results across configured Python versions."
+    "Shutdown logs always flushed explicitly.",
+    "Ready file always removed by run loop cleanup (not skipped).",
+    "_wait_for_line drains stderr for up to 1s after process exit.",
+    "All tests pass locally on Python 3.11.",
+    "CI stable across all configured Python versions."
   ]
 }
