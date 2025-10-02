@@ -23,6 +23,7 @@
       "Process model: STDIO exits when stdin closes; Socket/TCP log readiness + unlink/close on shutdown",
       "Logging: startup log includes mode, path/host:port, schemas_dir, examples_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
       "Signal handling: SIGINT/SIGTERM shutdowns return documented exit codes (-SIGINT, -SIGTERM)",
+      "Shutdown logging: Shutdown logs MUST mirror ready logs (mode, address/path, schemas_dir, examples_dir, timestamp) and MUST be emitted before process exit; self-kill MUST NOT pre-empt log emission",
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -34,6 +35,7 @@
       "Socket server (multi-client handling, perms, unlink, logs)",
       "TCP server (binding, perms, multi-client, shutdown logs)",
       "Lifecycle signals",
+      "Shutdown logging invariant",
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
@@ -87,6 +89,7 @@
     "Batching (validate_many) verified or marked",
     "Determinism + schema safety verified",
     "Logging verified (mode, path/host:port, schemas_dir, examples_dir, ISO timestamps)",
+    "Shutdown logging invariant verified (shutdown log emitted before exit, mirrors ready log)",
     "Signal exit codes verified (-SIGINT, -SIGTERM)",
     "Container non-root verified",
     "README cross-checked with docs/mcp_spec.md"

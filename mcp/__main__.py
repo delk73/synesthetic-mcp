@@ -77,11 +77,13 @@ def _install_signal_handlers(on_signal: Callable[[int], None] | None = None) -> 
     handlers: List[Tuple[int, object]] = []
 
     def _handle(signum: int, _frame: object) -> None:  # pragma: no cover - signal
+        # Call external callback if provided
         if on_signal is not None:
             try:
                 on_signal(signum)
             except Exception:
                 pass
+        # Don’t log here — let _run_* handle shutdown logging
         raise _SignalShutdown(signum)
 
     for sig in (signal.SIGTERM, signal.SIGINT):
@@ -171,24 +173,7 @@ def _clear_ready_file(path: Path | None) -> None:
 
 
 def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
-    shutdown_logged = False
-
-    async def shutdown(signame: str, exit_code: int) -> None:
-        nonlocal shutdown_logged
-        if not shutdown_logged:
-            _log_event(
-                "shutdown",
-                mode="stdio",
-                schemas_dir=schemas_dir,
-                examples_dir=examples_dir,
-            )
-            shutdown_logged = True
-        await cleanup_ready_file()
-
-    def _on_signal(_signum: int) -> None:
-        loop.create_task(shutdown("SIGINT", 0))
-
-    handlers = _install_signal_handlers(_on_signal)
+    handlers = _install_signal_handlers()
 
     examples_dir = _examples_dir_for_log()
     _log_event(
@@ -209,14 +194,12 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
         logging.exception("mcp:error reason=runtime_failure mode=stdio")
         exit_code = 1
     finally:
-        if not shutdown_logged:
-            _log_event(
-                "shutdown",
-                mode="stdio",
-                schemas_dir=schemas_dir,
-                examples_dir=examples_dir,
-            )
-            shutdown_logged = True
+        _log_event(
+            "shutdown",
+            mode="stdio",
+            schemas_dir=schemas_dir,
+            examples_dir=examples_dir,
+        )
         for sig, previous in handlers:
             try:
                 signal.signal(sig, previous)
@@ -224,6 +207,7 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
                 pass
         _clear_ready_file(ready_file)
     return exit_code
+
 
 
 def _run_socket(

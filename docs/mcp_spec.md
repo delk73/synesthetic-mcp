@@ -27,9 +27,9 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
   * TCP enforces the same **1 MiB guard** as STDIO/socket.  
   * Ready logs:  
     ```
-    mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...>
+    mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...> timestamp=<ISO-8601 UTC>
     ```  
-  * Shutdown logs mirror ready event with ISO-8601 UTC timestamps.  
+  * Shutdown logs MUST mirror ready logs with the same fields, differing only in `event=shutdown`.  
   * Documentation updated with **example usage**:  
     ```bash
     nc 127.0.0.1 8765
@@ -38,6 +38,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 
 * **Lifecycle signals**  
   * SIGINT/SIGTERM shutdowns return exit code `-SIGINT`/`-SIGTERM`.  
+  * **Logging invariant:** shutdown logs MUST always be emitted *before* process exit, even under signal termination. Self-kill (`os.kill`) MUST NOT pre-empt shutdown logging.  
   * Ready file format: `<pid> <ISO8601 timestamp>`.  
 
 * **Documentation alignment**  
@@ -51,6 +52,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * TCP transport works end-to-end, default `MCP_HOST=0.0.0.0`, `MCP_PORT=7000`.  
 * All transports (STDIO, socket, TCP) enforce 1 MiB guard.  
 * Ready/shutdown logs show mode, address/path, schemas_dir, examples_dir, and ISO timestamps.  
+* **Shutdown log invariant holds across all transports.**  
 * Signal exits produce documented codes.  
 * Tests cover TCP round-trip, oversize payload, multi-client ordering, and alias lifecycle.  
 * README/docs reflect actual implementation.  
