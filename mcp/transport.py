@@ -46,7 +46,15 @@ def parse_line(line: str) -> Tuple[Any, str, Dict[str, Any]]:
     params_raw = data.get("params", {})
     if params_raw is None:
         params_raw = {}
-    if not isinstance(params_raw, dict):
+    elif isinstance(params_raw, list):
+        if params_raw:
+            raise InvalidRequest(
+                rid,
+                "validation_failed",
+                [{"path": "/params", "msg": "params must be an object"}],
+            )
+        params_raw = {}
+    elif not isinstance(params_raw, dict):
         raise InvalidRequest(
             rid,
             "validation_failed",
