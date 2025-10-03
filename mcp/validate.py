@@ -58,6 +58,14 @@ def _size_okay(obj: Any) -> bool:
         return False
 
 
+def _validation_error(path: str, msg: str) -> Dict[str, Any]:
+    return {
+        "ok": False,
+        "reason": "validation_failed",
+        "errors": [{"path": path, "msg": msg}],
+    }
+
+
 def _load_schema(name: str) -> tuple[Dict[str, Any], Path]:
     canonical = _SCHEMA_ALIASES.get(name, name)
     path = _schema_file_path(canonical)
@@ -132,13 +140,22 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
             "errors": [{"path": "/", "msg": "payload_too_large"}],
         }
 
-    # Examples may carry a helper field not represented in JSON Schema.
-    # Ignore a top-level "$schemaRef" if present for validation purposes.
-    if isinstance(asset, dict) and "$schemaRef" in asset:
-        payload = dict(asset)
-        payload.pop("$schemaRef", None)
-    else:
-        payload = asset
+    if not isinstance(asset, dict):
+        return _validation_error("/", "asset must be an object")
+
+    schema_marker = asset.get("$schema")
+    if not isinstance(schema_marker, str) or not schema_marker.strip():
+        return _validation_error("/$schema", "top-level $schema is required")
+
+    legacy_keys = [key for key in ("schema", "$schemaRef") if key in asset]
+    if legacy_keys:
+        joined = ",".join(sorted(legacy_keys))
+        return _validation_error(
+            "/$schema", f"legacy schema keys not allowed: {joined}"
+        )
+
+    payload = dict(asset)
+    payload.pop("$schema", None)
 
     try:
         schema_obj, schema_path = _load_schema(schema)

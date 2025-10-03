@@ -74,7 +74,6 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
         "properties": {
             "id": {"type": "string", "minLength": 1},
             "name": {"type": "string", "minLength": 1},
-            "schema": {"type": "string", "const": "asset"},
         },
         "required": ["id", "name"],
         "additionalProperties": False,
@@ -109,7 +108,11 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
             "id": 42,
             "method": "validate",
             "params": {
-                "asset": {"id": "asset-1", "name": "Asset", "schema": "asset"},
+                "asset": {
+                    "$schema": "jsonschema/asset.schema.json",
+                    "id": "asset-1",
+                    "name": "Asset",
+                },
                 "schema": "asset",
             },
         }

@@ -29,9 +29,9 @@ _MINIMAL_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
-        "schema": {"type": "string", "const": "asset"},
+        "id": {"type": "string", "minLength": 1},
     },
-    "required": ["schema"],
+    "required": ["id"],
     "additionalProperties": True,
 }
 

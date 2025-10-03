@@ -24,7 +24,9 @@ def test_env_overrides_dirs(monkeypatch, tmp_path: Path):
             }
         )
     )
-    (examples / "foo.valid.json").write_text(json.dumps({"id": "x"}))
+    (examples / "foo.valid.json").write_text(
+        json.dumps({"$schema": "jsonschema/foo.schema.json", "id": "x"})
+    )
 
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas))
     monkeypatch.setenv("SYN_EXAMPLES_DIR", str(examples))
@@ -34,4 +36,3 @@ def test_env_overrides_dirs(monkeypatch, tmp_path: Path):
 
     le = list_examples("foo")
     assert le["ok"] and any(x["component"] == "foo" for x in le["examples"])
-

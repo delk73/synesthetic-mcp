@@ -216,17 +216,18 @@ def test_validate_flag_failure(tmp_path):
                 "$schema": "https://json-schema.org/draft/2020-12/schema",
                 "type": "object",
                 "properties": {
-                    "schema": {"type": "string", "const": "asset"},
                     "id": {"type": "string", "minLength": 1},
                 },
-                "required": ["schema", "id"],
+                "required": ["id"],
                 "additionalProperties": False,
             }
         )
     )
 
     asset_path = tmp_path / "invalid.json"
-    asset_path.write_text(json.dumps({"schema": "asset", "id": ""}))
+    asset_path.write_text(
+        json.dumps({"$schema": "jsonschema/asset.schema.json", "id": ""})
+    )
 
     env = os.environ.copy()
     env.update(

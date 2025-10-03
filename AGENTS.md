@@ -1,9 +1,9 @@
 # AGENTS.md — Repo Snapshot (v0.2.8 Audit)
 
 ## Repo Summary
-- Transports, lifecycle management, and logging remain compliant with v0.2.8 transport expectations (`mcp/__main__.py:185`, `tests/test_tcp.py:178`).
-- Validation flow still depends on external `schema` params and tolerates `$schemaRef`, diverging from the `$schema`-only contract (`mcp/validate.py:120`, `mcp/validate.py:135`, `docs/mcp_spec.md:12`).
-- Docs and fixtures continue to demonstrate legacy `schema` usage, so guidance no longer matches the spec (`README.md:153`, `tests/fixtures/golden.jsonl:3`).
+- Validation now enforces the top-level `$schema` requirement and rejects legacy keys ahead of Draft 2020-12 checking (`mcp/validate.py:146`, `mcp/validate.py:150`, `tests/test_validate.py:185`).
+- Fixtures, docs, and golden flows emit `$schema`, so transport, backend, and discovery paths remain deterministic (`libs/synesthetic-schemas/examples/Control-Bundle_Example.json:2`, `tests/fixtures/golden.jsonl:3`, `README.md:38`).
+- Transport readiness/shutdown logging and signal handling continue to meet v0.2.8 invariants (`mcp/__main__.py:185`, `tests/test_tcp.py:178`).
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
@@ -26,9 +26,9 @@
 | STDIO transport & lifecycle | ✅ | `tests/test_stdio.py:173` |
 | Socket transport & concurrency | ✅ | `tests/test_socket.py:146`; `tests/test_socket.py:346` |
 | TCP transport & signals | ✅ | `tests/test_tcp.py:117`; `tests/test_tcp.py:411` |
-| Validation & batching | ✅ (legacy schema key) | `tests/test_validate.py:46`; `tests/test_validate.py:103` |
+| Validation & batching | ✅ | `tests/test_validate.py:185`; `tests/test_validate.py:103` |
 | Backend populate | ✅ | `tests/test_backend.py:21`; `tests/test_backend.py:96` |
-| Golden replay | ✅ (legacy schema key) | `tests/test_golden.py:45`; `tests/fixtures/golden.jsonl:3` |
+| Golden replay | ✅ | `tests/test_golden.py:45`; `tests/fixtures/golden.jsonl:3` |
 | Container security | ✅ | `tests/test_container.py:4`; `Dockerfile:27` |
 
 ## Spec Alignment (v0.2.8)
@@ -39,9 +39,9 @@
 | Signal exits return `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:295`; `tests/test_tcp.py:194` |
 | Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:156`; `tests/test_stdio.py:210` |
 | `validate` alias warns; schema param required | Present | `mcp/stdio_main.py:23`; `tests/test_stdio.py:68` |
-| Assets require top-level `$schema`, reject `schema/$schemaRef` | Divergent | `docs/mcp_spec.md:12`; `mcp/validate.py:135`; `tests/test_backend.py:31`; `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2` |
+| Assets require top-level `$schema`, reject `schema/$schemaRef` | Present | `mcp/validate.py:146`; `mcp/validate.py:150`; `tests/test_validate.py:185`; `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2` |
 
 ## Recommendations
-- Require `$schema` within `validate_asset`/`validate_many`, rejecting legacy keys with `validation_failed` at `/$schema` (`mcp/validate.py:120`, `docs/mcp_spec.md:12`).
-- Migrate fixtures, golden records, and README examples to `$schema`, adding tests that fail on legacy inputs (`tests/fixtures/golden.jsonl:3`, `README.md:153`, `tests/test_validate.py:19`).
-- Audit the schema submodule for `$schemaRef` usage and update inference logic/tests accordingly (`libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`, `mcp/core.py:126`).
+- Add a consistency check ensuring asset `$schema` values map to the requested canonical schema to catch mismatches (`mcp/validate.py:146`).
+- Keep `$schema` conformance tests in CI to guard future fixtures or docs from regressing (`tests/test_validate.py:193`, `tests/fixtures/golden.jsonl:3`).
+- Document canonical `$schema` URIs for client authors to reduce ambiguity when constructing requests (`README.md:38`, `docs/mcp_spec.md:20`).

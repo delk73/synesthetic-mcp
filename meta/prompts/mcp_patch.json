@@ -1,40 +1,112 @@
 {
-  "task": "Harden shutdown lifecycle and test robustness (with grace period)",
-  "objective": "Make shutdown deterministic: run loop always cleans up, logs always flush, tests don’t flake on CI.",
+  "task": "Enforce JSON Schema standard key in MCP (require top-level \"$schema\")",
+  "objective": "Make MCP strict validation conform to v0.2.8: assets MUST include top-level \"$schema\"; reject legacy \"schema\" and \"$schemaRef\". Update validator, docs, fixtures, and tests accordingly.",
   "changes": [
     {
-      "id": "remove_self_kill",
-      "description": "Stop main() from re-sending SIGTERM to itself. Let the run loop handle cleanup and file removal.",
+      "id": "validator_require_dollar_schema",
+      "description": "Require top-level \"$schema\"; reject legacy keys; return validation_failed with path=\"/$schema\" when missing.",
       "edits": [
         {
-          "file": "mcp/__main__.py",
-          "pattern": "if code < 0:[\\s\\S]*?sys.exit\\([^)]*\\)",
+          "file": "mcp/validate.py",
+          "pattern": "(def validate_asset\\(.*?\\):[\\s\\S]*?)(# start validation)",
           "multiple": false,
-          "replacement": "if code < 0:\n        signum = -code\n        sys.exit(128 + signum)\n    else:\n        sys.exit(code)"
+          "replacement": "\\1\n    # v0.2.8: enforce JSON Schema standard key\n    if \"$schema\" not in asset or not asset.get(\"$schema\"):\n        return _fail(\"validation_failed\", path=\"/$schema\", msg=\"top-level $schema is required\")\n    # legacy keys are rejected explicitly\n    if \"schema\" in asset or \"$schemaRef\" in asset:\n        return _fail(\"validation_failed\", path=\"/$schema\", msg=\"use '$schema' only; 'schema' and '$schemaRef' are not allowed\")\n\n    # start validation"
+        },
+        {
+          "file": "mcp/validate.py",
+          "pattern": "(def validate_many\\(.*?\\):[\\s\\S]*?for asset in assets:[\\s\\S]*?)(# validate each)",
+          "multiple": false,
+          "replacement": "\\1\n        # pre-check contract per v0.2.8\n        if \"$schema\" not in asset or not asset.get(\"$schema\"):\n            results.append(_fail(\"validation_failed\", path=\"/$schema\", msg=\"top-level $schema is required\"))\n            continue\n        if \"schema\" in asset or \"$schemaRef\" in asset:\n            results.append(_fail(\"validation_failed\", path=\"/$schema\", msg=\"use '$schema' only; 'schema' and '$schemaRef' are not allowed\"))\n            continue\n        # validate each"
         }
       ]
     },
     {
-      "id": "flush_shutdown_logs",
-      "description": "Explicitly flush stderr after each shutdown log event.",
+      "id": "core_example_inference_drop_legacy",
+      "description": "Stop inferring from legacy schema keys; rely solely on '$schema'.",
       "edits": [
         {
-          "file": "mcp/__main__.py",
-          "pattern": "shutdown_logged = True",
+          "file": "mcp/core.py",
+          "pattern": "if ['\\\"]\\$schemaRef['\\\"] in obj[\\s\\S]*?\\n",
           "multiple": true,
-          "replacement": "shutdown_logged = True\n            try:\n                sys.stderr.flush()\n            except Exception:\n                pass"
+          "replacement": ""
+        },
+        {
+          "file": "mcp/core.py",
+          "pattern": "if ['\\\"]schema['\\\"] in obj[\\s\\S]*?\\n",
+          "multiple": true,
+          "replacement": ""
         }
       ]
     },
     {
-      "id": "robust_wait_for_line_with_grace",
-      "description": "Update _wait_for_line to allow a short grace period after process exit for stderr flush, instead of waiting full timeout.",
+      "id": "tests_add_enforcement_cases",
+      "description": "Add tests that enforce required $schema and rejection of legacy keys.",
       "edits": [
         {
-          "file": "tests/conftest.py",
-          "pattern": "def _wait_for_line",
+          "file": "tests/test_validate.py",
+          "pattern": "\\Z",
           "multiple": false,
-          "replacement": "def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:\n    import time\n    deadline = time.time() + timeout\n    lines = []\n    grace_period = 1.0  # allow stderr flush after exit\n    exited_at = None\n\n    while time.time() < deadline:\n        line = stream.readline()\n        if not line:\n            if proc.poll() is not None:\n                if exited_at is None:\n                    exited_at = time.time()\n                if time.time() - exited_at > grace_period:\n                    break\n                time.sleep(0.05)\n                continue\n            time.sleep(0.05)\n            continue\n        text = line.strip()\n        lines.append(text)\n        if needle in text:\n            return text\n    raise AssertionError(f\"did not observe '{needle}' in output: {lines}\")"
+          "replacement": "\n\ndef test_reject_missing_dollar_schema():\n    asset = {\"prompt\": \"x\"}\n    res = client.validate_asset(asset)\n    assert res[\"reason\"] == \"validation_failed\"\n    assert res[\"errors\"][0][\"path\"] == \"/$schema\"\n\n\ndef test_reject_legacy_schema_and_schemaRef():\n    for a in [{\"schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\"},\n              {\"$schemaRef\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\"}]:\n        res = client.validate_asset(a)\n        assert res[\"reason\"] == \"validation_failed\"\n        assert res[\"errors\"][0][\"path\"] == \"/$schema\"\n"
+        }
+      ]
+    },
+    {
+      "id": "update_golden_transcript",
+      "description": "Switch golden fixtures to use $schema and remove legacy keys.",
+      "edits": [
+        {
+          "file": "tests/fixtures/golden.jsonl",
+          "pattern": "\"schema\"\\s*:\\s*\"[^\"]+\"",
+          "multiple": true,
+          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
+        },
+        {
+          "file": "tests/fixtures/golden.jsonl",
+          "pattern": "\"\\$schemaRef\"\\s*:\\s*\"[^\"]+\",?\\s*",
+          "multiple": true,
+          "replacement": ""
+        }
+      ]
+    },
+    {
+      "id": "update_readme_examples",
+      "description": "Replace \"schema\" with \"$schema\" in README examples and CLI docs.",
+      "edits": [
+        {
+          "file": "README.md",
+          "pattern": "(\"schema\"\\s*:)\\s*\"[^\"]+\"",
+          "multiple": true,
+          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
+        }
+      ]
+    },
+    {
+      "id": "update_spec_anchor_note",
+      "description": "Reiterate $schema requirement and explicitly forbid legacy keys.",
+      "edits": [
+        {
+          "file": "docs/mcp_spec.md",
+          "pattern": "Schema key:[\\s\\S]*?(?=\\n\\n|$)",
+          "multiple": false,
+          "replacement": "Schema key: Assets MUST include a top-level `\"$schema\"` field (JSON Schema Draft 2020-12). MCP validators MUST reject assets missing this field and MUST reject legacy `schema` or `$schemaRef` keys."
+        }
+      ]
+    },
+    {
+      "id": "sync_example_assets_submodule",
+      "description": "Ensure bundled examples declare $schema and no legacy keys.",
+      "edits": [
+        {
+          "file": "libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json",
+          "pattern": "\"\\$schemaRef\"\\s*:\\s*\"[^\"]+\"",
+          "multiple": true,
+          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
+        },
+        {
+          "file": "libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json",
+          "pattern": "\"schema\"\\s*:\\s*\"[^\"]+\",?\\s*",
+          "multiple": true,
+          "replacement": ""
         }
       ]
     }
@@ -43,15 +115,16 @@
     "rules": [
       "No new dependencies.",
       "Only modify the listed files.",
-      "One control path handles shutdown (run loop only).",
-      "Tests must remain deterministic."
+      "Strictly enforce $schema; do not auto-alias or auto-upgrade legacy keys.",
+      "Tests and docs must reflect the v0.2.8 contract.",
+      "Deterministic behavior and existing transport guards must remain unchanged."
     ]
   },
   "exit_criteria": [
-    "Shutdown logs always flushed explicitly.",
-    "Ready file always removed by run loop cleanup (not skipped).",
-    "_wait_for_line drains stderr for up to 1s after process exit.",
-    "All tests pass locally on Python 3.11.",
-    "CI stable across all configured Python versions."
+    "Assets missing top-level \"$schema\" are rejected with validation_failed at path=\"/$schema\".",
+    "Assets containing legacy \"schema\" or \"$schemaRef\" are rejected with validation_failed.",
+    "All README examples and golden fixtures use \"$schema\".",
+    "New tests pass; no failures in existing transport/lifecycle suites.",
+    "Audit table row 'Assets MUST include top-level $schema; reject schema/$schemaRef' flips to Present with evidence in mcp_state.md."
   ]
 }

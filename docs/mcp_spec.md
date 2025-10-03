@@ -20,7 +20,7 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * **Limits:** All transports enforce a **1 MiB payload cap**.  
 * **Schema key:** Assets MUST include a top-level `"$schema"` field, per JSON Schema Draft 2020-12.  
   * MCP validators MUST reject assets missing this field.  
-  * `"schema"` (no `$`) is not valid and MUST NOT be used.
+  * Legacy `"schema"` (no `$`) and `$schemaRef` keys are not valid and MUST NOT be used.
 
 ---
 

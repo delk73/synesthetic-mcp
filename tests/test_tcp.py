@@ -72,9 +72,9 @@ def test_tcp_transport_end_to_end(tmp_path):
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-            "schema": {"type": "string", "const": "asset"},
+            "id": {"type": "string", "minLength": 1},
         },
-        "required": ["schema"],
+        "required": ["id"],
         "additionalProperties": True,
     }
     (schemas_dir / "synesthetic-asset.schema.json").write_text(json.dumps(minimal_schema))
@@ -202,13 +202,17 @@ def test_tcp_sigterm_cleans_up(tmp_path):
     ready_file = tmp_path / "mcp.ready"
     schemas_dir = tmp_path / "schemas"
     schemas_dir.mkdir()
-    (schemas_dir / "asset.schema.json").write_text(json.dumps({
-        "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "type": "object",
-        "properties": {"schema": {"type": "string", "const": "asset"}},
-        "required": ["schema"],
-        "additionalProperties": True,
-    }))
+    (schemas_dir / "asset.schema.json").write_text(
+        json.dumps(
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "type": "object",
+                "properties": {"id": {"type": "string", "minLength": 1}},
+                "required": ["id"],
+                "additionalProperties": True,
+            }
+        )
+    )
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
 
@@ -281,9 +285,9 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-            "schema": {"type": "string", "const": "asset"},
+            "id": {"type": "string", "minLength": 1},
         },
-        "required": ["schema"],
+        "required": ["id"],
         "additionalProperties": True,
     }
     (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))
@@ -291,7 +295,12 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
     (examples_dir / "asset.valid.json").write_text(
-        json.dumps({"schema": "asset", "id": "example"})
+        json.dumps(
+            {
+                "$schema": "jsonschema/asset.schema.json",
+                "id": "example",
+            }
+        )
     )
 
     env = os.environ.copy()
@@ -439,10 +448,9 @@ def test_tcp_validate_requests(tmp_path):
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-            "schema": {"type": "string", "const": "synesthetic-asset"},
             "id": {"type": "string", "minLength": 1},
         },
-        "required": ["schema", "id"],
+        "required": ["id"],
         "additionalProperties": False,
     }
     (schemas_dir / "synesthetic-asset.schema.json").write_text(json.dumps(minimal_schema))
@@ -450,7 +458,10 @@ def test_tcp_validate_requests(tmp_path):
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
 
-    asset = {"schema": "synesthetic-asset", "id": "asset-123"}
+    asset = {
+        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "id": "asset-123",
+    }
     (examples_dir / "asset.valid.json").write_text(json.dumps(asset))
 
     env = os.environ.copy()
@@ -554,9 +565,9 @@ def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
-            "schema": {"type": "string", "const": "asset"},
+            "id": {"type": "string", "minLength": 1},
         },
-        "required": ["schema"],
+        "required": ["id"],
         "additionalProperties": True,
     }
     (schemas_dir / "asset.schema.json").write_text(json.dumps(minimal_schema))

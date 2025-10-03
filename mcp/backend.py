@@ -43,7 +43,7 @@ def populate_backend(
         }
 
     if validate_first:
-        # Infer schema name using the same logic as examples ($schemaRef-aware)
+        # Infer schema name using the same logic as examples (prefers $schema markers)
         dummy = _Path(".") / "example.json"
         schema_name = _infer_schema(dummy, asset) or "synesthetic-asset"
         v = validate_asset(asset, schema=schema_name)

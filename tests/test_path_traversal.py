@@ -9,10 +9,9 @@ _MINIMAL_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "type": "object",
     "properties": {
-        "schema": {"type": "string", "const": "asset"},
         "id": {"type": "string", "minLength": 1},
     },
-    "required": ["schema", "id"],
+    "required": ["id"],
     "additionalProperties": False,
 }
 
@@ -56,7 +55,9 @@ def test_get_example_rejects_traversal(monkeypatch, tmp_path):
     nested = examples_dir / "nested"
     nested.mkdir()
     example_path = nested / "asset.json"
-    example_path.write_text(json.dumps({"schema": "asset", "id": "example"}))
+    example_path.write_text(
+        json.dumps({"$schema": "jsonschema/asset.schema.json", "id": "example"})
+    )
 
     res = get_example("../asset.json")
     assert res["ok"] is False
@@ -75,7 +76,7 @@ def test_get_example_rejects_traversal(monkeypatch, tmp_path):
 def test_validate_asset_schema_path_guard(monkeypatch, tmp_path):
     _seed_roots(tmp_path, monkeypatch)
 
-    asset = {"schema": "asset", "id": "ok"}
+    asset = {"$schema": "jsonschema/asset.schema.json", "id": "ok"}
 
     res = validate_asset(asset, "../asset")
     assert res["ok"] is False

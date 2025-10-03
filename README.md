@@ -35,6 +35,7 @@ flowchart LR
 - Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`) and TCP transport (`MCP_ENDPOINT=tcp`, `MCP_HOST`, `MCP_PORT`)
 - Per-request 1 MiB payload guard enforced before parsing across STDIO, socket, and TCP transports
 - Deprecated `validate` alias remains available but logs a warning; prefer `validate_asset`
+- Strict asset contract: top-level `$schema` is required and legacy `schema`/`$schemaRef` keys are rejected (v0.2.8)
 
 ## Quickstart
 
@@ -135,7 +136,7 @@ git submodule update --init --recursive
 * All component types may be embedded (shader, tone, haptic, control, modulation, rule bundle).
 * Alias validation loads the canonical `synesthetic-asset` schema.
 * Examples `SynestheticAsset_Example*.json` are treated as `nested-synesthetic-asset`.
-* `$schemaRef` in examples is ignored during validation.
+* Assets MUST declare their validating schema via top-level `$schema`; legacy `schema` or `$schemaRef` keys are rejected.
 * Tests use the nested alias; submodule is the single source of truth.
 
 ## Error Model

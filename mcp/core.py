@@ -124,23 +124,21 @@ def list_examples(component: str | None = None) -> Dict[str, Any]:
 
 
 def _infer_schema_name_from_example(p: Path, data: Dict[str, Any]) -> str:
-    # 1) Explicit field
-    schema = data.get("schema")
-    if isinstance(schema, str) and schema:
-        return schema
-    # 2) $schemaRef like 'jsonschema/synesthetic-asset.schema.json'
-    ref = data.get("$schemaRef")
-    if isinstance(ref, str) and ref:
-        name = Path(ref).name
-        if name.endswith(".schema.json"):
-            return name[: -len(".schema.json")]
-        if name.endswith(".json"):
-            return name[: -len(".json")]
-    # 3) Minimal filename fallback for canonical asset examples
+    # 1) Prefer explicit $schema marker (v0.2.8 contract)
+    marker = data.get("$schema")
+    if isinstance(marker, str) and marker:
+        raw = marker.split("#", 1)[0]
+        candidate = Path(raw).name or marker
+        if candidate.endswith(".schema.json"):
+            return candidate[: -len(".schema.json")]
+        if candidate.endswith(".json"):
+            return candidate[: -len(".json")]
+        return candidate
+    # 2) Minimal filename fallback for canonical asset examples
     # Map SynestheticAsset_* examples to the nested alias for validation
     if p.name.startswith("SynestheticAsset"):
         return "nested-synesthetic-asset"
-    # 4) Last resort: base filename without extension
+    # 3) Last resort: base filename without extension
     return p.stem
 
 

@@ -8,6 +8,9 @@ from mcp.backend import populate_backend
 from mcp.core import list_examples, get_example
 
 
+SCHEMA_URI = "jsonschema/asset.schema.json"
+
+
 def _client_for(status: int, payload: dict, *, expect_path: str | None = None):
     def handler(request: httpx.Request) -> httpx.Response:
         if expect_path is not None:
@@ -20,7 +23,7 @@ def _client_for(status: int, payload: dict, *, expect_path: str | None = None):
 
 def test_backend_disabled_without_env(monkeypatch):
     monkeypatch.delenv("SYN_BACKEND_URL", raising=False)
-    res = populate_backend({"schema": "asset", "id": "abc"}, validate_first=False)
+    res = populate_backend({"$schema": SCHEMA_URI, "id": "abc"}, validate_first=False)
     assert res["ok"] is False and res["reason"] == "unsupported"
     assert "detail" in res and isinstance(res["detail"], str)
 
@@ -28,7 +31,11 @@ def test_backend_disabled_without_env(monkeypatch):
 def test_backend_success(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
     client = _client_for(201, {"id": "xyz"}, expect_path="/synesthetic-assets/")
-    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client, validate_first=False)
+    res = populate_backend(
+        {"$schema": SCHEMA_URI, "id": "abc", "name": "A"},
+        client=client,
+        validate_first=False,
+    )
     assert res["ok"] is True
     assert res["asset_id"] == "xyz"
 
@@ -38,7 +45,11 @@ def test_backend_assets_path_override(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_ASSETS_PATH", "/custom-assets/")
     client = _client_for(200, {"id": "override"}, expect_path="/custom-assets/")
 
-    res = populate_backend({"schema": "asset", "id": "abc"}, client=client, validate_first=False)
+    res = populate_backend(
+        {"$schema": SCHEMA_URI, "id": "abc"},
+        client=client,
+        validate_first=False,
+    )
 
     assert res["ok"] is True
     assert res["asset_id"] == "override"
@@ -48,7 +59,11 @@ def test_backend_assets_path_override(monkeypatch):
 def test_backend_error(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
     client = _client_for(500, {"error": "fail"})
-    res = populate_backend({"schema": "asset", "id": "abc", "name": "A"}, client=client, validate_first=False)
+    res = populate_backend(
+        {"$schema": SCHEMA_URI, "id": "abc", "name": "A"},
+        client=client,
+        validate_first=False,
+    )
     assert res["ok"] is False
     assert res["reason"] == "backend_error"
 
@@ -56,7 +71,7 @@ def test_backend_error(monkeypatch):
 def test_backend_payload_limit(monkeypatch):
     # Enable backend so payload size check is evaluated
     monkeypatch.setenv("SYN_BACKEND_URL", "https://backend.example")
-    oversized = {"blob": "y" * (1_200_000)}
+    oversized = {"$schema": SCHEMA_URI, "blob": "y" * (1_200_000)}
     # No client needed; size check happens before any network calls
     res = populate_backend(oversized, validate_first=False)
     assert res["ok"] is False
@@ -78,18 +93,23 @@ def _seed_backend_fixture(tmp_path: Path) -> None:
                 "$id": "https://example.test/asset.schema.json",
                 "type": "object",
                 "properties": {
-                    "schema": {"type": "string", "const": "asset"},
                     "id": {"type": "string", "minLength": 1},
                     "name": {"type": "string", "minLength": 1},
                 },
-                "required": ["schema", "id", "name"],
+                "required": ["id", "name"],
                 "additionalProperties": False,
             }
         )
     )
 
     (examples / "asset.valid.json").write_text(
-        json.dumps({"schema": "asset", "id": "example-id", "name": "Example"})
+        json.dumps(
+            {
+                "$schema": SCHEMA_URI,
+                "id": "example-id",
+                "name": "Example",
+            }
+        )
     )
 
 
@@ -163,7 +183,11 @@ def test_backend_assets_path_normalization(monkeypatch):
     monkeypatch.setenv("SYN_BACKEND_ASSETS_PATH", "custom-assets-no-slash")
     client = _client_for(200, {"id": "normalized"}, expect_path="/custom-assets-no-slash")
 
-    res = populate_backend({"schema": "asset", "id": "abc"}, client=client, validate_first=False)
+    res = populate_backend(
+        {"$schema": SCHEMA_URI, "id": "abc"},
+        client=client,
+        validate_first=False,
+    )
 
     assert res["ok"] is True
     assert res["asset_id"] == "normalized"
@@ -177,7 +201,7 @@ def test_backend_http_error_maps_to_503(monkeypatch):
 
     monkeypatch.setattr(httpx.Client, "post", boom)
 
-    res = populate_backend({"schema": "asset"}, validate_first=False)
+    res = populate_backend({"$schema": SCHEMA_URI}, validate_first=False)
 
     assert res["ok"] is False
     assert res["reason"] == "backend_error"

@@ -33,7 +33,15 @@ def test_get_example_invalid_returns_error(tmp_path, monkeypatch):
     examples_dir = tmp_path / "examples"
     examples_dir.mkdir()
     invalid_example_path = examples_dir / "invalid_example.json"
-    invalid_example_path.write_text(json.dumps({"schema": "synesthetic-asset", "name": "", "extra": True}))
+    invalid_example_path.write_text(
+        json.dumps(
+            {
+                "$schema": "jsonschema/synesthetic-asset.schema.json",
+                "name": "",
+                "extra": True,
+            }
+        )
+    )
 
     monkeypatch.setenv("SYN_EXAMPLES_DIR", str(examples_dir))
 
@@ -45,7 +53,11 @@ def test_get_example_invalid_returns_error(tmp_path, monkeypatch):
 
 def test_validate_invalid_sorted_errors():
     # Deliberately invalid object for nested-synesthetic-asset (alias)
-    asset = {"name": "", "extra": True}
+    asset = {
+        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "name": "",
+        "extra": True,
+    }
     res = validate_asset(asset, "nested-synesthetic-asset")
     assert res["ok"] is False and res.get("reason") == "validation_failed"
     # Ensure deterministic order
@@ -55,7 +67,10 @@ def test_validate_invalid_sorted_errors():
 
 def test_validate_payload_limit():
     # Construct an object with a string payload well over 1 MiB
-    oversized = {"blob": "x" * 1_200_000}
+    oversized = {
+        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "blob": "x" * 1_200_000,
+    }
     res = validate_asset(oversized, "nested-synesthetic-asset")
     assert res["ok"] is False
     # Spec/code use reason 'validation_failed' with a payload_too_large error
@@ -89,7 +104,10 @@ def test_validate_many_mixed_results(tmp_path, monkeypatch):
 
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
 
-    assets = [{"id": "good"}, {"id": ""}]
+    assets = [
+        {"$schema": "jsonschema/asset.schema.json", "id": "good"},
+        {"$schema": "jsonschema/asset.schema.json", "id": ""},
+    ]
 
     res = validate_many(assets, "asset")
 
@@ -115,7 +133,10 @@ def test_validate_many_respects_max_batch(tmp_path, monkeypatch):
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
     monkeypatch.setenv("MCP_MAX_BATCH", "1")
 
-    assets = [{"id": "first"}, {"id": "second"}]
+    assets = [
+        {"$schema": "jsonschema/asset.schema.json", "id": "first"},
+        {"$schema": "jsonschema/asset.schema.json", "id": "second"},
+    ]
 
     res = validate_many(assets, "asset")
 
@@ -143,7 +164,11 @@ def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
 
     gigantic_name = "x" * (MAX_BYTES + 512)
-    asset = {"id": "oversized", "name": gigantic_name}
+    asset = {
+        "$schema": "jsonschema/asset.schema.json",
+        "id": "oversized",
+        "name": gigantic_name,
+    }
     encoded_size = len(json.dumps(asset).encode("utf-8"))
     assert encoded_size > MAX_BYTES
 
@@ -155,3 +180,25 @@ def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
     assert first["ok"] is False
     assert first["reason"] == "validation_failed"
     assert any(err.get("msg") == "payload_too_large" for err in first.get("errors", []))
+
+
+def test_validate_asset_rejects_missing_dollar_schema():
+    asset = {"id": "asset-1"}
+    res = validate_asset(asset, "synesthetic-asset")
+    assert res["ok"] is False
+    assert res["reason"] == "validation_failed"
+    assert res["errors"][0]["path"] == "/$schema"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"$schema": "ok", "schema": "legacy"},
+        {"$schema": "ok", "$schemaRef": "legacy"},
+    ],
+)
+def test_validate_asset_rejects_legacy_keys(payload):
+    res = validate_asset(payload, "synesthetic-asset")
+    assert res["ok"] is False
+    assert res["reason"] == "validation_failed"
+    assert res["errors"][0]["path"] == "/$schema"

@@ -1,12 +1,12 @@
 ## Summary of repo state
-- Transports, lifecycle, and logging remain aligned with v0.2.8 transport requirements; readiness/shutdown metadata and signal exit codes are covered by tests (`mcp/__main__.py:185`, `tests/test_tcp.py:178`, `tests/test_entrypoint.py:105`).
-- Schema validation still depends on caller-supplied `schema` and tolerates `$schemaRef`, violating the v0.2.8 `$schema` mandate (`mcp/validate.py:120`, `mcp/validate.py:135`, `docs/mcp_spec.md:12`).
-- Documentation and golden fixtures continue to demonstrate `"schema"` usage instead of `$schema`, so repo state diverges from the updated spec (`README.md:153`, `tests/fixtures/golden.jsonl:3`).
+- Validation now enforces the v0.2.8 `$schema` contract, rejecting legacy `schema`/`$schemaRef` keys before JSON Schema evaluation (`mcp/validate.py:146`, `mcp/validate.py:150`, `tests/test_validate.py:185`).
+- Examples, fixtures, and golden transcripts emit `$schema` markers, keeping transport and backend flows deterministic with updated assets (`libs/synesthetic-schemas/examples/Control-Bundle_Example.json:2`, `tests/fixtures/golden.jsonl:3`, `tests/test_backend.py:98`).
+- Transports, lifecycle logging, and payload guards remain unchanged and fully covered by the existing suite (`mcp/__main__.py:185`, `tests/test_socket.py:146`, `tests/test_tcp.py:167`).
 
 ## Top gaps & fixes (3-5 bullets)
-- Enforce top-level `$schema` in `validate_asset`/`validate_many`, returning `validation_failed` at `/$schema` when absent (`mcp/validate.py:120`, `docs/mcp_spec.md:12`).
-- Reject legacy helpers (`schema`, `$schemaRef`) instead of stripping them, and update tests/fixtures accordingly (`mcp/validate.py:135`, `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`).
-- Refresh README and golden transcript to show `$schema` payloads and ensure CI covers the new contract (`README.md:153`, `tests/fixtures/golden.jsonl:3`).
+- Cross-check asset `$schema` values against the requested schema name to detect mismatched payloads early (`mcp/validate.py:146`).
+- Document canonical `$schema` URIs for each schema to guide clients on expected values (`README.md:38`, `docs/mcp_spec.md:20`).
+- Extend CI linting to assert every example under `libs/synesthetic-schemas/examples/` continues to embed `$schema` (e.g., lightweight checker in `.github/workflows/`).
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |
@@ -15,89 +15,87 @@
 | Ready/shutdown logs mirror metadata and precede exit | Present | `mcp/__main__.py:185`; `mcp/__main__.py:304`; `tests/test_entrypoint.py:85`; `tests/test_socket.py:283` |
 | Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:156`; `mcp/__main__.py:432`; `tests/test_stdio.py:210`; `tests/test_tcp.py:252` |
 | Signal exits surface `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:295`; `mcp/__main__.py:439`; `tests/test_entrypoint.py:105`; `tests/test_tcp.py:194` |
-| `validate` alias warns + requires schema param | Present | `mcp/stdio_main.py:23`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:68`; `tests/test_stdio.py:35` |
+| `validate` alias warns + requires schema param | Present | `mcp/stdio_main.py:23`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:68`; `tests/test_stdio.py:120` |
 | `validate_many` honours `MCP_MAX_BATCH` | Present | `mcp/validate.py:92`; `mcp/validate.py:113`; `tests/test_validate.py:103`; `tests/test_validate.py:120` |
 | Socket perms 0600 + multi-client ordering | Present | `mcp/socket_main.py:27`; `tests/test_socket.py:146`; `tests/test_socket.py:346` |
 | TCP multi-client handling + shutdown logs | Present | `mcp/tcp_main.py:25`; `mcp/tcp_main.py:304`; `tests/test_tcp.py:321`; `tests/test_tcp.py:411` |
 | Schema traversal guard (local only) | Present | `mcp/core.py:18`; `mcp/core.py:62`; `tests/test_path_traversal.py:34`; `tests/test_path_traversal.py:61` |
-| Assets MUST include top-level `$schema`; reject `schema/$schemaRef` | Divergent | `docs/mcp_spec.md:12`; `mcp/validate.py:135`; `tests/test_backend.py:31`; `tests/fixtures/golden.jsonl:3` |
+| Assets MUST include top-level `$schema`; reject `schema/$schemaRef` | Present | `mcp/validate.py:146`; `mcp/validate.py:150`; `tests/test_validate.py:185`; `tests/fixtures/golden.jsonl:3`; `libs/synesthetic-schemas/examples/Control-Bundle_Example.json:2` |
 
 ## Transports
-- Unified dispatcher processes JSON-RPC for STDIO, socket, and TCP; NDJSON framing exercised end-to-end (`mcp/stdio_main.py:14`, `mcp/socket_main.py:53`, `mcp/tcp_main.py:56`, `tests/test_tcp.py:130`).
-- Payload guard is applied before decode in each transport loop (`mcp/transport.py:28`, `mcp/socket_main.py:110`, `mcp/tcp_main.py:113`).
-- Tests cover malformed frames, oversize payloads, and normal operations across transports (`tests/test_stdio.py:162`, `tests/test_socket.py:150`, `tests/test_tcp.py:146`).
+- Unified dispatcher continues to serve STDIO, socket, and TCP endpoints with NDJSON framing and shared tooling (`mcp/stdio_main.py:14`, `mcp/socket_main.py:53`, `mcp/tcp_main.py:56`).
+- Pre-decode payload guard defends every transport path, producing deterministic `payload_too_large` results (`mcp/transport.py:28`, `tests/test_tcp.py:167`).
+- Integration tests still cover malformed frames, multi-client sequences, and shutdown behavior across transports (`tests/test_stdio.py:162`, `tests/test_socket.py:346`, `tests/test_tcp.py:321`).
 
 ## STDIO entrypoint & process model
-- Entry process logs readiness with schemas/examples metadata, writes ready file, processes stdin until EOF, and mirrors shutdown log (`mcp/__main__.py:185`, `mcp/__main__.py:204`, `tests/test_stdio.py:203`).
-- CLI `--validate` path infers schema and returns deterministic exit codes though it still expects legacy fields in sample assets (`mcp/__main__.py:323`, `tests/test_entrypoint.py:210`).
+- Entry process logs readiness/shutdown with schema/example directories, writes the ready file, and drains stdin before exit (`mcp/__main__.py:185`, `mcp/__main__.py:204`, `tests/test_stdio.py:203`).
+- CLI `--validate` path now returns results for `$schema`-annotated assets while preserving schema inference in responses (`mcp/__main__.py:323`, `tests/test_entrypoint.py:239`).
 
 ## Socket server (multi-client handling, perms, unlink, logs)
-- Server enforces 0600 permissions, spawns per-client threads, drains on shutdown, and unlinks socket path (`mcp/socket_main.py:27`, `mcp/socket_main.py:49`).
-- Tests assert permissions, payload guard, multi-client ordering, and shutdown logging (`tests/test_socket.py:146`, `tests/test_socket.py:346`, `tests/test_socket.py:407`).
+- Socket listeners create 0600 endpoints, spawn per-client threads, and unlink on shutdown (`mcp/socket_main.py:27`, `mcp/socket_main.py:49`).
+- Tests assert permissions, multi-client ordering, and shutdown logging invariants (`tests/test_socket.py:146`, `tests/test_socket.py:346`, `tests/test_socket.py:407`).
 
 ## TCP server (binding, perms, multi-client, shutdown logs)
-- TCP server binds requested/ephemeral ports, tracks bound address, and drains threads on close (`mcp/tcp_main.py:25`, `mcp/tcp_main.py:54`).
-- Tests verify readiness/shutdown logs, SIGINT/SIGTERM cleanup, 1 MiB guard, and multi-client ordering (`tests/test_tcp.py:117`, `tests/test_tcp.py:167`, `tests/test_tcp.py:321`, `tests/test_tcp.py:411`).
+- TCP server binds requested/ephemeral ports, tracks the bound address, and drains worker threads on close (`mcp/tcp_main.py:25`, `mcp/tcp_main.py:54`).
+- Tests exercise oversize payload handling, multi-client concurrency, and signal-driven shutdown (`tests/test_tcp.py:167`, `tests/test_tcp.py:321`, `tests/test_tcp.py:411`).
 
 ## Lifecycle signals
-- `_SignalShutdown` ensures SIGINT/SIGTERM propagate as negative exit codes for all transports (`mcp/__main__.py:78`, `mcp/__main__.py:295`).
-- Test suites assert signal handling and ready file cleanup (`tests/test_entrypoint.py:105`, `tests/test_tcp.py:194`).
+- `_SignalShutdown` propagates SIGINT/SIGTERM to negative exit codes while preserving shutdown logs (`mcp/__main__.py:78`, `mcp/__main__.py:295`).
+- Suites confirm exit codes and ready-file cleanup after signals (`tests/test_entrypoint.py:105`, `tests/test_tcp.py:194`).
 
 ## Shutdown logging invariant
-- Shutdown logs reuse transport metadata prior to exit, with stderr flushes to avoid truncation (`mcp/__main__.py:204`, `mcp/__main__.py:252`, `mcp/__main__.py:304`).
-- Tests compare ready vs shutdown fields to enforce invariant (`tests/test_entrypoint.py:85`, `tests/test_socket.py:283`).
+- All transports log readiness/shutdown with identical metadata prior to exit (`mcp/__main__.py:185`, `mcp/__main__.py:304`).
+- Tests compare ready vs shutdown payloads to guarantee parity and ordering (`tests/test_entrypoint.py:85`, `tests/test_socket.py:283`).
 
 ## Golden request/response examples
-- Golden replay covers list/get/validate/alias/batch/example/diff/backend/malformed scenarios but still exercises legacy `schema` fields (`tests/test_golden.py:45`, `tests/fixtures/golden.jsonl:3`, `tests/fixtures/golden.jsonl:10`).
+- Golden transcript mirrors the updated `$schema` contract across validate, alias, batching, and backend flows (`tests/fixtures/golden.jsonl:3`, `tests/test_golden.py:45`).
 
 ## Payload size guard
-- Transport parse path returns `payload_too_large` results without JSON decode (`mcp/transport.py:28`, `mcp/transport.py:75`).
-- Validation paths enforce the same limit for assets/batches/backend payloads (`mcp/validate.py:128`, `tests/test_validate.py:56`, `tests/test_backend.py:56`).
+- Transport parser surfaces `payload_too_large` without JSON decoding (`mcp/transport.py:28`, `mcp/transport.py:75`).
+- Validation helpers and backend population enforce the same limit for asset payloads (`mcp/validate.py:136`, `tests/test_validate.py:156`, `tests/test_backend.py:59`).
 
 ## Schema validation contract
-- Current validator requires an external `schema` param and strips `$schemaRef`, so assets lacking `$schema` still pass, diverging from v0.2.8 (`mcp/validate.py:120`, `mcp/validate.py:135`).
-- Assets and fixtures rely on `schema` or `$schemaRef` (`tests/test_backend.py:31`, `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`).
-- No tests assert rejection of missing `$schema`, so spec coverage is absent (`tests/test_validate.py:19`).
+- `validate_asset` requires `$schema`, rejects legacy keys, and strips the marker before Draft 2020-12 validation (`mcp/validate.py:146`, `mcp/validate.py:157`).
+- Tests cover missing `$schema`, legacy key rejection, and reused batching flows (`tests/test_validate.py:185`, `tests/test_validate.py:193`).
 
 ## Batching
-- `_max_batch` guards `MCP_MAX_BATCH`, enforcing positive integers and returning limit metadata when exceeded (`mcp/validate.py:92`, `mcp/validate.py:113`).
-- Batch tests cover mixed results, limit overflow, and oversize asset handling (`tests/test_validate.py:94`, `tests/test_validate.py:120`, `tests/test_validate.py:150`).
+- `validate_many` delegates to `validate_asset`, so per-item `$schema` enforcement and payload guards apply consistently (`mcp/validate.py:199`, `tests/test_validate.py:103`).
+- Batch limit handling remains unchanged and covered by regression tests (`tests/test_validate.py:118`).
 
 ## Logging hygiene
-- Structured stderr logging with ISO timestamps is centralized in `_log_event` and exercised across transports (`mcp/__main__.py:60`, `mcp/__main__.py:185`).
-- Tests confirm timestamps in readiness/shutdown logs and absence of stray stdout output (`tests/test_entrypoint.py:66`, `tests/test_stdio.py:120`).
+- Structured stderr logging with ISO timestamps remains centralised in `_log_event` and exercised across transports (`mcp/__main__.py:60`, `tests/test_entrypoint.py:66`).
+- Golden tests and stdio integration confirm stdout contains JSON-RPC frames only (`tests/test_stdio.py:120`, `tests/test_golden.py:63`).
 
 ## Container & health
-- Docker image installs dependencies before switching to non-root `USER mcp` and sets HOME accordingly (`Dockerfile:16`, `Dockerfile:27`).
-- Test ensures container remains non-root (`tests/test_container.py:4`).
-- Ready file lifecycle supports health endpoints via `MCP_READY_FILE` (`mcp/__main__.py:156`, `tests/test_tcp.py:252`).
+- Dockerfile continues to drop privileges to `USER mcp` after installing dependencies (`Dockerfile:24`).
+- Container test ensures non-root operation (`tests/test_container.py:4`).
+- Ready-file lifecycle supports health checks across transports (`mcp/__main__.py:156`, `tests/test_tcp.py:252`).
 
 ## Schema discovery & validation
-- Discovery prefers env overrides, falls back to submodule, and sorts listings deterministically (`mcp/core.py:41`, `mcp/core.py:53`).
-- Path traversal is rejected for schemas/examples (`mcp/core.py:18`, `tests/test_path_traversal.py:34`, `tests/test_path_traversal.py:61`).
-- Example inference still maps `SynestheticAsset_*` to legacy alias, relying on `$schemaRef` hints (`mcp/core.py:126`, `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`).
+- Discovery prefers env overrides, then falls back to the updated submodule data, with deterministic ordering (`mcp/core.py:41`, `mcp/core.py:53`).
+- Example inference now prefers `$schema` markers and retains filename fallback for legacy files (`mcp/core.py:126`).
+- Example and schema fixtures embed `$schema`, ensuring discovery matches the enforced contract (`libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`, `tests/fixtures/examples/AssetExample.json:2`).
 
 ## Test coverage
-- Pytest suite spans transports, lifecycle, backend, diff, validation, golden replay, and container posture (`tests/test_tcp.py:63`, `tests/test_backend.py:21`, `tests/test_diff.py:11`, `tests/test_golden.py:45`).
-- Coverage lacks assertions for `$schema` enforcement or `$schemaRef` rejection (`tests/test_validate.py:19`, `tests/test_backend.py:96`).
+- Test suite spans transports, validation, backend, diff, golden replay, and lifecycle behavior (`tests/test_tcp.py:63`, `tests/test_backend.py:21`, `tests/test_diff.py:11`).
+- New tests assert rejection of missing `$schema` and legacy keys, ensuring regression coverage (`tests/test_validate.py:185`, `tests/test_validate.py:193`).
 
 ## Dependencies & runtime
-- Runtime dependencies stay minimal (`requirements.txt:1-3`), with optional `referencing` for registry support (`mcp/validate.py:67`).
-- Setup and entry tooling unchanged (`setup.py:1`, `serve.sh:1`).
+- Runtime dependencies remain `jsonschema` and `httpx`, with optional `referencing` for local registries (`requirements.txt:1-3`, `mcp/validate.py:67`).
+- No new packages were added during the contract update.
 
 ## Environment variables
-- Implementation reads documented env vars for transport, lifecycle, backend, and batching (`mcp/__main__.py:103`, `mcp/backend.py:18`, `mcp/validate.py:92`).
-- README and `.env.example` list the same defaults (`README.md:94`, `.env.example:2`).
+- Implementation still honours documented env vars for transports, resources, backend, and batching (`mcp/__main__.py:103`, `mcp/backend.py:18`, `mcp/validate.py:92`).
+- README and `.env.example` reflect these defaults (`README.md:93`, `.env.example:2`).
 
 ## Documentation accuracy
-- README quickstart and CLI examples still reference `"schema"` responses, conflicting with `$schema` requirement (`README.md:153`).
-- Spec file documents the corrected contract, highlighting doc drift elsewhere (`docs/mcp_spec.md:12`).
+- README features and schema alias sections now call out the strict `$schema` requirement (`README.md:38`, `README.md:138`).
+- Spec front matter reiterates the mandate and legacy key rejection (`docs/mcp_spec.md:20`).
 
 ## Detected divergences
-- Validation accepts assets without `$schema`, trusts a separate `schema` param, and silently strips `$schemaRef` (`mcp/validate.py:120`, `mcp/validate.py:135`, `tests/test_backend.py:31`).
-- Fixtures and docs continue to rely on `schema`/`$schemaRef`, so published guidance mismatches spec (`tests/fixtures/golden.jsonl:3`, `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`, `README.md:153`).
+- None.
 
 ## Recommendations
-- Update validator to require `$schema`, reject `schema`/`$schemaRef`, and adjust error payloads to flag `/$schema` per spec (`mcp/validate.py:120`, `mcp/validate.py:135`).
-- Revise fixtures/tests/docs to emit `$schema`, adding regression tests for missing/legacy keys (`tests/test_validate.py:19`, `tests/fixtures/golden.jsonl:3`, `README.md:153`).
-- Add CI coverage ensuring examples/submodule assets declare `$schema`, preventing regressions (`libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`, `.github/workflows/`).
+- Validate that asset `$schema` values resolve to known schema identifiers to catch mismatches early (`mcp/validate.py:146`).
+- Consider tooling to rewrite legacy assets automatically when ingesting third-party data, backed by the new enforcement tests (`tests/test_validate.py:193`).
+- Keep `$schema` compliance checks in CI to ensure new fixtures or docs do not regress (`tests/fixtures/golden.jsonl:3`, `libs/synesthetic-schemas/examples`).
