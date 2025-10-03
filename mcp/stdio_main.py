@@ -25,16 +25,9 @@ def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         if method == "validate":
             logging.warning("mcp:warning reason=deprecated_alias method=validate")
         asset = params.get("asset", {})
-        if "schema" not in params or not params["schema"]:
-            return {
-                "ok": False,
-                "reason": "validation_failed",
-                "errors": [{"path": "/schema", "msg": "schema param is required"}],
-            }
-        schema = params["schema"]
-        return validate_asset(asset, schema)
+        return validate_asset(asset)
     if method == "validate_many":
-        return validate_many(params.get("assets"), params.get("schema"))
+        return validate_many(params.get("assets"))
     if method == "diff_assets":
         return diff_assets(params.get("base", {}), params.get("new", {}))
     if method == "populate_backend":

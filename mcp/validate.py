@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 from jsonschema import Draft202012Validator
 try:
@@ -71,6 +72,37 @@ def _load_schema(name: str) -> tuple[Dict[str, Any], Path]:
     path = _schema_file_path(canonical)
     return json.loads(path.read_text()), path
 
+
+def _schema_name_from_marker(marker: str) -> str:
+    raw = marker.strip()
+    if not raw:
+        raise ValueError("empty_marker")
+
+    without_fragment = raw.split("#", 1)[0].strip()
+    parsed = urlparse(without_fragment)
+    path_component = parsed.path if parsed.scheme else without_fragment
+
+    if not parsed.scheme:
+        if path_component.startswith("/"):
+            raise PathOutsideConfiguredRoot(path_component or without_fragment)
+        if path_component.startswith("../") or "/../" in path_component or path_component.endswith("/.."):
+            raise PathOutsideConfiguredRoot(path_component or without_fragment)
+    else:
+        if "/../" in path_component or path_component.endswith("/.."):
+            raise PathOutsideConfiguredRoot(path_component or without_fragment)
+
+    candidate = path_component.rsplit("/", 1)[-1] if "/" in path_component else path_component
+    if not candidate:
+        candidate = without_fragment
+
+    for suffix in (".schema.json", ".json"):
+        if candidate.endswith(suffix):
+            candidate = candidate[: -len(suffix)]
+            break
+
+    candidate = candidate or without_fragment
+    return _SCHEMA_ALIASES.get(candidate, candidate)
+
 def _build_local_registry():
     if Registry is None or Resource is None:
         return None
@@ -125,14 +157,7 @@ def _build_local_registry():
 
 
 
-def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
-    if not schema:
-        return {
-            "ok": False,
-            "reason": "validation_failed",
-            "errors": [{"path": "", "msg": "schema_required"}],
-        }
-
+def validate_asset(asset: Dict[str, Any]) -> Dict[str, Any]:
     if not _size_okay(asset):
         return {
             "ok": False,
@@ -146,6 +171,12 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
     schema_marker = asset.get("$schema")
     if not isinstance(schema_marker, str) or not schema_marker.strip():
         return _validation_error("/$schema", "top-level $schema is required")
+    try:
+        schema_name = _schema_name_from_marker(schema_marker)
+    except PathOutsideConfiguredRoot:
+        return _validation_error("/$schema", "schema_outside_configured_root")
+    except ValueError:
+        return _validation_error("/$schema", "invalid_schema_marker")
 
     legacy_keys = [key for key in ("schema", "$schemaRef") if key in asset]
     if legacy_keys:
@@ -158,12 +189,12 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
     payload.pop("$schema", None)
 
     try:
-        schema_obj, schema_path = _load_schema(schema)
+        schema_obj, schema_path = _load_schema(schema_name)
     except PathOutsideConfiguredRoot:
         return {
             "ok": False,
             "reason": "validation_failed",
-            "errors": [{"path": "/schema", "msg": "schema_outside_configured_root"}],
+            "errors": [{"path": "/$schema", "msg": "schema_outside_configured_root"}],
         }
     except Exception as e:
         return {
@@ -196,14 +227,7 @@ def validate_asset(asset: Dict[str, Any], schema: str | None) -> Dict[str, Any]:
     return {"ok": True, "errors": []}
 
 
-def validate_many(assets: List[Dict[str, Any]] | None, schema: str | None) -> Dict[str, Any]:
-    if not schema:
-        return {
-            "ok": False,
-            "reason": "validation_failed",
-            "errors": [{"path": "/schema", "msg": "schema param is required"}],
-        }
-
+def validate_many(assets: List[Dict[str, Any]] | None) -> Dict[str, Any]:
     if assets is None:
         assets = []
     if not isinstance(assets, list):
@@ -225,7 +249,7 @@ def validate_many(assets: List[Dict[str, Any]] | None, schema: str | None) -> Di
     results: List[Dict[str, Any]] = []
     all_ok = True
     for item in assets:
-        validation = validate_asset(item, schema)
+        validation = validate_asset(item)
         entry: Dict[str, Any] = {"ok": validation.get("ok", False)}
         if "errors" in validation and validation["errors"]:
             entry["errors"] = validation["errors"]

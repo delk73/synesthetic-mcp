@@ -6,9 +6,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 
-from pathlib import Path as _Path
 from .validate import validate_asset, MAX_BYTES
-from .core import _infer_schema_name_from_example as _infer_schema
 
 
 def _backend_url() -> Optional[str]:
@@ -43,10 +41,7 @@ def populate_backend(
         }
 
     if validate_first:
-        # Infer schema name using the same logic as examples (prefers $schema markers)
-        dummy = _Path(".") / "example.json"
-        schema_name = _infer_schema(dummy, asset) or "synesthetic-asset"
-        v = validate_asset(asset, schema=schema_name)
+        v = validate_asset(asset)
         if not v.get("ok", False):
             return {"ok": False, "reason": "validation_failed", "errors": v["errors"]}
 

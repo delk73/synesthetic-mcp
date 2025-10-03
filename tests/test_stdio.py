@@ -26,7 +26,7 @@ def _assert_iso_timestamp(line: str) -> None:
     datetime.fromisoformat(token)
 
 
-def test_validate_asset_requires_schema(tmp_path):
+def test_validate_asset_requires_dollar_schema(tmp_path):
     from subprocess import Popen, PIPE
     import json, sys
 
@@ -36,7 +36,9 @@ def test_validate_asset_requires_schema(tmp_path):
     resp = json.loads(stdout.strip())
     assert resp["result"]["ok"] is False
     assert resp["result"]["reason"] == "validation_failed"
-    assert any(err["msg"] == "schema param is required" for err in resp["result"]["errors"])
+    assert any(
+        err["msg"] == "top-level $schema is required" for err in resp["result"]["errors"]
+    )
 
 def test_stdio_loop_smoke(monkeypatch):
 
@@ -112,8 +114,7 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
                     "$schema": "jsonschema/asset.schema.json",
                     "id": "asset-1",
                     "name": "Asset",
-                },
-                "schema": "asset",
+                }
             },
         }
         assert proc.stdin is not None
@@ -231,7 +232,7 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
             "jsonrpc": "2.0",
             "id": 99,
             "method": "validate_asset",
-            "params": {"asset": example, "schema": "nested-synesthetic-asset"},
+            "params": {"asset": example},
         }
         assert proc.stdin is not None
         proc.stdin.write(json.dumps(request) + "\n")

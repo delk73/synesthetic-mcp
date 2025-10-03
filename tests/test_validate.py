@@ -24,7 +24,7 @@ def test_get_schema_and_validate_valid():
 
     # Validate a canonical example from the submodule
     asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
-    res = validate_asset(asset, "nested-synesthetic-asset")
+    res = validate_asset(asset)
     assert res["ok"] is True
     assert res["errors"] == []
 
@@ -58,7 +58,7 @@ def test_validate_invalid_sorted_errors():
         "name": "",
         "extra": True,
     }
-    res = validate_asset(asset, "nested-synesthetic-asset")
+    res = validate_asset(asset)
     assert res["ok"] is False and res.get("reason") == "validation_failed"
     # Ensure deterministic order
     paths = [e["path"] for e in res["errors"]]
@@ -71,23 +71,25 @@ def test_validate_payload_limit():
         "$schema": "jsonschema/synesthetic-asset.schema.json",
         "blob": "x" * 1_200_000,
     }
-    res = validate_asset(oversized, "nested-synesthetic-asset")
+    res = validate_asset(oversized)
     assert res["ok"] is False
     # Spec/code use reason 'validation_failed' with a payload_too_large error
     assert res.get("reason") == "validation_failed"
     assert any(e.get("msg") == "payload_too_large" for e in res.get("errors", []))
 
 
-def test_validate_asset_empty_schema():
-    """Regression: validate_asset must fail with reason=validation_failed if schema is empty."""
-    asset = {"type": "synesthetic-asset", "id": "dummy"}
+def test_validate_asset_empty_schema_marker():
+    """Regression: validate_asset must fail when $schema marker is empty."""
+    asset = {"$schema": "", "type": "synesthetic-asset", "id": "dummy"}
 
-    result = validate_asset(asset, schema="")
+    result = validate_asset(asset)
 
     assert result["ok"] is False
     assert result["reason"] == "validation_failed"
     assert isinstance(result.get("errors"), list)
-    assert result["errors"] == [{"path": "", "msg": "schema_required"}]
+    assert result["errors"] == [
+        {"path": "/$schema", "msg": "top-level $schema is required"}
+    ]
 
 
 def test_validate_many_mixed_results(tmp_path, monkeypatch):
@@ -109,7 +111,7 @@ def test_validate_many_mixed_results(tmp_path, monkeypatch):
         {"$schema": "jsonschema/asset.schema.json", "id": ""},
     ]
 
-    res = validate_many(assets, "asset")
+    res = validate_many(assets)
 
     assert res["ok"] is False
     assert len(res["results"]) == 2
@@ -138,7 +140,7 @@ def test_validate_many_respects_max_batch(tmp_path, monkeypatch):
         {"$schema": "jsonschema/asset.schema.json", "id": "second"},
     ]
 
-    res = validate_many(assets, "asset")
+    res = validate_many(assets)
 
     assert res["ok"] is False
     assert res["reason"] == "unsupported"
@@ -172,7 +174,7 @@ def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
     encoded_size = len(json.dumps(asset).encode("utf-8"))
     assert encoded_size > MAX_BYTES
 
-    res = validate_many([asset], "asset")
+    res = validate_many([asset])
 
     assert res["ok"] is False
     assert len(res["results"]) == 1
@@ -184,7 +186,7 @@ def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
 
 def test_validate_asset_rejects_missing_dollar_schema():
     asset = {"id": "asset-1"}
-    res = validate_asset(asset, "synesthetic-asset")
+    res = validate_asset(asset)
     assert res["ok"] is False
     assert res["reason"] == "validation_failed"
     assert res["errors"][0]["path"] == "/$schema"
@@ -198,7 +200,7 @@ def test_validate_asset_rejects_missing_dollar_schema():
     ],
 )
 def test_validate_asset_rejects_legacy_keys(payload):
-    res = validate_asset(payload, "synesthetic-asset")
+    res = validate_asset(payload)
     assert res["ok"] is False
     assert res["reason"] == "validation_failed"
     assert res["errors"][0]["path"] == "/$schema"

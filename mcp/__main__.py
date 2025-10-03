@@ -18,7 +18,6 @@ from . import socket_main, stdio_main, tcp_main
 from .core import (
     SUBMODULE_SCHEMAS_DIR,
     _examples_dir,
-    _infer_schema_name_from_example,
 )
 from .validate import validate_asset
 
@@ -357,9 +356,8 @@ def _run_validation(path: str) -> int:
         print(json.dumps(result))
         return 2
 
-    schema = _infer_schema_name_from_example(target, asset)
     try:
-        validation = validate_asset(asset, schema)
+        validation = validate_asset(asset)
     except Exception as exc:  # pragma: no cover - defensive guard
         result = {
             "ok": False,
@@ -370,7 +368,6 @@ def _run_validation(path: str) -> int:
         return 2
 
     payload = dict(validation)
-    payload.setdefault("schema", schema)
     print(json.dumps(payload))
     return 0 if validation.get("ok", False) else 1
 

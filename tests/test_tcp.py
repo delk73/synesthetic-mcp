@@ -501,13 +501,13 @@ def test_tcp_validate_requests(tmp_path):
             "jsonrpc": "2.0",
             "id": 10,
             "method": "validate_asset",
-            "params": {"asset": asset, "schema": "synesthetic-asset"},
+            "params": {"asset": asset},
         }
         alias_request = {
             "jsonrpc": "2.0",
             "id": 11,
             "method": "validate",
-            "params": {"asset": asset, "schema": "synesthetic-asset"},
+            "params": {"asset": asset},
         }
 
         with socket.create_connection((host, bound_port), timeout=5.0) as client:

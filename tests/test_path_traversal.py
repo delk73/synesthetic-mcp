@@ -78,11 +78,13 @@ def test_validate_asset_schema_path_guard(monkeypatch, tmp_path):
 
     asset = {"$schema": "jsonschema/asset.schema.json", "id": "ok"}
 
-    res = validate_asset(asset, "../asset")
+    invalid = dict(asset, **{"$schema": "../asset.schema.json"})
+
+    res = validate_asset(invalid)
     assert res["ok"] is False
     assert res["reason"] == "validation_failed"
     assert any(err["msg"] == "schema_outside_configured_root" for err in res["errors"])
 
-    valid = validate_asset(asset, "asset")
+    valid = validate_asset(asset)
     assert valid["ok"] is True
     assert valid.get("errors") == []

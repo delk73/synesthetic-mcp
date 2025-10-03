@@ -151,7 +151,7 @@ git submodule update --init --recursive
 
 ```
 $ python -m mcp --validate path/to/asset.json
-{"ok": true, "errors": [], "schema": "nested-synesthetic-asset"}
+{"ok": true, "errors": []}
 ```
 
 - Exit code `0`: validation succeeded.

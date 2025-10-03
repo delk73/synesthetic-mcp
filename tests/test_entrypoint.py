@@ -243,7 +243,7 @@ def test_validate_flag_failure(tmp_path):
     assert proc.stdout
     payload = json.loads(proc.stdout.strip().splitlines()[-1])
     assert payload["ok"] is False
-    assert payload["schema"] == "asset"
+    assert "schema" not in payload
 
 
 def test_socket_endpoint_invokes_socket_server(monkeypatch, tmp_path):

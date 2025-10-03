@@ -18,8 +18,7 @@ payload = {
   "id": 2,
   "method": "validate_asset",
   "params": {
-    "asset": {"blob": "x" * 1200000},
-    "schema": "nested-synesthetic-asset"
+    "asset": {"$schema": "jsonschema/synesthetic-asset.schema.json", "blob": "x" * 1200000}
   }
 }
 print(json.dumps(payload))

@@ -38,7 +38,7 @@
 | Ready/shutdown logs include mode/path + dirs + ISO timestamp | Present | `mcp/__main__.py:185`; `mcp/__main__.py:304`; `tests/test_entrypoint.py:85` |
 | Signal exits return `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:295`; `tests/test_tcp.py:194` |
 | Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:156`; `tests/test_stdio.py:210` |
-| `validate` alias warns; schema param required | Present | `mcp/stdio_main.py:23`; `tests/test_stdio.py:68` |
+| `validate` alias warns; validation uses asset $schema | Present | `mcp/stdio_main.py:23`; `tests/test_stdio.py:29` |
 | Assets require top-level `$schema`, reject `schema/$schemaRef` | Present | `mcp/validate.py:146`; `mcp/validate.py:150`; `tests/test_validate.py:185`; `libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2` |
 
 ## Recommendations

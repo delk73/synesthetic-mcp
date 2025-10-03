@@ -160,7 +160,7 @@ def get_example(path: str) -> Dict[str, Any]:
     try:
         from .validate import validate_asset
 
-        res = validate_asset(data, schema_name)
+        res = validate_asset(data)
         if not res.get("ok", False):
             return res
     except Exception as e:

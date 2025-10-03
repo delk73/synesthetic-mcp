@@ -15,7 +15,7 @@
 | Ready/shutdown logs mirror metadata and precede exit | Present | `mcp/__main__.py:185`; `mcp/__main__.py:304`; `tests/test_entrypoint.py:85`; `tests/test_socket.py:283` |
 | Ready file `<pid> <ISO8601>` lifecycle | Present | `mcp/__main__.py:156`; `mcp/__main__.py:432`; `tests/test_stdio.py:210`; `tests/test_tcp.py:252` |
 | Signal exits surface `-SIGINT`/`-SIGTERM` | Present | `mcp/__main__.py:295`; `mcp/__main__.py:439`; `tests/test_entrypoint.py:105`; `tests/test_tcp.py:194` |
-| `validate` alias warns + requires schema param | Present | `mcp/stdio_main.py:23`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:68`; `tests/test_stdio.py:120` |
+| `validate` alias warns and relies on asset $schema | Present | `mcp/stdio_main.py:23`; `mcp/stdio_main.py:28`; `tests/test_stdio.py:29`; `tests/test_stdio.py:108` |
 | `validate_many` honours `MCP_MAX_BATCH` | Present | `mcp/validate.py:92`; `mcp/validate.py:113`; `tests/test_validate.py:103`; `tests/test_validate.py:120` |
 | Socket perms 0600 + multi-client ordering | Present | `mcp/socket_main.py:27`; `tests/test_socket.py:146`; `tests/test_socket.py:346` |
 | TCP multi-client handling + shutdown logs | Present | `mcp/tcp_main.py:25`; `mcp/tcp_main.py:304`; `tests/test_tcp.py:321`; `tests/test_tcp.py:411` |
@@ -29,7 +29,7 @@
 
 ## STDIO entrypoint & process model
 - Entry process logs readiness/shutdown with schema/example directories, writes the ready file, and drains stdin before exit (`mcp/__main__.py:185`, `mcp/__main__.py:204`, `tests/test_stdio.py:203`).
-- CLI `--validate` path now returns results for `$schema`-annotated assets while preserving schema inference in responses (`mcp/__main__.py:323`, `tests/test_entrypoint.py:239`).
+- CLI `--validate` path validates assets using their `$schema` markers and returns the raw result (`mcp/__main__.py:360`, `tests/test_entrypoint.py:244`).
 
 ## Socket server (multi-client handling, perms, unlink, logs)
 - Socket listeners create 0600 endpoints, spawn per-client threads, and unlink on shutdown (`mcp/socket_main.py:27`, `mcp/socket_main.py:49`).

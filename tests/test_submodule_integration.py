@@ -48,5 +48,5 @@ def test_uses_submodule_when_present(monkeypatch):
     first = le["examples"][0]
     ex = get_example(Path(first["path"]).name)
     assert ex["ok"] is True and ex["example"] is not None
-    res = validate_asset(ex["example"], ex["schema"])
+    res = validate_asset(ex["example"])
     assert res["ok"] is True
