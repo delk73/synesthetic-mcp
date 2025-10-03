@@ -1,6 +1,6 @@
 {
   "task": "Purge legacy 'schema' param from MCP and enforce top-level '$schema'",
-  "objective": "Remove schema argument plumbing, stop requiring schema in stdio, and drop payload.setdefault('schema'). All validation must rely solely on asset['$schema'] per v0.2.8.",
+  "objective": "Remove schema argument plumbing, stop requiring schema in stdio, and drop payload.setdefault('schema'). All validation must rely solely on asset['$schema'] per v0.2.8, with a regression guard to ensure examples stay compliant.",
   "changes": [
     {
       "id": "validator_drop_schema_arg",
@@ -79,6 +79,18 @@
           "replacement": "\"$schema\":"
         }
       ]
+    },
+    {
+      "id": "ci_guard_examples_have_$schema",
+      "description": "Add regression test to ensure all shipped examples include top-level $schema.",
+      "edits": [
+        {
+          "file": "tests/test_validate.py",
+          "pattern": "\\Z",
+          "multiple": false,
+          "replacement": "\n\ndef test_all_examples_have_dollar_schema():\n    import json, glob\n    for path in glob.glob('libs/synesthetic-schemas/examples/*.json'):\n        with open(path) as f:\n            data = json.load(f)\n        assert \"$schema\" in data and data[\"$schema\"], f\"Missing $schema in {path}\""
+        }
+      ]
     }
   ],
   "constraints": {
@@ -86,7 +98,8 @@
       "No new dependencies.",
       "Remove all references to legacy 'schema' param.",
       "Validation must rely solely on $schema in asset object.",
-      "Update tests/fixtures to reflect $schema-only contract."
+      "Update tests/fixtures to reflect $schema-only contract.",
+      "Regression guard must ensure examples retain $schema."
     ]
   },
   "exit_criteria": [
@@ -94,6 +107,7 @@
     "stdio_main.py does not require schema param.",
     "__main__.py no longer sets payload['schema'].",
     "All tests pass with assets containing $schema only.",
+    "Guard test enforces $schema in all examples.",
     "Audit row 'Assets MUST include top-level $schema; reject schema/$schemaRef' marked Present."
   ]
 }

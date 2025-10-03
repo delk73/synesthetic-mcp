@@ -11,19 +11,37 @@
       "Ground all findings in visible code/tests/docs; no speculation",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes",
       "Always overwrite meta/output/mcp_state.md and AGENTS.md with non-empty content",
+
       "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard per v0.2.8; HTTP/gRPC are roadmap-only (Divergent if present)",
+
       "Payload cap: 1 MiB guard enforced across all methods in STDIO, Socket, and TCP; explicit guard + failing test required",
+
       "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (until ≥ v0.3)",
+
       "Batching: validate_many MUST honor MCP_MAX_BATCH",
+
       "get_example: MUST return validation_failed when example invalid",
+
       "Schema resolution: MUST be local-only; path traversal rejected",
+
       "Determinism: sorting for listings, error ordering, diff ordering MUST be implemented + tested",
+
       "Security: Socket/TCP perms default to least-privilege; Container must run non-root",
+
       "Process model: STDIO exits when stdin closes; Socket/TCP log readiness + unlink/close on shutdown",
+
       "Logging: startup log includes mode, path/host:port, schemas_dir, examples_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
+
       "Signal handling: SIGINT/SIGTERM shutdowns return documented exit codes (-SIGINT, -SIGTERM)",
+
       "Shutdown logging: Shutdown logs MUST mirror ready logs (mode, address/path, schemas_dir, examples_dir, timestamp) and MUST be emitted before process exit; self-kill MUST NOT pre-empt log emission",
-      "Schema validation contract (v0.2.8): Assets MUST include top-level \"$schema\" per JSON Schema Draft 2020-12; assets missing it MUST yield validation_failed with path=\"/$schema\"; use of \"schema\" (no $) or \"$schemaRef\" is Divergent and MUST be rejected",
+
+      "Ready file format MUST be '<pid> <ISO8601 timestamp>' exactly",
+
+      "Schema validation contract (v0.2.8): Assets MUST include top-level \"$schema\" per JSON Schema Draft 2020-12; assets missing it MUST yield validation_failed with path=\"/$schema\"; use of legacy 'schema' or '$schemaRef' MUST be rejected; no function signatures or tests may take a 'schema' param",
+
+      "Docs MUST include TCP client example using 'nc 127.0.0.1 8765'",
+
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -36,6 +54,7 @@
       "TCP server (binding, perms, multi-client, shutdown logs)",
       "Lifecycle signals",
       "Shutdown logging invariant",
+      "Ready file format",
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
@@ -89,10 +108,11 @@
     "Batching (validate_many) verified or marked",
     "Determinism + schema safety verified",
     "Logging verified (mode, path/host:port, schemas_dir, examples_dir, ISO timestamps)",
-    "Shutdown logging invariant verified (shutdown log emitted before exit, mirrors ready log)",
+    "Shutdown logging invariant verified (shutdown log emitted before exit, mirrors ready log, no pre-emptive self-kill)",
+    "Ready file format '<pid> <ISO8601 timestamp>' verified",
     "Signal exit codes verified (-SIGINT, -SIGTERM)",
     "Container non-root verified",
-    "README cross-checked with docs/mcp_spec.md",
-    "Assets with \"$schema\" pass strict validation; assets using \"schema\" or \"$schemaRef\" are rejected with validation_failed"
+    "README cross-checked with docs/mcp_spec.md, including TCP nc example",
+    "Assets with \"$schema\" pass strict validation; assets using 'schema' or '$schemaRef' are rejected with validation_failed"
   ]
 }

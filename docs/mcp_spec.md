@@ -1,6 +1,6 @@
 ---
 version: v0.2.8
-lastReviewed: 2025-10-02
+lastReviewed: 2025-10-03
 owner: mcp-core
 ---
 
@@ -30,6 +30,10 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
   * All assets MUST declare their validating schema with `"$schema"`.  
   * Strict validation enforces presence of `"$schema"`.  
   * `$schemaRef` and `"schema"` are deprecated and MUST NOT be emitted.  
+  * MCP validation functions (`validate_asset`, `validate_many`) take no `schema` parameter; validation MUST rely solely on the `"$schema"` field inside the asset.  
+  * STDIO and other transports MUST NOT require `"schema"` in params.  
+  * MCP responses MUST NOT backfill `schema` into payloads.  
+  * A regression guard MUST ensure that all shipped examples include a valid `"$schema"` marker.
 
 * **TCP transport fully aligned**  
   * TCP enforces the same **1 MiB guard** as STDIO/socket.  
@@ -65,6 +69,9 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 * Tests cover TCP round-trip, oversize payload, multi-client ordering, and alias lifecycle.  
 * Assets with `"$schema"` pass strict validation.  
 * Assets with `"schema"` or `$schemaRef` are rejected.  
+* Validation functions take no schema argument and rely solely on asset['$schema'].  
+* Transports do not require `schema` params and do not set legacy `schema` fields in payloads.  
+* Regression tests confirm all examples in `libs/synesthetic-schemas/examples` include `"$schema"`.  
 * README/docs reflect actual implementation.  
 
 ---
