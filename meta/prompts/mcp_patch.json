@@ -1,112 +1,82 @@
 {
-  "task": "Enforce JSON Schema standard key in MCP (require top-level \"$schema\")",
-  "objective": "Make MCP strict validation conform to v0.2.8: assets MUST include top-level \"$schema\"; reject legacy \"schema\" and \"$schemaRef\". Update validator, docs, fixtures, and tests accordingly.",
+  "task": "Purge legacy 'schema' param from MCP and enforce top-level '$schema'",
+  "objective": "Remove schema argument plumbing, stop requiring schema in stdio, and drop payload.setdefault('schema'). All validation must rely solely on asset['$schema'] per v0.2.8.",
   "changes": [
     {
-      "id": "validator_require_dollar_schema",
-      "description": "Require top-level \"$schema\"; reject legacy keys; return validation_failed with path=\"/$schema\" when missing.",
+      "id": "validator_drop_schema_arg",
+      "description": "Remove schema argument from validate_asset/validate_many; use only asset['$schema'].",
       "edits": [
         {
           "file": "mcp/validate.py",
-          "pattern": "(def validate_asset\\(.*?\\):[\\s\\S]*?)(# start validation)",
+          "pattern": "def validate_asset\\(asset: Dict\\[str, Any\\], schema: str \\| None\\) -> Dict\\[str, Any\\]:",
           "multiple": false,
-          "replacement": "\\1\n    # v0.2.8: enforce JSON Schema standard key\n    if \"$schema\" not in asset or not asset.get(\"$schema\"):\n        return _fail(\"validation_failed\", path=\"/$schema\", msg=\"top-level $schema is required\")\n    # legacy keys are rejected explicitly\n    if \"schema\" in asset or \"$schemaRef\" in asset:\n        return _fail(\"validation_failed\", path=\"/$schema\", msg=\"use '$schema' only; 'schema' and '$schemaRef' are not allowed\")\n\n    # start validation"
+          "replacement": "def validate_asset(asset: Dict[str, Any]) -> Dict[str, Any]:"
         },
         {
           "file": "mcp/validate.py",
-          "pattern": "(def validate_many\\(.*?\\):[\\s\\S]*?for asset in assets:[\\s\\S]*?)(# validate each)",
+          "pattern": "def validate_many\\(assets: List\\[Dict\\[str, Any\\]\\] \\| None, schema: str \\| None\\) -> Dict\\[str, Any\\]:",
           "multiple": false,
-          "replacement": "\\1\n        # pre-check contract per v0.2.8\n        if \"$schema\" not in asset or not asset.get(\"$schema\"):\n            results.append(_fail(\"validation_failed\", path=\"/$schema\", msg=\"top-level $schema is required\"))\n            continue\n        if \"schema\" in asset or \"$schemaRef\" in asset:\n            results.append(_fail(\"validation_failed\", path=\"/$schema\", msg=\"use '$schema' only; 'schema' and '$schemaRef' are not allowed\"))\n            continue\n        # validate each"
-        }
-      ]
-    },
-    {
-      "id": "core_example_inference_drop_legacy",
-      "description": "Stop inferring from legacy schema keys; rely solely on '$schema'.",
-      "edits": [
-        {
-          "file": "mcp/core.py",
-          "pattern": "if ['\\\"]\\$schemaRef['\\\"] in obj[\\s\\S]*?\\n",
-          "multiple": true,
-          "replacement": ""
+          "replacement": "def validate_many(assets: List[Dict[str, Any]] | None) -> Dict[str, Any]:"
         },
         {
-          "file": "mcp/core.py",
-          "pattern": "if ['\\\"]schema['\\\"] in obj[\\s\\S]*?\\n",
+          "file": "mcp/validate.py",
+          "pattern": "if not schema:[\\s\\S]*?schema_required",
           "multiple": true,
-          "replacement": ""
+          "replacement": "if \"$schema\" not in asset:\n        return {\"ok\": False, \"reason\": \"validation_failed\", \"errors\": [{\"path\": \"/$schema\", \"msg\": \"top-level $schema is required\"}]}"
         }
       ]
     },
     {
-      "id": "tests_add_enforcement_cases",
-      "description": "Add tests that enforce required $schema and rejection of legacy keys.",
+      "id": "stdio_remove_schema_param",
+      "description": "Stop requiring 'schema' in stdio params.",
       "edits": [
         {
-          "file": "tests/test_validate.py",
-          "pattern": "\\Z",
+          "file": "mcp/stdio_main.py",
+          "pattern": "if \\\"schema\\\" not in params[\\s\\S]*?return validate_many\\(params.get\\(\"assets\"), params.get\\(\"schema\"\\)\\)",
           "multiple": false,
-          "replacement": "\n\ndef test_reject_missing_dollar_schema():\n    asset = {\"prompt\": \"x\"}\n    res = client.validate_asset(asset)\n    assert res[\"reason\"] == \"validation_failed\"\n    assert res[\"errors\"][0][\"path\"] == \"/$schema\"\n\n\ndef test_reject_legacy_schema_and_schemaRef():\n    for a in [{\"schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\"},\n              {\"$schemaRef\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\"}]:\n        res = client.validate_asset(a)\n        assert res[\"reason\"] == \"validation_failed\"\n        assert res[\"errors\"][0][\"path\"] == \"/$schema\"\n"
-        }
-      ]
-    },
-    {
-      "id": "update_golden_transcript",
-      "description": "Switch golden fixtures to use $schema and remove legacy keys.",
-      "edits": [
-        {
-          "file": "tests/fixtures/golden.jsonl",
-          "pattern": "\"schema\"\\s*:\\s*\"[^\"]+\"",
-          "multiple": true,
-          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
+          "replacement": "return validate_many(params.get(\"assets\"))"
         },
         {
-          "file": "tests/fixtures/golden.jsonl",
-          "pattern": "\"\\$schemaRef\"\\s*:\\s*\"[^\"]+\",?\\s*",
-          "multiple": true,
+          "file": "mcp/stdio_main.py",
+          "pattern": "schema = params\\[\"schema\"\\][\\s\\S]*?return validate_asset\\(asset, schema\\)",
+          "multiple": false,
+          "replacement": "return validate_asset(asset)"
+        }
+      ]
+    },
+    {
+      "id": "drop_payload_setdefault",
+      "description": "Remove backfill of legacy schema field in responses.",
+      "edits": [
+        {
+          "file": "mcp/__main__.py",
+          "pattern": "payload.setdefault\\(\"schema\", schema\\)",
+          "multiple": false,
           "replacement": ""
         }
       ]
     },
     {
-      "id": "update_readme_examples",
-      "description": "Replace \"schema\" with \"$schema\" in README examples and CLI docs.",
+      "id": "tests_update_calls",
+      "description": "Update tests to call validate_asset/validate_many without schema param and fixtures to use $schema only.",
       "edits": [
         {
-          "file": "README.md",
-          "pattern": "(\"schema\"\\s*:)\\s*\"[^\"]+\"",
+          "file": "tests/test_stdio.py",
+          "pattern": "\"schema\":",
           "multiple": true,
-          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
-        }
-      ]
-    },
-    {
-      "id": "update_spec_anchor_note",
-      "description": "Reiterate $schema requirement and explicitly forbid legacy keys.",
-      "edits": [
-        {
-          "file": "docs/mcp_spec.md",
-          "pattern": "Schema key:[\\s\\S]*?(?=\\n\\n|$)",
-          "multiple": false,
-          "replacement": "Schema key: Assets MUST include a top-level `\"$schema\"` field (JSON Schema Draft 2020-12). MCP validators MUST reject assets missing this field and MUST reject legacy `schema` or `$schemaRef` keys."
-        }
-      ]
-    },
-    {
-      "id": "sync_example_assets_submodule",
-      "description": "Ensure bundled examples declare $schema and no legacy keys.",
-      "edits": [
-        {
-          "file": "libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json",
-          "pattern": "\"\\$schemaRef\"\\s*:\\s*\"[^\"]+\"",
-          "multiple": true,
-          "replacement": "\"$schema\": \"meta/schemas/synesthetic-asset.schema.json#/SynestheticAsset\""
+          "replacement": "\"$schema\":"
         },
         {
-          "file": "libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json",
-          "pattern": "\"schema\"\\s*:\\s*\"[^\"]+\",?\\s*",
+          "file": "tests/test_tcp.py",
+          "pattern": "\"schema\":",
           "multiple": true,
-          "replacement": ""
+          "replacement": "\"$schema\":"
+        },
+        {
+          "file": "tests/test_entrypoint.py",
+          "pattern": "\"schema\":",
+          "multiple": true,
+          "replacement": "\"$schema\":"
         }
       ]
     }
@@ -114,17 +84,16 @@
   "constraints": {
     "rules": [
       "No new dependencies.",
-      "Only modify the listed files.",
-      "Strictly enforce $schema; do not auto-alias or auto-upgrade legacy keys.",
-      "Tests and docs must reflect the v0.2.8 contract.",
-      "Deterministic behavior and existing transport guards must remain unchanged."
+      "Remove all references to legacy 'schema' param.",
+      "Validation must rely solely on $schema in asset object.",
+      "Update tests/fixtures to reflect $schema-only contract."
     ]
   },
   "exit_criteria": [
-    "Assets missing top-level \"$schema\" are rejected with validation_failed at path=\"/$schema\".",
-    "Assets containing legacy \"schema\" or \"$schemaRef\" are rejected with validation_failed.",
-    "All README examples and golden fixtures use \"$schema\".",
-    "New tests pass; no failures in existing transport/lifecycle suites.",
-    "Audit table row 'Assets MUST include top-level $schema; reject schema/$schemaRef' flips to Present with evidence in mcp_state.md."
+    "No function signatures take schema arg.",
+    "stdio_main.py does not require schema param.",
+    "__main__.py no longer sets payload['schema'].",
+    "All tests pass with assets containing $schema only.",
+    "Audit row 'Assets MUST include top-level $schema; reject schema/$schemaRef' marked Present."
   ]
 }
