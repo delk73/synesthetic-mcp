@@ -1,113 +1,127 @@
 {
-  "task": "Purge legacy 'schema' param from MCP and enforce top-level '$schema'",
-  "objective": "Remove schema argument plumbing, stop requiring schema in stdio, and drop payload.setdefault('schema'). All validation must rely solely on asset['$schema'] per v0.2.8, with a regression guard to ensure examples stay compliant.",
+  "version": "v0.2.9",
+  "spec_ref": "docs/mcp_spec.md#v0-2-9",
+  "task": "Patch MCP to close v0.2.9 audit gaps",
+  "objective": "Implement environment-driven canonical schema resolution, align version metadata, fix log fields, update examples and documentation, and add governance audit endpoint per v0.2.9 spec.",
   "changes": [
     {
-      "id": "validator_drop_schema_arg",
-      "description": "Remove schema argument from validate_asset/validate_many; use only asset['$schema'].",
+      "id": "bump_version_metadata",
+      "description": "Update MCP version metadata from 0.2.7 to 0.2.9.",
       "edits": [
         {
-          "file": "mcp/validate.py",
-          "pattern": "def validate_asset\\(asset: Dict\\[str, Any\\], schema: str \\| None\\) -> Dict\\[str, Any\\]:",
+          "file": "mcp/__init__.py",
+          "pattern": "__version__\\s*=\\s*['\"]0\\.2\\.7['\"]",
           "multiple": false,
-          "replacement": "def validate_asset(asset: Dict[str, Any]) -> Dict[str, Any]:"
+          "replacement": "__version__ = '0.2.9'"
         },
         {
-          "file": "mcp/validate.py",
-          "pattern": "def validate_many\\(assets: List\\[Dict\\[str, Any\\]\\] \\| None, schema: str \\| None\\) -> Dict\\[str, Any\\]:",
+          "file": "README.md",
+          "pattern": "version:\\s*v0\\.2\\.7",
           "multiple": false,
-          "replacement": "def validate_many(assets: List[Dict[str, Any]] | None) -> Dict[str, Any]:"
-        },
-        {
-          "file": "mcp/validate.py",
-          "pattern": "if not schema:[\\s\\S]*?schema_required",
-          "multiple": true,
-          "replacement": "if \"$schema\" not in asset:\n        return {\"ok\": False, \"reason\": \"validation_failed\", \"errors\": [{\"path\": \"/$schema\", \"msg\": \"top-level $schema is required\"}]}"
+          "replacement": "version: v0.2.9"
         }
       ]
     },
     {
-      "id": "stdio_remove_schema_param",
-      "description": "Stop requiring 'schema' in stdio params.",
-      "edits": [
-        {
-          "file": "mcp/stdio_main.py",
-          "pattern": "if \\\"schema\\\" not in params[\\s\\S]*?return validate_many\\(params.get\\(\"assets\"), params.get\\(\"schema\"\\)\\)",
-          "multiple": false,
-          "replacement": "return validate_many(params.get(\"assets\"))"
-        },
-        {
-          "file": "mcp/stdio_main.py",
-          "pattern": "schema = params\\[\"schema\"\\][\\s\\S]*?return validate_asset\\(asset, schema\\)",
-          "multiple": false,
-          "replacement": "return validate_asset(asset)"
-        }
-      ]
-    },
-    {
-      "id": "drop_payload_setdefault",
-      "description": "Remove backfill of legacy schema field in responses.",
+      "id": "add_env_schema_vars",
+      "description": "Read LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION from environment and log them on startup.",
       "edits": [
         {
           "file": "mcp/__main__.py",
-          "pattern": "payload.setdefault\\(\"schema\", schema\\)",
+          "pattern": "log_event\\('ready',",
           "multiple": false,
-          "replacement": ""
+          "replacement": "LABS_SCHEMA_BASE = os.getenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n    LABS_SCHEMA_VERSION = os.getenv('LABS_SCHEMA_VERSION', '0.7.3')\n    log_event('ready',"
+        },
+        {
+          "file": "mcp/__main__.py",
+          "pattern": "log_event\\('ready', ([^)]*)\\)",
+          "multiple": false,
+          "replacement": "log_event('ready', \\1, schemas_base=LABS_SCHEMA_BASE, schema_version=LABS_SCHEMA_VERSION)"
+        },
+        {
+          "file": "mcp/__main__.py",
+          "pattern": "log_event\\('shutdown', ([^)]*)\\)",
+          "multiple": false,
+          "replacement": "log_event('shutdown', \\1, schemas_base=LABS_SCHEMA_BASE, schema_version=LABS_SCHEMA_VERSION)"
         }
       ]
     },
     {
-      "id": "tests_update_calls",
-      "description": "Update tests to call validate_asset/validate_many without schema param and fixtures to use $schema only.",
+      "id": "implement_remote_schema_resolver",
+      "description": "Enable HTTP-based canonical schema resolution using LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION.",
       "edits": [
         {
-          "file": "tests/test_stdio.py",
-          "pattern": "\"schema\":",
-          "multiple": true,
-          "replacement": "\"$schema\":"
+          "file": "mcp/validate.py",
+          "pattern": "def _load_schema\\(path",
+          "multiple": false,
+          "replacement": "import os, httpx\n\ndef _load_schema(path"
         },
         {
-          "file": "tests/test_tcp.py",
-          "pattern": "\"schema\":",
-          "multiple": true,
-          "replacement": "\"$schema\":"
+          "file": "mcp/validate.py",
+          "pattern": "open\\(path, 'r'\\)",
+          "multiple": false,
+          "replacement": "    if path.startswith('http'):\n        r = httpx.get(path)\n        r.raise_for_status()\n        return json.loads(r.text)\n    f = open(path, 'r')"
         },
         {
-          "file": "tests/test_entrypoint.py",
-          "pattern": "\"schema\":",
-          "multiple": true,
-          "replacement": "\"$schema\":"
+          "file": "mcp/validate.py",
+          "pattern": "schema_path = .*",
+          "multiple": false,
+          "replacement": "LABS_SCHEMA_BASE = os.getenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n        LABS_SCHEMA_VERSION = os.getenv('LABS_SCHEMA_VERSION', '0.7.3')\n        schema_path = f\"{LABS_SCHEMA_BASE}{LABS_SCHEMA_VERSION}/{os.path.basename(asset['$schema'])}\" if not asset['$schema'].startswith('http') else asset['$schema']"
         }
       ]
     },
     {
-      "id": "ci_guard_examples_have_$schema",
-      "description": "Add regression test to ensure all shipped examples include top-level $schema.",
+      "id": "update_examples_canonical_schema",
+      "description": "Rewrite example JSON files to use canonical $schema URLs.",
       "edits": [
         {
-          "file": "tests/test_validate.py",
+          "file": "libs/synesthetic-schemas/examples/*.json",
+          "pattern": "\"\\$schema\":\\s*\"[^\"]+\"",
+          "multiple": true,
+          "replacement": "\"$schema\": \"https://delk73.github.io/synesthetic-schemas/schema/0.7.3/synesthetic-asset.schema.json\""
+        }
+      ]
+    },
+    {
+      "id": "add_governance_audit_endpoint",
+      "description": "Implement governance_audit method that returns compliance summary (schemas_base, version, transports, and examples).",
+      "edits": [
+        {
+          "file": "mcp/core.py",
           "pattern": "\\Z",
           "multiple": false,
-          "replacement": "\n\ndef test_all_examples_have_dollar_schema():\n    import json, glob\n    for path in glob.glob('libs/synesthetic-schemas/examples/*.json'):\n        with open(path) as f:\n            data = json.load(f)\n        assert \"$schema\" in data and data[\"$schema\"], f\"Missing $schema in {path}\""
+          "replacement": "\n\ndef governance_audit() -> dict:\n    import os, glob, json\n    LABS_SCHEMA_BASE = os.getenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n    LABS_SCHEMA_VERSION = os.getenv('LABS_SCHEMA_VERSION', '0.7.3')\n    examples = [p for p in glob.glob('libs/synesthetic-schemas/examples/*.json')]\n    missing_schema = [p for p in examples if '$schema' not in json.load(open(p))]\n    return {\n        'schemas_base': LABS_SCHEMA_BASE,\n        'schema_version': LABS_SCHEMA_VERSION,\n        'examples_checked': len(examples),\n        'missing_schema': missing_schema,\n        'transports': ['stdio', 'socket', 'tcp'],\n        'status': 'ok' if not missing_schema else 'partial'\n    }"
+        }
+      ]
+    },
+    {
+      "id": "update_readme_tcp_example",
+      "description": "Add TCP nc client example with canonical host and version.",
+      "edits": [
+        {
+          "file": "README.md",
+          "pattern": "## TCP Transport[\\s\\S]*?```bash[\\s\\S]*?```",
+          "multiple": false,
+          "replacement": "## TCP Transport\n```bash\nnc 127.0.0.1 8765\n```\nMCP connects via TCP using JSON-RPC 2.0 frames and enforces a 1 MiB payload guard. The schema base is https://delk73.github.io/synesthetic-schemas/schema/ and version 0.7.3."
         }
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "No new dependencies.",
-      "Remove all references to legacy 'schema' param.",
-      "Validation must rely solely on $schema in asset object.",
-      "Update tests/fixtures to reflect $schema-only contract.",
-      "Regression guard must ensure examples retain $schema."
+      "All MCP transports remain unmodified except for additional log fields.",
+      "Remote schema resolution must support canonical HTTP URLs.",
+      "No breaking dependencies; use httpx if already present or stdlib if possible.",
+      "Examples must reference canonical host and schema version.",
+      "governance_audit must summarize compliance state deterministically."
     ]
   },
   "exit_criteria": [
-    "No function signatures take schema arg.",
-    "stdio_main.py does not require schema param.",
-    "__main__.py no longer sets payload['schema'].",
-    "All tests pass with assets containing $schema only.",
-    "Guard test enforces $schema in all examples.",
-    "Audit row 'Assets MUST include top-level $schema; reject schema/$schemaRef' marked Present."
+    "__version__ = '0.2.9' in mcp/__init__.py",
+    "Startup logs include schemas_base and schema_version fields",
+    "Remote canonical schema resolution functional (fetches from delk73.github.io)",
+    "All examples updated to canonical $schema URLs",
+    "README includes TCP nc example with 127.0.0.1 and canonical host note",
+    "governance_audit callable returning compliance summary with status=ok"
   ]
 }
