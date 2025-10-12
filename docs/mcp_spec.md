@@ -1,6 +1,6 @@
 ---
-version: v0.2.8
-lastReviewed: 2025-10-03
+version: v0.2.9
+lastReviewed: 2025-10-12
 owner: mcp-core
 ---
 
@@ -8,84 +8,125 @@ owner: mcp-core
 
 ## Purpose
 
-The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic and stateless tools.
+The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic, stateless tools wired directly to the canonical **Synesthetic Schemas v0.7.3** host.
 
-* **Resources:** served from disk, overridable via environment variables.  
-* **Tools:** Validation (JSON Schema Draft 2020-12), Diff (RFC 6902: `add`,`remove`,`replace`), Backend populate.  
-* **Transport:**
-  * Ephemeral: **STDIO** over **JSON-RPC 2.0**.  
-  * Persistent: **Socket** (Unix Domain Socket) over JSON-RPC 2.0.  
-  * **TCP transport**: first-class option for containerized or distributed setups.  
-* **Guards:** Assets MUST be validated before persistence. Schemas MUST NOT be mutated.  
-* **Limits:** All transports enforce a **1 MiB payload cap**.  
-* **Schema key:** Assets MUST include a top-level `"$schema"` field, per JSON Schema Draft 2020-12.  
-  * MCP validators MUST reject assets missing this field.  
-  * Legacy `"schema"` (no `$`) and `$schemaRef` keys are not valid and MUST NOT be used.
+* **Schema base:**  
+  `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/`
+* **Schema version:**  
+  Derived from environment variable `LABS_SCHEMA_VERSION` (default `0.7.3`).
+* **Specification source:**  
+  [synesthetic-schemas v0.7.3](https://github.com/delk73/synesthetic-schemas)
 
 ---
 
-## v0.2.8 Additions
+## Core Functions
 
-* **Schema alignment**  
-  * All assets MUST declare their validating schema with `"$schema"`.  
-  * Strict validation enforces presence of `"$schema"`.  
-  * `$schemaRef` and `"schema"` are deprecated and MUST NOT be emitted.  
-  * MCP validation functions (`validate_asset`, `validate_many`) take no `schema` parameter; validation MUST rely solely on the `"$schema"` field inside the asset.  
-  * STDIO and other transports MUST NOT require `"schema"` in params.  
-  * MCP responses MUST NOT backfill `schema` into payloads.  
-  * A regression guard MUST ensure that all shipped examples include a valid `"$schema"` marker.
+| Tool | Purpose | Validation Source |
+|------|----------|-------------------|
+| `validate_asset` | Validate a single asset against its `$schema`. | Remote or cached schema |
+| `validate_many` | Batch validation for multiple assets. | Same as above |
+| `diff_assets` | Compute RFC 6902 diff (`add`, `remove`, `replace`). | JSON Patch semantics |
+| `populate_backend` | Convert validated assets to backend-ready JSON. | Deterministic serialization |
 
-* **TCP transport fully aligned**  
-  * TCP enforces the same **1 MiB guard** as STDIO/socket.  
-  * Ready logs:  
-    ```
-    mcp:ready mode=tcp host=<h> port=<p> schemas_dir=<...> examples_dir=<...> timestamp=<ISO-8601 UTC>
-    ```  
-  * Shutdown logs MUST mirror ready logs with the same fields, differing only in `event=shutdown`.  
-  * Documentation updated with **example usage**:  
-    ```bash
-    nc 127.0.0.1 8765
-    ```  
-    to send JSON-RPC frames over TCP.  
-
-* **Lifecycle signals**  
-  * SIGINT/SIGTERM shutdowns return exit code `-SIGINT`/`-SIGTERM`.  
-  * **Logging invariant:** shutdown logs MUST always be emitted *before* process exit, even under signal termination. Self-kill (`os.kill`) MUST NOT pre-empt shutdown logging.  
-  * Ready file format: `<pid> <ISO8601 timestamp>`.  
-
-* **Documentation alignment**  
-  * README and spec now state payload guard applies to **STDIO, socket, and TCP**.  
-  * Serving Locally section includes TCP client example.  
+All validation conforms to **JSON Schema Draft 2020-12**.
 
 ---
 
-## Exit Criteria (v0.2.8)
+## Transport
 
-* TCP transport works end-to-end, default `MCP_HOST=0.0.0.0`, `MCP_PORT=7000`.  
-* All transports (STDIO, socket, TCP) enforce 1 MiB guard.  
-* Ready/shutdown logs show mode, address/path, schemas_dir, examples_dir, and ISO timestamps.  
-* **Shutdown log invariant holds across all transports.**  
-* Signal exits produce documented codes.  
-* Tests cover TCP round-trip, oversize payload, multi-client ordering, and alias lifecycle.  
-* Assets with `"$schema"` pass strict validation.  
-* Assets with `"schema"` or `$schemaRef` are rejected.  
-* Validation functions take no schema argument and rely solely on asset['$schema'].  
-* Transports do not require `schema` params and do not set legacy `schema` fields in payloads.  
-* Regression tests confirm all examples in `libs/synesthetic-schemas/examples` include `"$schema"`.  
-* README/docs reflect actual implementation.  
+* **Ephemeral:** `STDIO` over **JSON-RPC 2.0**.  
+* **Persistent:** `Socket` (Unix Domain Socket) over **JSON-RPC 2.0**.  
+* **TCP:** first-class transport for distributed or containerized execution.  
+
+**Payload guard:** all transports enforce **1 MiB max payload**.  
+**Schema immutability:** schemas must never be modified in-process.
 
 ---
 
-## Version v0.2.7 (Previous)
+## Schema Integration (v0.7.3 Alignment)
 
-* Schema key field was ambiguous (`"schema"`, `$schemaRef`).  
-* v0.2.8 standardizes to `"$schema"` only.  
+* All assets MUST include a top-level `"$schema"` field referencing the canonical host:  
+  `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/<schema>.schema.json`
+* MCP validation relies exclusively on this field.  
+  * `"$schema"` is mandatory.  
+  * `"schema"` and `"$schemaRef"` are invalid and rejected.
+* The validator automatically fetches or caches the referenced schema.  
+* The schema resolver must support both **remote URL resolution** and **local cache lookup** (`/schemas/0.7.3/`).
+* **Regression guard:** all shipped examples must include a valid canonical `$schema`.
+
+---
+
+## Logging and Lifecycle
+
+* **Ready log:**
+```
+
+mcp:ready mode=<transport> host=<h> port=<p> schemas_base=[https://delk73.github.io/.../0.7.3](https://delk73.github.io/.../0.7.3) timestamp=<ISO-8601>
+
+```
+* **Shutdown log:** identical fields plus `event=shutdown`.
+* **Signal exits:** `SIGINT` → `-2`; `SIGTERM` → `-15`.
+* Shutdown logs must always emit before exit; no self-kill pre-emption.
+
+---
+
+## Makefile and Environment Integration
+
+Environment keys:
+```
+
+LABS_SCHEMA_VERSION=0.7.3
+LABS_SCHEMA_BASE=[https://delk73.github.io/synesthetic-schemas/schema/](https://delk73.github.io/synesthetic-schemas/schema/)
+MCP_HOST=0.0.0.0
+MCP_PORT=7000
+
+```
+
+Make targets:
+* `validate` — run local validator using canonical host.
+* `check-schema-ids` — ensure all loaded schemas match canonical base.
+* `audit-all` — full governance + transport audit.
+
+---
+
+## v0.2.9 Additions
+
+* **Canonical schema alignment**  
+  * All MCP modules now derive schema URLs from `LABS_SCHEMA_BASE`.  
+  * Validation routines enforce canonical host prefix and version match.  
+  * Added on-boot schema resolver logging and cache fingerprinting.
+* **Governance parity**  
+  * MCP automatically verifies that local cache hashes match published schema fingerprints from `version.json`.  
+  * `governance_audit()` endpoint exposes compliance summary.
+* **CLI integration**  
+  * `mcp --audit` → runs governance + transport self-test.  
+  * `mcp --schemas` → lists locally cached schema URLs and versions.
+
+---
+
+## Exit Criteria (v0.2.9)
+
+| Checkpoint | Requirement |
+|-------------|-------------|
+| **Canonical Host** | All `$schema` fields resolve to `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/…` |
+| **Environment Alignment** | `LABS_SCHEMA_VERSION` = `0.7.3` and `LABS_SCHEMA_BASE` set |
+| **Validation Integrity** | Assets validated exclusively via `$schema` |
+| **Transport Parity** | STDIO, socket, and TCP enforce identical guards and logging invariants |
+| **Governance Verification** | `mcp --audit` reports ✅ Global Compliance PASS |
+| **Regression Guard** | All bundled examples contain valid `$schema` entries |
+
+---
+
+## Version v0.2.8 (Previous)
+
+* Added strict `"$schema"` enforcement and unified payload guards.  
+* Standardized logging and transport readiness signals.
 
 ---
 
 ## Backlog (≥ v0.3)
 
-* Drop `"validate"` alias entirely.  
-* Add gRPC transport for typed schemas and streaming.  
-* Structured metrics/telemetry hooks.  
-* Schema hot-reload or live discovery.  
+* gRPC transport for typed streaming.  
+* Structured telemetry / metrics.  
+* Dynamic schema hot-reload.  
+* Live governance sync against `synesthetic-schemas` HEAD.

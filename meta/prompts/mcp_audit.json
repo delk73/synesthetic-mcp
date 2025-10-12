@@ -1,47 +1,39 @@
 {
-  "task": "Audit synesthetic-mcp repo state (v0.2.8 features)",
-  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.8). Report what is Present, Missing, or Divergent, and export an updated AGENTS.md snapshot for MCP.",
+  "version": "v0.2.9",
+  "spec_ref": "docs/mcp_spec.md#v0-2-9",
+  "task": "Audit synesthetic-mcp repo state (v0.2.9 features, aligned to schemas v0.7.3)",
+  "objective": "Compare implementation, tests, and docs against docs/mcp_spec.md (v0.2.9). Report Present/Missing/Divergent with evidence. Verify canonical host usage, env-driven schema versioning, transport parity, and governance alignment. Overwrite AGENTS.md snapshot.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
       "Present = implementation matches spec and is covered by tests/docs",
       "Missing = spec requires feature but implementation does not provide it",
       "Divergent = implementation exists but differs in shape, naming, or behavior from spec",
-      "Spec errors (validation_failed, not_found, etc.) must be inside JSON-RPC result; JSON-RPC error only for malformed frames",
+      "Spec errors (validation_failed, not_found, etc.) must be JSON-RPC result errors; JSON-RPC error only for malformed frames",
       "Ground all findings in visible code/tests/docs; no speculation",
       "Recommendations must cite evidence (file path + line/section) and be actionable code/test/doc changes",
       "Always overwrite meta/output/mcp_state.md and AGENTS.md with non-empty content",
 
-      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard per v0.2.8; HTTP/gRPC are roadmap-only (Divergent if present)",
+      "Schema host/version (v0.2.9): Assets MUST include top-level \"$schema\" that starts with canonical host and version → \"https://delk73.github.io/synesthetic-schemas/schema/${LABS_SCHEMA_VERSION}/...\"; default LABS_SCHEMA_VERSION=0.7.3",
+      "Schema resolution (v0.2.9): Resolver MUST support remote canonical URLs with optional local cache; reject path traversal; no implicit relative file loading outside the configured cache dir",
+      "No legacy schema keys: reject payloads using \"schema\" or \"$schemaRef\" with validation_failed at path=\"/$schema\"",
+      "Env parity: LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION MUST be read and logged at startup; all validators MUST derive from these",
+      "Governance parity: MCP must agree with synesthetic-schemas v0.7.3 canonical URLs; examples MUST embed canonical $schema",
 
+      "Transport compliance: STDIO MUST exist; Socket MUST support multi-client ordering; TCP MUST exist with 1 MiB guard; HTTP/gRPC are roadmap-only (Divergent if present)",
       "Payload cap: 1 MiB guard enforced across all methods in STDIO, Socket, and TCP; explicit guard + failing test required",
-
-      "Alias: method 'validate' MUST alias 'validate_asset'; log deprecation warning (until ≥ v0.3)",
-
+      "Alias: method \"validate\" MUST alias \"validate_asset\" and log a deprecation warning (until ≥ v0.3)",
       "Batching: validate_many MUST honor MCP_MAX_BATCH",
-
       "get_example: MUST return validation_failed when example invalid",
-
-      "Schema resolution: MUST be local-only; path traversal rejected",
-
       "Determinism: sorting for listings, error ordering, diff ordering MUST be implemented + tested",
-
-      "Security: Socket/TCP perms default to least-privilege; Container must run non-root",
-
-      "Process model: STDIO exits when stdin closes; Socket/TCP log readiness + unlink/close on shutdown",
-
-      "Logging: startup log includes mode, path/host:port, schemas_dir, examples_dir; stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
-
+      "Security: Socket/TCP perms default to least-privilege; container runs non-root",
+      "Process model: STDIO exits when stdin closes; Socket/TCP log readiness; unlink/close on shutdown",
+      "Logging: startup log includes mode, path/host:port, schemas_base, schema_version, cache_dir (if any); stdout only JSON-RPC frames; stderr for logs; timestamps ISO-8601",
       "Signal handling: SIGINT/SIGTERM shutdowns return documented exit codes (-SIGINT, -SIGTERM)",
-
-      "Shutdown logging: Shutdown logs MUST mirror ready logs (mode, address/path, schemas_dir, examples_dir, timestamp) and MUST be emitted before process exit; self-kill MUST NOT pre-empt log emission",
-
-      "Ready file format MUST be '<pid> <ISO8601 timestamp>' exactly",
-
-      "Schema validation contract (v0.2.8): Assets MUST include top-level \"$schema\" per JSON Schema Draft 2020-12; assets missing it MUST yield validation_failed with path=\"/$schema\"; use of legacy 'schema' or '$schemaRef' MUST be rejected; no function signatures or tests may take a 'schema' param",
-
-      "Docs MUST include TCP client example using 'nc 127.0.0.1 8765'",
-
+      "Shutdown logging: MUST mirror ready fields and emit before process exit; no self-kill pre-empting logs",
+      "Ready file format: exactly \"<pid> <ISO8601 timestamp>\"",
+      "Golden examples: include list_schemas, get_schema, validate_asset + alias validate, get_example (ok + validation_failed), diff_assets, malformed JSON-RPC",
+      "Docs MUST include TCP client example using `nc 127.0.0.1 8765` and document canonical host/version env",
       "Audit incomplete unless both output files written non-empty"
     ],
     "sections": [
@@ -58,14 +50,13 @@
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
+      "Schema resolver (remote/cached, traversal guards)",
       "Batching",
-      "Logging hygiene",
-      "Container & health",
-      "Schema discovery & validation",
-      "Test coverage",
-      "Dependencies & runtime",
-      "Environment variables",
-      "Documentation accuracy",
+      "Determinism & ordering",
+      "Logging hygiene (fields, ISO time, stderr separation)",
+      "Container & health (non-root, probes)",
+      "Environment variables (LABS_SCHEMA_BASE, LABS_SCHEMA_VERSION, MCP_HOST/PORT, MCP_MAX_BATCH)",
+      "Documentation accuracy (canonical host/version, TCP nc example)",
       "Detected divergences",
       "Recommendations"
     ]
@@ -80,12 +71,13 @@
       "serve.sh",
       "up.sh",
       "down.sh",
-      "mcp/*.py",
-      "tests/*.py",
+      "mcp/**/*.py",
+      "tests/**/*.py",
       "libs/synesthetic-schemas",
       "meta/",
       "AGENTS.md",
-      ".github/workflows/",
+      ".github/workflows/**",
+      ".env",
       ".env.example"
     ]
   },
@@ -100,19 +92,22 @@
   },
   "exit_criteria": [
     "meta/output/mcp_state.md written and non-empty",
-    "AGENTS.md snapshot updated",
-    "Spec v0.2.8 features mapped to Present/Missing/Divergent with evidence",
-    "STDIO, Socket, and TCP behavior explicitly verified (multi-client ordering, logs, shutdown, lifecycle signals)",
-    "Golden examples cover list_schemas, get_schema, validate_asset+alias, get_example success+validation_failed, diff_assets, malformed JSON-RPC",
-    "Payload guard verified across all transports and methods",
-    "Batching (validate_many) verified or marked",
-    "Determinism + schema safety verified",
-    "Logging verified (mode, path/host:port, schemas_dir, examples_dir, ISO timestamps)",
-    "Shutdown logging invariant verified (shutdown log emitted before exit, mirrors ready log, no pre-emptive self-kill)",
+    "AGENTS.md snapshot updated and non-empty",
+    "Spec v0.2.9 features mapped to Present/Missing/Divergent with evidence (file:line or section)",
+    "LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION discovered from env and used in code paths",
+    "All examples embed canonical $schema URLs with version == LABS_SCHEMA_VERSION (default 0.7.3)",
+    "Schema resolver supports remote canonical host and optional cache; path traversal blocked; no unintended local-relative loads",
+    "STDIO, Socket, TCP behavior verified (multi-client ordering for Socket, logs for all, shutdown, lifecycle signals)",
+    "Golden examples cover: list_schemas, get_schema, validate_asset + alias validate, get_example success + validation_failed, diff_assets, malformed JSON-RPC",
+    "Payload guard verified across all transports and methods (1 MiB) with failing test",
+    "validate_many honors MCP_MAX_BATCH",
+    "Deterministic ordering verified (listings, diffs, error lists)",
+    "Logging verified: mode, address/path, schemas_base, schema_version, cache_dir (if any), ISO-8601 timestamps; stdout JSON-RPC only; stderr logs",
+    "Shutdown logging invariant verified (mirrors ready; emitted before exit; no pre-emptive self-kill)",
     "Ready file format '<pid> <ISO8601 timestamp>' verified",
     "Signal exit codes verified (-SIGINT, -SIGTERM)",
-    "Container non-root verified",
-    "README cross-checked with docs/mcp_spec.md, including TCP nc example",
-    "Assets with \"$schema\" pass strict validation; assets using 'schema' or '$schemaRef' are rejected with validation_failed"
+    "Container non-root verified (Dockerfile/compose)",
+    "README/docs reflect canonical host/version env and include TCP `nc` example",
+    "No legacy schema keys accepted; proper validation_failed on missing $schema (path='/$schema')"
   ]
 }
