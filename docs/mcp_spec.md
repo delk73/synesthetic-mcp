@@ -38,6 +38,10 @@ All validation conforms to **JSON Schema Draft 2020-12**.
 * **Persistent:** `Socket` (Unix Domain Socket) over **JSON-RPC 2.0**.  
 * **TCP:** first-class transport for distributed or containerized execution.  
 
+**Default mode:**  
+`STDIO` for local execution; `TCP` is recommended for distributed or containerized deployments.  
+If `MCP_MODE` is unset, the adapter defaults to `STDIO`.
+
 **Payload guard:** all transports enforce **1 MiB max payload**.  
 **Schema immutability:** schemas must never be modified in-process.
 
@@ -64,8 +68,8 @@ All validation conforms to **JSON Schema Draft 2020-12**.
 mcp:ready mode=<transport> host=<h> port=<p> schemas_base=[https://delk73.github.io/.../0.7.3](https://delk73.github.io/.../0.7.3) timestamp=<ISO-8601>
 
 ```
-* **Shutdown log:** identical fields plus `event=shutdown`.
-* **Signal exits:** `SIGINT` → `-2`; `SIGTERM` → `-15`.
+* **Shutdown log:** identical fields plus `event=shutdown`.  
+* **Signal exits:** `SIGINT` → `-2`; `SIGTERM` → `-15`.  
 * Shutdown logs must always emit before exit; no self-kill pre-emption.
 
 ---
@@ -77,14 +81,15 @@ Environment keys:
 
 LABS_SCHEMA_VERSION=0.7.3
 LABS_SCHEMA_BASE=[https://delk73.github.io/synesthetic-schemas/schema/](https://delk73.github.io/synesthetic-schemas/schema/)
+MCP_MODE=stdio        # default; override to 'tcp' or 'socket'
 MCP_HOST=0.0.0.0
 MCP_PORT=7000
 
 ```
 
 Make targets:
-* `validate` — run local validator using canonical host.
-* `check-schema-ids` — ensure all loaded schemas match canonical base.
+* `validate` — run local validator using canonical host.  
+* `check-schema-ids` — ensure all loaded schemas match canonical base.  
 * `audit-all` — full governance + transport audit.
 
 ---
@@ -108,10 +113,11 @@ Make targets:
 
 | Checkpoint | Requirement |
 |-------------|-------------|
-| **Canonical Host** | All `$schema` fields resolve to `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/…` |
+| **Canonical Host** | All `$schema` fields resolve to `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/...` |
 | **Environment Alignment** | `LABS_SCHEMA_VERSION` = `0.7.3` and `LABS_SCHEMA_BASE` set |
 | **Validation Integrity** | Assets validated exclusively via `$schema` |
-| **Transport Parity** | STDIO, socket, and TCP enforce identical guards and logging invariants |
+| **Transport Parity** | STDIO, Socket, and TCP enforce identical guards and logging invariants |
+| **Default Mode Defined** | Default transport explicitly documented (`STDIO` local / `TCP` container) |
 | **Governance Verification** | `mcp --audit` reports ✅ Global Compliance PASS |
 | **Regression Guard** | All bundled examples contain valid `$schema` entries |
 
