@@ -6,7 +6,7 @@
 - Environment variables LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION unread (`mcp/__main__.py:185`)
 - Examples embed relative $schema, not canonical host (`libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2`)
 - Ready logs omit schemas_base and schema_version fields (`mcp/__main__.py:185`)
-- TCP nc example absent from README (`README.md:195`)
+- TCP nc example uses `localhost` instead of `127.0.0.1` (`README.md:195`)
 - Governance audit endpoint missing (`docs/mcp_spec.md:101`)
 
 ## Dependencies
@@ -57,7 +57,7 @@
 | Shutdown logging | Divergent | Mirrors but incomplete |
 | Ready file format | Present | `<pid> <ISO8601>` |
 | Golden examples | Present | Covers required |
-| Docs TCP nc example | Missing | No nc in README |
+| Docs TCP nc example | Divergent | Uses `localhost` not `127.0.0.1` |
 | Version metadata updated to v0.2.9 | Divergent | Still v0.2.7 |
 
 ## Recommendations
@@ -65,5 +65,5 @@
 - Implement LABS_SCHEMA_BASE/LABS_SCHEMA_VERSION reading and remote resolution
 - Update examples $schema to canonical URLs
 - Add schemas_base/schema_version to logs
-- Add TCP nc example to README
+- Add TCP `nc 127.0.0.1 8765` example to README
 - Implement governance_audit endpoint
