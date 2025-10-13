@@ -39,8 +39,9 @@ All validation conforms to **JSON Schema Draft 2020-12**.
 * **TCP:** first-class transport for distributed or containerized execution.  
 
 **Default mode:**  
-`STDIO` for local execution; `TCP` is recommended for distributed or containerized deployments.  
-If `MCP_MODE` is unset, the adapter defaults to `STDIO`.
+`TCP` for containerized or server deployments (as started by `up.sh`);  
+`STDIO` remains available for local CLI or debugging.  
+If `MCP_MODE` is unset, the adapter defaults to `TCP`.
 
 **Payload guard:** all transports enforce **1 MiB max payload**.  
 **Schema immutability:** schemas must never be modified in-process.
@@ -56,7 +57,8 @@ If `MCP_MODE` is unset, the adapter defaults to `STDIO`.
   * `"schema"` and `"$schemaRef"` are invalid and rejected.
 * The validator automatically fetches or caches the referenced schema.  
 * The schema resolver must support both **remote URL resolution** and **local cache lookup** (`/schemas/0.7.3/`).
-* **Regression guard:** all shipped examples must include a valid canonical `$schema`.
+* **Regression guard:** assets validated by MCP MUST contain a top-level `"$schema"` referencing a canonical schema URL.  
+  Schema-repository example conformance is validated within `synesthetic-schemas`, not within MCP.
 
 ---
 
@@ -81,7 +83,7 @@ Environment keys:
 
 LABS_SCHEMA_VERSION=0.7.3
 LABS_SCHEMA_BASE=[https://delk73.github.io/synesthetic-schemas/schema/](https://delk73.github.io/synesthetic-schemas/schema/)
-MCP_MODE=stdio        # default; override to 'tcp' or 'socket'
+MCP_MODE=tcp          # default; override to 'stdio' or 'socket'
 MCP_HOST=0.0.0.0
 MCP_PORT=7000
 
@@ -94,14 +96,27 @@ Make targets:
 
 ---
 
+## Startup (up.sh)
+
+`up.sh` starts the MCP service in **TCP mode by default**, binding to  
+`MCP_HOST`:`MCP_PORT` (default `0.0.0.0:7000`).  
+It logs readiness in the format:
+```
+
+mcp:ready mode=tcp host=0.0.0.0 port=7000 schemas_base=[https://delk73.github.io/.../0.7.3](https://delk73.github.io/.../0.7.3) timestamp=<ISO-8601>
+
+```
+
+---
+
 ## v0.2.9 Additions
 
 * **Canonical schema alignment**  
-  * All MCP modules now derive schema URLs from `LABS_SCHEMA_BASE`.  
+  * All MCP modules derive schema URLs from `LABS_SCHEMA_BASE`.  
   * Validation routines enforce canonical host prefix and version match.  
   * Added on-boot schema resolver logging and cache fingerprinting.
 * **Governance parity**  
-  * MCP automatically verifies that local cache hashes match published schema fingerprints from `version.json`.  
+  * MCP verifies that local cache hashes match published schema fingerprints from `version.json`.  
   * `governance_audit()` endpoint exposes compliance summary.
 * **CLI integration**  
   * `mcp --audit` → runs governance + transport self-test.  
@@ -117,9 +132,9 @@ Make targets:
 | **Environment Alignment** | `LABS_SCHEMA_VERSION` = `0.7.3` and `LABS_SCHEMA_BASE` set |
 | **Validation Integrity** | Assets validated exclusively via `$schema` |
 | **Transport Parity** | STDIO, Socket, and TCP enforce identical guards and logging invariants |
-| **Default Mode Defined** | Default transport explicitly documented (`STDIO` local / `TCP` container) |
+| **Default Mode Defined** | Default transport explicitly set to TCP (aligns with `up.sh`) |
 | **Governance Verification** | `mcp --audit` reports ✅ Global Compliance PASS |
-| **Regression Guard** | All bundled examples contain valid `$schema` entries |
+| **Regression Guard** | MCP validates presence and canonical format of `$schema`; schema-repo examples validated separately |
 
 ---
 
