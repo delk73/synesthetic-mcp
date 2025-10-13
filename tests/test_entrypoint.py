@@ -13,6 +13,9 @@ from typing import List, TextIO
 
 import pytest
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+
 
 def _wait_for_line(stream: TextIO, proc: subprocess.Popen, needle: str, timeout: float = 10.0) -> str:
     deadline = time.time() + timeout
@@ -47,6 +50,7 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
             "SYN_EXAMPLES_DIR": str(examples_dir),
             "PYTHONUNBUFFERED": "1",
             "MCP_READY_FILE": str(ready_file),
+            "MCP_MODE": "stdio",
         }
     )
 
@@ -67,6 +71,9 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
         assert "mode=stdio" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
 
@@ -84,6 +91,9 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
         proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=stdio" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         assert "timestamp=" in shutdown_line
         _assert_iso_timestamp(shutdown_line)
 
@@ -102,7 +112,7 @@ def test_entrypoint_ready_and_shutdown(tmp_path):
             with contextlib.suppress(Exception):
                 proc.stdin.close()
 
-    assert proc.returncode == -signal.SIGTERM
+    assert proc.returncode == -int(signal.SIGTERM)
     deadline = time.time() + 5
     while time.time() < deadline and ready_file.exists():
         time.sleep(0.05)
@@ -123,6 +133,7 @@ def test_entrypoint_sigterm_exit_code(tmp_path):
             "SYN_EXAMPLES_DIR": str(examples_dir),
             "PYTHONUNBUFFERED": "1",
             "MCP_READY_FILE": str(ready_file),
+            "MCP_MODE": "stdio",
         }
     )
 
@@ -153,7 +164,7 @@ def test_entrypoint_sigterm_exit_code(tmp_path):
             with contextlib.suppress(Exception):
                 proc.stdin.close()
 
-    assert proc.returncode == -signal.SIGTERM
+    assert proc.returncode == -int(signal.SIGTERM)
     deadline = time.time() + 5
     while time.time() < deadline and ready_file.exists():
         time.sleep(0.05)
@@ -225,9 +236,7 @@ def test_validate_flag_failure(tmp_path):
     )
 
     asset_path = tmp_path / "invalid.json"
-    asset_path.write_text(
-        json.dumps({"$schema": "jsonschema/asset.schema.json", "id": ""})
-    )
+    asset_path.write_text(json.dumps({"$schema": CANONICAL_ASSET_SCHEMA, "id": ""}))
 
     env = os.environ.copy()
     env.update(
@@ -251,7 +260,7 @@ def test_socket_endpoint_invokes_socket_server(monkeypatch, tmp_path):
     schemas_dir.mkdir()
 
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
-    monkeypatch.setenv("MCP_ENDPOINT", "socket")
+    monkeypatch.setenv("MCP_MODE", "socket")
     socket_path = tmp_path / "server.sock"
     monkeypatch.setenv("MCP_SOCKET_PATH", str(socket_path))
     ready_file = tmp_path / "mcp.ready"

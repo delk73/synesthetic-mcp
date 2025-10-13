@@ -18,7 +18,7 @@ payload = {
   "id": 2,
   "method": "validate_asset",
   "params": {
-    "asset": {"$schema": "jsonschema/synesthetic-asset.schema.json", "blob": "x" * 1200000}
+    "asset": {"$schema": "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/synesthetic-asset.schema.json", "blob": "x" * 1200000}
   }
 }
 print(json.dumps(payload))

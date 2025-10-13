@@ -8,6 +8,41 @@ from typing import Any, Dict, List
 SUBMODULE_SCHEMAS_DIR = "libs/synesthetic-schemas/jsonschema"
 SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/examples"
 
+DEFAULT_LABS_SCHEMA_BASE = "https://delk73.github.io/synesthetic-schemas/schema/"
+DEFAULT_LABS_SCHEMA_VERSION = "0.7.3"
+DEFAULT_LABS_SCHEMA_CACHE_DIR = ".cache/synesthetic-schemas"
+
+
+def labs_schema_base() -> str:
+    raw = os.environ.get("LABS_SCHEMA_BASE", DEFAULT_LABS_SCHEMA_BASE)
+    base = raw.strip() or DEFAULT_LABS_SCHEMA_BASE
+    if not base.endswith("/"):
+        base = f"{base}/"
+    return base
+
+
+def labs_schema_version() -> str:
+    raw = os.environ.get("LABS_SCHEMA_VERSION", DEFAULT_LABS_SCHEMA_VERSION)
+    version = raw.strip() or DEFAULT_LABS_SCHEMA_VERSION
+    return version
+
+
+def labs_schema_prefix() -> str:
+    return f"{labs_schema_base()}{labs_schema_version().strip().rstrip('/')}/"
+
+
+def labs_schema_cache_dir() -> Path | None:
+    raw = os.environ.get("LABS_SCHEMA_CACHE_DIR")
+    if raw is not None and not raw.strip():
+        return None
+    if raw:
+        return Path(raw).expanduser()
+    try:
+        home = Path.home()
+    except Exception:
+        return None
+    return home / DEFAULT_LABS_SCHEMA_CACHE_DIR / labs_schema_version()
+
 
 class PathOutsideConfiguredRoot(ValueError):
     """Raised when a requested file escapes the configured root directory."""
@@ -166,3 +201,37 @@ def get_example(path: str) -> Dict[str, Any]:
     except Exception as e:
         return {"ok": False, "reason": "validation_failed", "errors": [{"path": "/", "msg": str(e)}]}
     return {"ok": True, "example": data, "schema": schema_name, "validated": True}
+
+
+def governance_audit() -> Dict[str, Any]:
+    prefix = labs_schema_prefix()
+    base = labs_schema_base()
+    version = labs_schema_version()
+
+    examples_dir = _examples_dir()
+    example_paths = sorted(
+        p for p in examples_dir.rglob("*.json") if p.is_file()
+    )
+
+    missing: List[str] = []
+    for path in example_paths:
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            missing.append(path.name)
+            continue
+        marker = data.get("$schema")
+        if not isinstance(marker, str) or not marker.startswith(prefix):
+            missing.append(path.name)
+
+    missing_sorted = sorted(set(missing))
+    status = "ok" if not missing_sorted else "partial"
+    return {
+        "ok": status == "ok",
+        "schemas_base": base,
+        "schema_version": version,
+        "examples_checked": len(example_paths),
+        "missing_schema": missing_sorted,
+        "transports": ["stdio", "socket", "tcp"],
+        "status": status,
+    }

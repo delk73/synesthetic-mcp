@@ -14,6 +14,9 @@ import pytest
 
 from mcp.validate import MAX_BYTES
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+
 
 def _assert_iso_timestamp(line: str) -> None:
     token = None
@@ -114,7 +117,7 @@ def test_socket_transport_end_to_end(tmp_path):
             "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "socket",
+            "MCP_MODE": "socket",
             "MCP_SOCKET_PATH": str(socket_path),
             "MCP_READY_FILE": str(ready_file),
         }
@@ -140,6 +143,9 @@ def test_socket_transport_end_to_end(tmp_path):
         assert "mode=socket" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
         assert socket_path.exists()
@@ -199,6 +205,9 @@ def test_socket_transport_end_to_end(tmp_path):
         assert "timestamp=" in shutdown_line
         assert "schemas_dir=" in shutdown_line
         assert "examples_dir=" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         _assert_iso_timestamp(shutdown_line)
         proc.wait(timeout=5)
     finally:
@@ -208,7 +217,7 @@ def test_socket_transport_end_to_end(tmp_path):
             if ready_file.exists():
                 ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGINT
+    assert proc.returncode == -int(signal.SIGINT)
     assert not socket_path.exists()
     assert not ready_file.exists()
 
@@ -242,7 +251,7 @@ def test_socket_sigterm_cleans_up(tmp_path):
             "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "socket",
+            "MCP_MODE": "socket",
             "MCP_SOCKET_PATH": str(socket_path),
             "MCP_READY_FILE": str(ready_file),
         }
@@ -266,6 +275,9 @@ def test_socket_sigterm_cleans_up(tmp_path):
                 pytest.skip("unix-domain sockets unavailable in sandbox")
             raise
         assert "mode=socket" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
         ready_fields = _fields_without_timestamp(ready_line)
@@ -278,6 +290,9 @@ def test_socket_sigterm_cleans_up(tmp_path):
         proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=socket" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         assert "timestamp=" in shutdown_line
         _assert_iso_timestamp(shutdown_line)
         shutdown_fields = _fields_without_timestamp(shutdown_line)
@@ -289,7 +304,7 @@ def test_socket_sigterm_cleans_up(tmp_path):
         with contextlib.suppress(FileNotFoundError):
             ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGTERM
+    assert proc.returncode == -int(signal.SIGTERM)
     assert not ready_file.exists()
     assert not socket_path.exists()
 
@@ -323,7 +338,7 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             "PYTHONPATH": env.get("PYTHONPATH", "") or str(Path.cwd()),
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "socket",
+            "MCP_MODE": "socket",
             "MCP_SOCKET_PATH": str(socket_path),
             "MCP_READY_FILE": str(ready_file),
         }
@@ -340,6 +355,9 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
     try:
         assert proc.stderr is not None
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
 
@@ -409,6 +427,9 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
         assert "timestamp=" in shutdown_line
         assert "schemas_dir=" in shutdown_line
         assert "examples_dir=" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         _assert_iso_timestamp(shutdown_line)
         proc.wait(timeout=5)
     finally:
@@ -418,4 +439,4 @@ def test_socket_allows_multiple_concurrent_clients(tmp_path):
             if ready_file.exists():
                 ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGINT
+    assert proc.returncode == -int(signal.SIGINT)

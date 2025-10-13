@@ -21,6 +21,7 @@ def test_golden_requests():
     env["SYN_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
     env["SYN_EXAMPLES_DIR"] = str(EXAMPLES_DIR)
     env["PYTHONUNBUFFERED"] = "1"
+    env["MCP_MODE"] = "stdio"
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "mcp"],

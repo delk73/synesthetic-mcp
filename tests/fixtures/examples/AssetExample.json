@@ -1,6 +1,8 @@
 {
-  "$schema": "jsonschema/asset.schema.json",
+  "$schema": "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/asset.schema.json",
   "id": "asset-1",
   "name": "Asset One",
-  "tags": ["primary"]
+  "tags": [
+    "primary"
+  ]
 }

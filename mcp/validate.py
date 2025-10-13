@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 from urllib.parse import urlparse
 
+import httpx
 from jsonschema import Draft202012Validator
 try:
     from referencing import Registry, Resource  # type: ignore
@@ -13,7 +14,14 @@ except Exception:  # pragma: no cover
     Registry = None  # type: ignore
     Resource = None  # type: ignore
 
-from .core import _schema_file_path, PathOutsideConfiguredRoot
+from .core import (
+    _schema_file_path,
+    PathOutsideConfiguredRoot,
+    labs_schema_base,
+    labs_schema_cache_dir,
+    labs_schema_prefix,
+    labs_schema_version,
+)
 
 # Alias mapping: accept nested alias but validate against canonical schema
 _SCHEMA_ALIASES = {
@@ -67,41 +75,109 @@ def _validation_error(path: str, msg: str) -> Dict[str, Any]:
     }
 
 
-def _load_schema(name: str) -> tuple[Dict[str, Any], Path]:
-    canonical = _SCHEMA_ALIASES.get(name, name)
-    path = _schema_file_path(canonical)
-    return json.loads(path.read_text()), path
+class SchemaResolutionError(RuntimeError):
+    """Raised when schema loading fails."""
 
 
-def _schema_name_from_marker(marker: str) -> str:
+def _schema_filename_parts(filename: str) -> Tuple[str, str]:
+    if filename.endswith(".schema.json"):
+        return filename[: -len(".schema.json")], ".schema.json"
+    if filename.endswith(".json"):
+        return filename[: -len(".json")], ".json"
+    return filename, ".json"
+
+
+def _schema_target(marker: str) -> Tuple[str, str, str, str]:
     raw = marker.strip()
     if not raw:
         raise ValueError("empty_marker")
 
+    canonical_prefix = labs_schema_prefix()
     without_fragment = raw.split("#", 1)[0].strip()
     parsed = urlparse(without_fragment)
-    path_component = parsed.path if parsed.scheme else without_fragment
-
     if not parsed.scheme:
-        if path_component.startswith("/"):
-            raise PathOutsideConfiguredRoot(path_component or without_fragment)
-        if path_component.startswith("../") or "/../" in path_component or path_component.endswith("/.."):
-            raise PathOutsideConfiguredRoot(path_component or without_fragment)
-    else:
-        if "/../" in path_component or path_component.endswith("/.."):
-            raise PathOutsideConfiguredRoot(path_component or without_fragment)
+        raise ValueError("schema_not_canonical")
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("schema_not_canonical")
+    if not without_fragment.startswith(canonical_prefix):
+        raise ValueError("schema_not_canonical")
 
-    candidate = path_component.rsplit("/", 1)[-1] if "/" in path_component else path_component
-    if not candidate:
-        candidate = without_fragment
+    path_component = parsed.path or ""
+    if "/../" in path_component or path_component.endswith("/.."):
+        raise PathOutsideConfiguredRoot(path_component or without_fragment)
 
-    for suffix in (".schema.json", ".json"):
-        if candidate.endswith(suffix):
-            candidate = candidate[: -len(suffix)]
-            break
+    filename = Path(path_component).name
+    if not filename:
+        raise ValueError("invalid_schema_marker")
 
-    candidate = candidate or without_fragment
-    return _SCHEMA_ALIASES.get(candidate, candidate)
+    base_name, extension = _schema_filename_parts(filename)
+    canonical_name = _SCHEMA_ALIASES.get(base_name, base_name)
+    canonical_filename = f"{canonical_name}{extension}"
+    canonical_url = f"{canonical_prefix}{canonical_filename}"
+    return canonical_name, canonical_filename, without_fragment, canonical_url
+
+
+def _cache_path(canonical_filename: str) -> Path | None:
+    cache_dir = labs_schema_cache_dir()
+    if cache_dir is None:
+        return None
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return None
+    return cache_dir / canonical_filename
+
+
+def _fetch_canonical_schema(url: str, canonical_filename: str) -> Dict[str, Any]:
+    cache_path = _cache_path(canonical_filename)
+    if cache_path and cache_path.exists():
+        try:
+            return json.loads(cache_path.read_text())
+        except Exception:
+            cache_path.unlink(missing_ok=True)
+
+    try:
+        response = httpx.get(url, timeout=5.0)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as exc:
+        raise SchemaResolutionError(str(exc)) from exc
+
+    if cache_path:
+        try:
+            cache_path.write_text(json.dumps(data, indent=2))
+        except Exception:
+            pass
+    return data
+
+
+def _load_schema(
+    name: str,
+    canonical_filename: str,
+    requested_url: str,
+    canonical_url: str,
+) -> tuple[Dict[str, Any], Path | None]:
+    canonical = _SCHEMA_ALIASES.get(name, name)
+    try:
+        path = _schema_file_path(canonical)
+    except PathOutsideConfiguredRoot:
+        raise
+    try:
+        return json.loads(path.read_text()), path
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        raise SchemaResolutionError(f"schema_load_failed: {exc}") from exc
+
+    try:
+        schema = _fetch_canonical_schema(canonical_url, canonical_filename)
+    except SchemaResolutionError as primary_exc:
+        if requested_url != canonical_url:
+            fallback_filename = Path(urlparse(requested_url).path or "").name or canonical_filename
+            schema = _fetch_canonical_schema(requested_url, fallback_filename)
+        else:
+            raise primary_exc
+    return schema, None
 
 def _build_local_registry():
     if Registry is None or Resource is None:
@@ -172,10 +248,20 @@ def validate_asset(asset: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(schema_marker, str) or not schema_marker.strip():
         return _validation_error("/$schema", "top-level $schema is required")
     try:
-        schema_name = _schema_name_from_marker(schema_marker)
+        (
+            schema_name,
+            canonical_filename,
+            requested_url,
+            canonical_url,
+        ) = _schema_target(schema_marker)
     except PathOutsideConfiguredRoot:
         return _validation_error("/$schema", "schema_outside_configured_root")
-    except ValueError:
+    except ValueError as exc:
+        message = str(exc)
+        if message == "schema_not_canonical":
+            return _validation_error("/$schema", "schema_must_use_canonical_host")
+        if message == "empty_marker":
+            return _validation_error("/$schema", "top-level $schema is required")
         return _validation_error("/$schema", "invalid_schema_marker")
 
     legacy_keys = [key for key in ("schema", "$schemaRef") if key in asset]
@@ -189,23 +275,21 @@ def validate_asset(asset: Dict[str, Any]) -> Dict[str, Any]:
     payload.pop("$schema", None)
 
     try:
-        schema_obj, schema_path = _load_schema(schema_name)
+        schema_obj, schema_path = _load_schema(
+            schema_name, canonical_filename, requested_url, canonical_url
+        )
     except PathOutsideConfiguredRoot:
+        return _validation_error("/$schema", "schema_outside_configured_root")
+    except SchemaResolutionError as exc:
         return {
             "ok": False,
             "reason": "validation_failed",
-            "errors": [{"path": "/$schema", "msg": "schema_outside_configured_root"}],
-        }
-    except Exception as e:
-        return {
-            "ok": False,
-            "reason": "validation_failed",
-            "errors": [{"path": "/", "msg": f"schema_load_failed: {e}"}],
+            "errors": [{"path": "/", "msg": f"schema_resolution_failed: {exc}"}],
         }
 
     # Establish base_uri for $ref resolution from file path if $id missing
     base_uri = None
-    if schema_path.exists():
+    if schema_path and schema_path.exists():
         base_uri = schema_path.resolve().as_uri()
     schema_copy = dict(schema_obj)
     if base_uri and "$id" not in schema_copy:

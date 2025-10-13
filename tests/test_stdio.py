@@ -15,6 +15,9 @@ import pytest
 
 from mcp.validate import MAX_BYTES
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+
 
 def _assert_iso_timestamp(line: str) -> None:
     token = None
@@ -30,7 +33,9 @@ def test_validate_asset_requires_dollar_schema(tmp_path):
     from subprocess import Popen, PIPE
     import json, sys
 
-    proc = Popen([sys.executable, "-m", "mcp"], stdin=PIPE, stdout=PIPE, text=True)
+    env = os.environ.copy()
+    env["MCP_MODE"] = "stdio"
+    proc = Popen([sys.executable, "-m", "mcp"], stdin=PIPE, stdout=PIPE, text=True, env=env)
     req = {"jsonrpc": "2.0", "id": 1, "method": "validate_asset", "params": {"asset": {}}}
     stdout, _ = proc.communicate(json.dumps(req) + "\n", timeout=5)
     resp = json.loads(stdout.strip())
@@ -85,6 +90,7 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
     env = os.environ.copy()
     env["SYN_SCHEMAS_DIR"] = str(schemas_dir)
     env["PYTHONUNBUFFERED"] = "1"
+    env["MCP_MODE"] = "stdio"
 
     proc = subprocess.Popen(
         [sys.executable, "-m", "mcp"],
@@ -111,7 +117,7 @@ def test_stdio_validate_alias_warns_to_stderr(tmp_path):
             "method": "validate",
             "params": {
                 "asset": {
-                    "$schema": "jsonschema/asset.schema.json",
+                    "$schema": CANONICAL_ASSET_SCHEMA,
                     "id": "asset-1",
                     "name": "Asset",
                 }
@@ -180,6 +186,7 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
 
     env = os.environ.copy()
     env.pop("MCP_ENDPOINT", None)
+    env["MCP_MODE"] = "stdio"
     env["MCP_READY_FILE"] = str(ready_file)
     env["PYTHONUNBUFFERED"] = "1"
 
@@ -202,6 +209,9 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
         assert "mcp:ready" in line
         assert "mode=stdio" in line
         assert "timestamp=" in line
+        assert "schemas_base=" in line
+        assert "schema_version=" in line
+        assert "cache_dir=" in line
         _assert_iso_timestamp(line)
 
         # Ensure the ready file is created for health checks.

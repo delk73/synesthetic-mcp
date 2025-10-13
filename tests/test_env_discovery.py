@@ -3,6 +3,8 @@ from pathlib import Path
 
 from mcp.core import list_examples, list_schemas
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+
 
 def test_env_overrides_dirs(monkeypatch, tmp_path: Path):
     schemas = tmp_path / "schemas"
@@ -25,7 +27,7 @@ def test_env_overrides_dirs(monkeypatch, tmp_path: Path):
         )
     )
     (examples / "foo.valid.json").write_text(
-        json.dumps({"$schema": "jsonschema/foo.schema.json", "id": "x"})
+        json.dumps({"$schema": f"{CANONICAL_PREFIX}foo.schema.json", "id": "x"})
     )
 
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas))

@@ -4,6 +4,9 @@ from pathlib import Path
 from mcp.core import get_example, get_schema
 from mcp.validate import validate_asset
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+
 
 _MINIMAL_SCHEMA = {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -56,7 +59,7 @@ def test_get_example_rejects_traversal(monkeypatch, tmp_path):
     nested.mkdir()
     example_path = nested / "asset.json"
     example_path.write_text(
-        json.dumps({"$schema": "jsonschema/asset.schema.json", "id": "example"})
+        json.dumps({"$schema": CANONICAL_ASSET_SCHEMA, "id": "example"})
     )
 
     res = get_example("../asset.json")
@@ -76,9 +79,9 @@ def test_get_example_rejects_traversal(monkeypatch, tmp_path):
 def test_validate_asset_schema_path_guard(monkeypatch, tmp_path):
     _seed_roots(tmp_path, monkeypatch)
 
-    asset = {"$schema": "jsonschema/asset.schema.json", "id": "ok"}
+    asset = {"$schema": CANONICAL_ASSET_SCHEMA, "id": "ok"}
 
-    invalid = dict(asset, **{"$schema": "../asset.schema.json"})
+    invalid = dict(asset, **{"$schema": f"{CANONICAL_PREFIX}../asset.schema.json"})
 
     res = validate_asset(invalid)
     assert res["ok"] is False

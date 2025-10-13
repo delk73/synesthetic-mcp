@@ -1,5 +1,5 @@
 ---
-version: v0.2.7
+version: v0.2.9
 owner: delk73
 lastReviewed: 2025-09-12
 ---
@@ -32,7 +32,7 @@ flowchart LR
 - Batch validation via `validate_many` with `MCP_MAX_BATCH` (default 100)
 - RFC6902 diff (add/remove/replace only)
 - Backend population (optional via `SYN_BACKEND_URL`)
-- Canonical STDIO JSON-RPC loop with optional Unix-domain socket transport (`MCP_ENDPOINT=socket`) and TCP transport (`MCP_ENDPOINT=tcp`, `MCP_HOST`, `MCP_PORT`)
+- Canonical STDIO JSON-RPC loop with optional Unix-domain socket (`MCP_MODE=socket`) and TCP (`MCP_MODE=tcp`, `MCP_HOST`, `MCP_PORT`) transports; legacy `MCP_ENDPOINT` remains supported
 - Per-request 1 MiB payload guard enforced before parsing across STDIO, socket, and TCP transports
 - Deprecated `validate` alias remains available but logs a warning; prefer `validate_asset`
 - Strict asset contract: top-level `$schema` is required and legacy `schema`/`$schemaRef` keys are rejected (v0.2.8)
@@ -80,7 +80,7 @@ tests/
 * Import check: `python -c "import mcp; print(mcp.__version__)"`
 * Run tests: `pytest -q`
 * Runtimes:
-  - `python -m mcp` (STDIO by default; set `MCP_ENDPOINT=socket` for the Unix-domain socket server or `MCP_ENDPOINT=tcp` for TCP. Logs `mcp:ready mode=<endpoint>` with ISO-8601 timestamps on readiness).
+  - `python -m mcp` (defaults to TCP; override with `MCP_MODE=stdio` or `MCP_MODE=socket`. Legacy `MCP_ENDPOINT` remains supported for compatibility. Logs `mcp:ready mode=<mode>` with canonical schema metadata).
   - `python -m mcp.stdio_main` (invoke the STDIO loop directly when embedding).
 
 ## Dependencies
@@ -94,12 +94,16 @@ tests/
 
 | Variable | Default | Behaviour |
 | - | - | - |
-| `MCP_ENDPOINT` | `stdio` | Transport selector. `stdio` runs over stdin/stdout; `socket` enables the Unix-domain socket server; `tcp` binds a TCP listener. |
+| `MCP_MODE` | `tcp` | Primary transport selector (`tcp`, `stdio`, or `socket`). |
+| `MCP_ENDPOINT` | *unset* | Back-compat alias for older deployments; overrides `MCP_MODE` when set. |
 | `MCP_READY_FILE` | `/tmp/mcp.ready` | File touched on startup with `<pid> <ISO8601>` and removed on shutdown; Compose health checks test for its presence. Override when sandboxed. |
 | `MCP_SOCKET_PATH` | `/tmp/mcp.sock` | Socket path when `MCP_ENDPOINT=socket`. The server unlinks the file on shutdown. |
 | `MCP_SOCKET_MODE` | `0600` | Octal file mode applied to the socket on startup. Increase only when the socket must be shared. |
 | `MCP_HOST` | `0.0.0.0` | TCP bind address when `MCP_ENDPOINT=tcp`. Use `127.0.0.1` for local development. |
 | `MCP_PORT` | `7000` | TCP port when `MCP_ENDPOINT=tcp`. Set to `0` to request an ephemeral port (logged on startup). |
+| `LABS_SCHEMA_BASE` | `https://delk73.github.io/synesthetic-schemas/schema/` | Canonical schema host prefix. |
+| `LABS_SCHEMA_VERSION` | `0.7.3` | Canonical schema version folder appended to `LABS_SCHEMA_BASE`. |
+| `LABS_SCHEMA_CACHE_DIR` | `~/.cache/synesthetic-schemas` | Optional on-disk cache for fetched canonical schemas (created per version). |
 | `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` when present | Overrides schema directory; required when submodule absent. Startup fails if the directory is missing. |
 | `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` when present | Overrides examples directory; discovery falls back to submodule if unset. |
 | `SYN_BACKEND_URL` | unset | Enables backend POSTs; missing keeps populate disabled (`unsupported`). |
@@ -184,7 +188,7 @@ Notes:
 
 - `docker compose up serve` builds the image, starts `python -m mcp`, waits for `/tmp/mcp.ready`, and keeps logs attached.
 - `./up.sh` builds the image and starts the `serve` service in detached mode; run `docker compose logs -f serve` to follow output after startup.
-- STDIO remains the default; set `MCP_ENDPOINT=socket` to listen on the Unix-domain socket path, or `MCP_ENDPOINT=tcp` (optionally with `MCP_HOST`/`MCP_PORT`) to expose a TCP listener.
+- TCP is the default transport; set `MCP_MODE=stdio` for the STDIO loop or `MCP_MODE=socket` for the Unix-domain socket listener. `MCP_ENDPOINT` continues to work for legacy callers.
 - Requests above 1 MiB (UTF-8 bytes) are rejected before parsing with `payload_too_large` on STDIO, socket, and TCP (see `tests/test_stdio.py`, `tests/test_socket.py`, and `tests/test_tcp.py`).
 
 ## Spec
@@ -202,7 +206,7 @@ See `docs/mcp_spec.md` for deterministic IO contracts and limits.
 **Quick host check with `nc`:**
 
 ```bash
-nc localhost 8765
+nc 127.0.0.1 8765
 ```
 
 Paste this request:
@@ -213,16 +217,14 @@ Paste this request:
 
 You should get a JSON response with available schemas.
 
-**Labs connection env** (pointing to the MCP container via TCP):
+**Labs connection env** (TCP transport with canonical schemas):
 
 ```bash
-MCP_ENDPOINT=tcp
-MCP_HOST=localhost      # or 'synesthetic-mcp-serve-1' if inside Docker network
+MCP_MODE=tcp
+MCP_HOST=127.0.0.1      # or 'synesthetic-mcp-serve-1' if inside Docker network
 MCP_PORT=8765
-LABS_FAIL_FAST=1
-
-SYN_SCHEMAS_DIR=libs/synesthetic-schemas/jsonschema
-SYN_EXAMPLES_DIR=libs/synesthetic-schemas/examples
+LABS_SCHEMA_BASE=https://delk73.github.io/synesthetic-schemas/schema/
+LABS_SCHEMA_VERSION=0.7.3
 ```
 
 **Run Labs against it:**

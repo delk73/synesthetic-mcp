@@ -6,6 +6,10 @@ import pytest
 from mcp.core import get_example, get_schema
 from mcp.validate import MAX_BYTES, validate_asset, validate_many
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+CANONICAL_SYNESTHETIC_SCHEMA = f"{CANONICAL_PREFIX}synesthetic-asset.schema.json"
+
 
 def _load(path: str):
     return json.loads(Path(path).read_text())
@@ -36,7 +40,7 @@ def test_get_example_invalid_returns_error(tmp_path, monkeypatch):
     invalid_example_path.write_text(
         json.dumps(
             {
-                "$schema": "jsonschema/synesthetic-asset.schema.json",
+                "$schema": CANONICAL_SYNESTHETIC_SCHEMA,
                 "name": "",
                 "extra": True,
             }
@@ -54,7 +58,7 @@ def test_get_example_invalid_returns_error(tmp_path, monkeypatch):
 def test_validate_invalid_sorted_errors():
     # Deliberately invalid object for nested-synesthetic-asset (alias)
     asset = {
-        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "$schema": CANONICAL_SYNESTHETIC_SCHEMA,
         "name": "",
         "extra": True,
     }
@@ -68,7 +72,7 @@ def test_validate_invalid_sorted_errors():
 def test_validate_payload_limit():
     # Construct an object with a string payload well over 1 MiB
     oversized = {
-        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "$schema": CANONICAL_SYNESTHETIC_SCHEMA,
         "blob": "x" * 1_200_000,
     }
     res = validate_asset(oversized)
@@ -107,8 +111,8 @@ def test_validate_many_mixed_results(tmp_path, monkeypatch):
     monkeypatch.setenv("SYN_SCHEMAS_DIR", str(schemas_dir))
 
     assets = [
-        {"$schema": "jsonschema/asset.schema.json", "id": "good"},
-        {"$schema": "jsonschema/asset.schema.json", "id": ""},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "id": "good"},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "id": ""},
     ]
 
     res = validate_many(assets)
@@ -136,8 +140,8 @@ def test_validate_many_respects_max_batch(tmp_path, monkeypatch):
     monkeypatch.setenv("MCP_MAX_BATCH", "1")
 
     assets = [
-        {"$schema": "jsonschema/asset.schema.json", "id": "first"},
-        {"$schema": "jsonschema/asset.schema.json", "id": "second"},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "id": "first"},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "id": "second"},
     ]
 
     res = validate_many(assets)
@@ -167,7 +171,7 @@ def test_validate_many_rejects_large_payload(tmp_path, monkeypatch):
 
     gigantic_name = "x" * (MAX_BYTES + 512)
     asset = {
-        "$schema": "jsonschema/asset.schema.json",
+        "$schema": CANONICAL_ASSET_SCHEMA,
         "id": "oversized",
         "name": gigantic_name,
     }
@@ -192,11 +196,21 @@ def test_validate_asset_rejects_missing_dollar_schema():
     assert res["errors"][0]["path"] == "/$schema"
 
 
+def test_validate_asset_requires_canonical_schema_host():
+    asset = {"$schema": "jsonschema/asset.schema.json", "id": "asset-1"}
+    res = validate_asset(asset)
+    assert res["ok"] is False
+    assert res["reason"] == "validation_failed"
+    assert any(
+        err.get("msg") == "schema_must_use_canonical_host" for err in res.get("errors", [])
+    )
+
+
 @pytest.mark.parametrize(
     "payload",
     [
-        {"$schema": "ok", "schema": "legacy"},
-        {"$schema": "ok", "$schemaRef": "legacy"},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "schema": "legacy"},
+        {"$schema": CANONICAL_ASSET_SCHEMA, "$schemaRef": "legacy"},
     ],
 )
 def test_validate_asset_rejects_legacy_keys(payload):

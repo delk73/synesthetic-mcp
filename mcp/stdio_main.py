@@ -5,7 +5,13 @@ import sys
 from typing import Any, Dict
 
 from .backend import populate_backend
-from .core import get_example, get_schema, list_examples, list_schemas
+from .core import (
+    get_example,
+    get_schema,
+    governance_audit,
+    list_examples,
+    list_schemas,
+)
 from .diff import diff_assets
 from .transport import process_line
 from .validate import validate_asset, validate_many
@@ -34,6 +40,8 @@ def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         return populate_backend(
             params.get("asset", {}), bool(params.get("validate_first", True))
         )
+    if method == "governance_audit":
+        return governance_audit()
     return {
         "ok": False,
         "reason": "unsupported",

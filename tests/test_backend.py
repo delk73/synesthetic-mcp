@@ -8,7 +8,8 @@ from mcp.backend import populate_backend
 from mcp.core import list_examples, get_example
 
 
-SCHEMA_URI = "jsonschema/asset.schema.json"
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+SCHEMA_URI = f"{CANONICAL_PREFIX}asset.schema.json"
 
 
 def _client_for(status: int, payload: dict, *, expect_path: str | None = None):

@@ -16,7 +16,8 @@ services:
     build: .
     image: synesthetic-mcp
     environment:
-      MCP_ENDPOINT: ${MCP_ENDPOINT:-stdio}
+      MCP_MODE: ${MCP_MODE:-tcp}
+      MCP_ENDPOINT: ${MCP_ENDPOINT:-}
       MCP_HOST: ${MCP_HOST:-0.0.0.0}
       MCP_SOCKET_PATH: ${MCP_SOCKET_PATH:-/tmp/mcp.sock}
       MCP_SOCKET_MODE: ${MCP_SOCKET_MODE:-0600}
@@ -25,6 +26,9 @@ services:
       SYN_SCHEMAS_DIR: ${SYN_SCHEMAS_DIR:-}
       SYN_EXAMPLES_DIR: ${SYN_EXAMPLES_DIR:-}
       SYN_BACKEND_URL: ${SYN_BACKEND_URL:-}
+      LABS_SCHEMA_BASE: ${LABS_SCHEMA_BASE:-https://delk73.github.io/synesthetic-schemas/schema/}
+      LABS_SCHEMA_VERSION: ${LABS_SCHEMA_VERSION:-0.7.3}
+      LABS_SCHEMA_CACHE_DIR: ${LABS_SCHEMA_CACHE_DIR:-}
 
     volumes:
       - /tmp:/tmp

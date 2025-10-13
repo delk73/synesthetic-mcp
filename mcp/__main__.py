@@ -18,6 +18,9 @@ from . import socket_main, stdio_main, tcp_main
 from .core import (
     SUBMODULE_SCHEMAS_DIR,
     _examples_dir,
+    labs_schema_base,
+    labs_schema_cache_dir,
+    labs_schema_version,
 )
 from .validate import validate_asset
 
@@ -66,6 +69,15 @@ def _log_event(event: str, **fields: object) -> None:
         raise
 
 
+def _schema_log_fields() -> dict[str, object]:
+    cache_dir = labs_schema_cache_dir()
+    return {
+        "schemas_base": labs_schema_base(),
+        "schema_version": labs_schema_version(),
+        "cache_dir": str(cache_dir) if cache_dir else "none",
+    }
+
+
 class _SignalShutdown(BaseException):
     """Raised internally when a termination signal arrives."""
 
@@ -99,18 +111,37 @@ def _install_signal_handlers(
     return handlers
 
 
-def _endpoint() -> str:
-    raw = os.environ.get("MCP_ENDPOINT", "stdio")
-    value = raw.strip() if raw else "stdio"
+def _normalize_mode(raw: str) -> str:
+    value = raw.strip().lower()
     if value in {"", "stdio", "stdio://"}:
         return "stdio"
-    if value == "socket":
+    if value in {"socket", "unix", "unix-domain"}:
         return "socket"
     if value == "tcp":
         return "tcp"
-    raise RuntimeError(
-        "Unsupported MCP transport; set MCP_ENDPOINT to 'stdio', 'socket', or 'tcp'"
-    )
+    raise RuntimeError
+
+
+def _endpoint() -> str:
+    raw_mode = os.environ.get("MCP_MODE")
+    if raw_mode and raw_mode.strip():
+        try:
+            return _normalize_mode(raw_mode)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Unsupported MCP transport; set MCP_MODE to 'stdio', 'socket', or 'tcp'"
+            ) from exc
+
+    raw_endpoint = os.environ.get("MCP_ENDPOINT")
+    if raw_endpoint and raw_endpoint.strip():
+        try:
+            return _normalize_mode(raw_endpoint)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "Unsupported MCP transport; set MCP_MODE or MCP_ENDPOINT to 'stdio', 'socket', or 'tcp'"
+            ) from exc
+
+    return "tcp"
 
 
 def _socket_path() -> Path:
@@ -186,6 +217,7 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
         mode="stdio",
         schemas_dir=schemas_dir,
         examples_dir=examples_dir,
+        **_schema_log_fields(),
     )
     _write_ready_file(ready_file)
     exit_code = 0
@@ -204,6 +236,7 @@ def _run_stdio(schemas_dir: str, ready_file: Path | None) -> int:
             mode="stdio",
             schemas_dir=schemas_dir,
             examples_dir=examples_dir,
+            **_schema_log_fields(),
         )
         with contextlib.suppress(Exception):
             sys.stderr.flush()
@@ -235,6 +268,7 @@ def _run_socket(
             path=socket_path,
             schemas_dir=schemas_dir,
             examples_dir=examples_dir,
+            **_schema_log_fields(),
         )
         _write_ready_file(ready_file)
         try:
@@ -253,6 +287,7 @@ def _run_socket(
                 path=socket_path,
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
+                **_schema_log_fields(),
             )
             with contextlib.suppress(Exception):
                 sys.stderr.flush()
@@ -287,6 +322,7 @@ def _run_tcp(host: str, port: int, ready_file: Path | None, schemas_dir: str) ->
             port=bound_port,
             schemas_dir=schemas_dir,
             examples_dir=examples_dir,
+            **_schema_log_fields(),
         )
         _write_ready_file(ready_file)
         try:
@@ -306,6 +342,7 @@ def _run_tcp(host: str, port: int, ready_file: Path | None, schemas_dir: str) ->
                 port=bound_port,
                 schemas_dir=schemas_dir,
                 examples_dir=examples_dir,
+                **_schema_log_fields(),
             )
             with contextlib.suppress(Exception):
                 sys.stderr.flush()
@@ -435,6 +472,11 @@ def main(argv: list[str] | None = None) -> None:
 
     if code < 0:
         signum = -code
+        try:
+            os.kill(os.getpid(), signum)
+        except Exception:
+            sys.exit(128 + signum)
+        # Fallback if signal is masked
         sys.exit(128 + signum)
     else:
         sys.exit(code)

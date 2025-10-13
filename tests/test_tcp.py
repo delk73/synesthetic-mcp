@@ -15,6 +15,10 @@ import pytest
 
 from mcp.validate import MAX_BYTES
 
+CANONICAL_PREFIX = "https://delk73.github.io/synesthetic-schemas/schema/0.7.3/"
+CANONICAL_ASSET_SCHEMA = f"{CANONICAL_PREFIX}asset.schema.json"
+CANONICAL_SYNESTHETIC_SCHEMA = f"{CANONICAL_PREFIX}synesthetic-asset.schema.json"
+
 
 def _wait_for_line(stream, proc, needle: str, timeout: float = 10.0) -> str:
     deadline = time.time() + timeout
@@ -88,7 +92,7 @@ def test_tcp_transport_end_to_end(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "tcp",
+            "MCP_MODE": "tcp",
             "MCP_HOST": host,
             "MCP_PORT": str(port),
             "MCP_READY_FILE": str(ready_file),
@@ -118,6 +122,9 @@ def test_tcp_transport_end_to_end(tmp_path):
         assert "port=" in ready_line
         assert "schemas_dir=" in ready_line
         assert "examples_dir=" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
 
         # derive actual bound port in case the server chose a different one (e.g. port=0)
@@ -182,6 +189,9 @@ def test_tcp_transport_end_to_end(tmp_path):
         assert "timestamp=" in shutdown_line
         assert "schemas_dir=" in shutdown_line
         assert "examples_dir=" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
@@ -191,7 +201,7 @@ def test_tcp_transport_end_to_end(tmp_path):
         with contextlib.suppress(FileNotFoundError):
             ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGINT
+    assert proc.returncode == -int(signal.SIGINT)
     assert not ready_file.exists()
 
 
@@ -222,7 +232,7 @@ def test_tcp_sigterm_cleans_up(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "tcp",
+            "MCP_MODE": "tcp",
             "MCP_HOST": host,
             "MCP_PORT": str(port),
             "MCP_READY_FILE": str(ready_file),
@@ -247,6 +257,9 @@ def test_tcp_sigterm_cleans_up(tmp_path):
                 pytest.skip("tcp sockets unavailable in sandbox")
             raise
         assert "mode=tcp" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
         _assert_iso_timestamp(ready_line)
         ready_fields = _fields_without_timestamp(ready_line)
@@ -258,6 +271,9 @@ def test_tcp_sigterm_cleans_up(tmp_path):
         proc.send_signal(signal.SIGTERM)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=tcp" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         assert "timestamp=" in shutdown_line
         _assert_iso_timestamp(shutdown_line)
         shutdown_fields = _fields_without_timestamp(shutdown_line)
@@ -269,7 +285,7 @@ def test_tcp_sigterm_cleans_up(tmp_path):
         with contextlib.suppress(FileNotFoundError):
             ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGTERM
+    assert proc.returncode == -int(signal.SIGTERM)
     assert not ready_file.exists()
 
 
@@ -297,7 +313,7 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
     (examples_dir / "asset.valid.json").write_text(
         json.dumps(
             {
-                "$schema": "jsonschema/asset.schema.json",
+                "$schema": CANONICAL_ASSET_SCHEMA,
                 "id": "example",
             }
         )
@@ -309,7 +325,7 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "tcp",
+            "MCP_MODE": "tcp",
             "MCP_HOST": host,
             "MCP_PORT": str(port),
             "MCP_READY_FILE": str(ready_file),
@@ -329,6 +345,12 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
             raise AssertionError("stderr not captured")
         ready_line = _wait_for_line(proc.stderr, proc, "mcp:ready")
         assert "mode=tcp" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
         assert "timestamp=" in ready_line
 
         bound_port = port
@@ -420,6 +442,9 @@ def test_tcp_allows_multiple_concurrent_clients(tmp_path):
         proc.send_signal(signal.SIGINT)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=tcp" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         assert "timestamp=" in shutdown_line
         proc.wait(timeout=5)
 
@@ -459,7 +484,7 @@ def test_tcp_validate_requests(tmp_path):
     examples_dir.mkdir()
 
     asset = {
-        "$schema": "jsonschema/synesthetic-asset.schema.json",
+        "$schema": CANONICAL_SYNESTHETIC_SCHEMA,
         "id": "asset-123",
     }
     (examples_dir / "asset.valid.json").write_text(json.dumps(asset))
@@ -470,7 +495,7 @@ def test_tcp_validate_requests(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "tcp",
+            "MCP_MODE": "tcp",
             "MCP_HOST": host,
             "MCP_PORT": str(port),
             "MCP_READY_FILE": str(ready_file),
@@ -542,6 +567,9 @@ def test_tcp_validate_requests(tmp_path):
         proc.send_signal(signal.SIGINT)
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "mode=tcp" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         proc.wait(timeout=5)
     finally:
         if proc.poll() is None:
@@ -551,7 +579,7 @@ def test_tcp_validate_requests(tmp_path):
         with contextlib.suppress(FileNotFoundError):
             ready_file.unlink()
 
-    assert proc.returncode == -signal.SIGINT
+    assert proc.returncode == -int(signal.SIGINT)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="unreliable TCP shutdown timing on Windows CI")
@@ -581,7 +609,7 @@ def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
             "PYTHONUNBUFFERED": "1",
             "SYN_SCHEMAS_DIR": str(schemas_dir),
             "SYN_EXAMPLES_DIR": str(examples_dir),
-            "MCP_ENDPOINT": "tcp",
+            "MCP_MODE": "tcp",
             "MCP_HOST": host,
             "MCP_PORT": "0",
             "MCP_READY_FILE": str(ready_file),
@@ -610,6 +638,9 @@ def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
             raise
         assert "mode=tcp" in ready_line
         assert "port=" in ready_line
+        assert "schemas_base=" in ready_line
+        assert "schema_version=" in ready_line
+        assert "cache_dir=" in ready_line
 
         bound_port = None
         for part in ready_line.split():
@@ -639,6 +670,9 @@ def test_tcp_ephemeral_port_logs_bound_port(tmp_path):
         shutdown_line = _wait_for_line(proc.stderr, proc, "mcp:shutdown")
         assert "port=" in shutdown_line
         assert f"port={bound_port}" in shutdown_line
+        assert "schemas_base=" in shutdown_line
+        assert "schema_version=" in shutdown_line
+        assert "cache_dir=" in shutdown_line
         proc.wait(timeout=5)
 
         deadline = time.time() + 5
