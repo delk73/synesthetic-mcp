@@ -213,7 +213,7 @@ def _build_local_registry():
         except Exception:
             continue
         if version:
-            url = f"https://schemas.synesthetic.dev/{version}/{path.name}"
+            url = f"https://delk73.github.io/synesthetic-schemas/schema/{version}/{path.name}"
         else:
             url = None
         try:
