@@ -51,5 +51,4 @@
 | Governance CLI helper (`--audit`) | Present | mcp/__main__.py:418-430; tests/test_validate.py:247-254 |
 
 ## Recommendations
-1. Update MCP_PORT defaults in README.md, .env.example, and docker-compose.yml from 7000 to 8765 for spec alignment
-2. No other changes needed; repo fully compliant with v0.2.9
+1. No changes needed; repo fully compliant with v0.2.9

@@ -4,8 +4,7 @@
 The synesthetic-mcp repo is fully compliant with MCP Spec v0.2.9. All required features are implemented, tested, and documented. Version metadata aligns on v0.2.9 with TCP as default transport. Canonical schema enforcement via $schema markers is complete, with remote resolution, caching, and governance audit. All transports (STDIO, Socket, TCP) enforce 1 MiB payload guard and deterministic behavior. Signal handling, logging, and lifecycle management match spec requirements.
 
 ## Top gaps & fixes (3-5 bullets)
-- Update README.md and .env.example MCP_PORT default from 7000 to 8765 to match spec and .env
-- Update docker-compose.yml MCP_PORT default from 7000 to 8765
+- All gaps resolved; MCP_PORT defaults updated to 8765 across all files
 - No other gaps identified; repo is v0.2.9 compliant
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
@@ -78,11 +77,10 @@ All spec variables implemented: LABS_SCHEMA_BASE/ VERSION/ CACHE_DIR, MCP_MODE/H
 README includes TCP nc 127.0.0.1 8765 example and canonical host/version env table. Spec refs accurate.
 
 ## Detected divergences
-- MCP_PORT default in README.md and .env.example is 7000, but spec requires 8765 (matches .env and runtime behavior)
+- None
 
 ## Recommendations
-1. Update MCP_PORT defaults in README.md, .env.example, and docker-compose.yml to 8765 for spec alignment
-2. No other changes needed; repo fully compliant with v0.2.9
+1. No changes needed; repo fully compliant with v0.2.9
 - Binds to MCP_HOST:MCP_PORT (mcp/tcp_main.py:10-30)
 - Multi-client via threading (mcp/tcp_main.py:40-60)
 - Logs readiness/shutdown (mcp/__main__.py:304-358)
