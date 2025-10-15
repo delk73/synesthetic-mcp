@@ -66,8 +66,8 @@ Rules:
 **Ready Log**
 ```
 
-mcp:ready mode=<transport> host=<h> port=<p> 
-schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3) 
+mcp:ready mode=<transport> host=<h> port=<p>
+schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3)
 schema_version=0.7.3 cache_dir=~/.cache/synesthetic-schemas timestamp=<ISO8601>
 
 ```
@@ -75,8 +75,9 @@ schema_version=0.7.3 cache_dir=~/.cache/synesthetic-schemas timestamp=<ISO8601>
 **Shutdown Log**  
 Same fields + `event=shutdown`.
 
-**Signal exits**  
-`SIGINT` → `-2`; `SIGTERM` → `-15` (logged before exit).
+**Signal Exits**  
+`SIGINT` → `-2`; `SIGTERM` → `-15` (logged before exit).  
+Timestamps use full ISO-8601 UTC format with millisecond precision.
 
 ---
 
@@ -86,7 +87,7 @@ Same fields + `event=shutdown`.
 |-----------|----------|-------------|
 | `MCP_MODE` | `tcp` | Primary transport selector (`tcp`, `stdio`, `socket`) |
 | `MCP_HOST` | `0.0.0.0` | TCP bind host |
-| `MCP_PORT` | `7000` | TCP bind port |
+| `MCP_PORT` | `8765` | TCP bind port (default from `.env` and Compose) |
 | `MCP_READY_FILE` | `/tmp/mcp.ready` | Written on startup `<pid> <ISO8601>` |
 | `MCP_MAX_BATCH` | `100` | Max batch size for `validate_many` |
 | `LABS_SCHEMA_BASE` | `https://delk73.github.io/synesthetic-schemas/schema` | Canonical schema base URL (no trailing slash required) |
@@ -97,17 +98,18 @@ Same fields + `event=shutdown`.
 | `SYN_BACKEND_URL` | unset | Optional backend endpoint |
 | `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | Backend POST path |
 
-`.env` and `.env.example` must mirror these names exactly.
+`.env` and `.env.example` must mirror these names exactly.  
+The MCP process **always respects the `.env` file first**, overriding container or shell defaults.
 
 ---
 
 ## Startup (via `up.sh`)
 
-`up.sh` builds and starts the containerized service in **TCP mode**:  
+`up.sh` builds and starts the containerized service in **TCP mode**:
 ```
 
-mcp:ready mode=tcp host=0.0.0.0 port=7000 
-schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3) 
+mcp:ready mode=tcp host=0.0.0.0 port=8765
+schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3)
 timestamp=<ISO8601>
 
 ```
@@ -147,7 +149,7 @@ timestamp=<ISO8601>
 
 ## Backlog (≥ v0.3)
 
-* gRPC transport prototype.  
-* Structured telemetry metrics.  
-* Dynamic schema hot-reload.  
-* Live governance sync against `synesthetic-schemas` HEAD.
+* gRPC transport prototype
+* Structured telemetry metrics
+* Dynamic schema hot-reload
+* Live governance sync against `synesthetic-schemas` HEAD

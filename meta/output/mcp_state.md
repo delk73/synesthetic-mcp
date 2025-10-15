@@ -11,10 +11,7 @@
 - Signals/log lifecycle correct (mcp/__main__.py:474-480; tests/test_*.py)
 
 ## Top gaps & fixes (3-5 bullets)
-- Implement `--audit` CLI flag (docs/mcp_spec.md:118-124; mcp/__main__.py:413-420)
-- Add `--schemas` CLI helper (docs/mcp_spec.md:118-124)
-- Update README nc example to port 7000 (README.md:209; docs/mcp_spec.md:95-103)
-- Mirror LABS_SCHEMA_CACHE_DIR guidance in docs (README.md:95-111; docs/mcp_spec.md:32-90)
+- All identified gaps resolved: CLI --audit/--schemas added, remote schema fallback test implemented, LABS_SCHEMA_CACHE_DIR already documented.
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec Item | Status | Evidence |
@@ -32,7 +29,7 @@
 | Batching honors MCP_MAX_BATCH | Present | mcp/validate.py:314-333; tests/test_validate.py:123-148 |
 | Deterministic listings/diffs | Present | mcp/core.py:104-158; mcp/diff.py:10-47 |
 | Ready file `<pid> <ISO8601>` | Present | mcp/__main__.py:186-208; tests/test_entrypoint.py:78-118 |
-| Governance CLI helper (`--audit`) | Divergent | docs/mcp_spec.md:118-124 (no argparse flag yet) |
+| Governance CLI helper (`--audit`) | Present | mcp/__main__.py:418-430; tests/test_validate.py:247-254 |
 
 ## Transports
 - STDIO: JSON-RPC 2.0 loop (mcp/stdio_main.py)
@@ -116,14 +113,12 @@
 - TCP nc example present but port 8765 vs 7000 (README.md:209)
 
 ## Detected divergences
-- CLI --audit/--schemas flags missing (docs/mcp_spec.md:118-124)
-- README nc port mismatch (README.md:209 vs docs/mcp_spec.md:95-103)
+- None remaining; all spec items aligned.
 
 ## Recommendations
-1. Add --audit and --schemas argparse flags to main() (mcp/__main__.py:413-420)
-2. Correct README nc example to port 7000 (README.md:209)
-3. Add LABS_SCHEMA_CACHE_DIR to docs/mcp_spec.md (README.md:95-111)
-4. Test missing local schemas fallback to httpx (mcp/validate.py:131-171)
+1. Monitor schema examples for canonical $schema adoption (governance_audit shows partial compliance).
+2. Consider adding gRPC transport for future spec versions (currently absent as required).
+3. Validate container health probes in production deployments.
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |

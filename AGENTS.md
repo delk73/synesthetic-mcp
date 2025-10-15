@@ -47,9 +47,9 @@
 | Batching honors MCP_MAX_BATCH | Present | mcp/validate.py:314-333; tests/test_validate.py:123-148 |
 | Deterministic listings/diffs | Present | mcp/core.py:104-158; mcp/diff.py:10-47 |
 | Ready file `<pid> <ISO8601>` | Present | mcp/__main__.py:186-208; tests/test_entrypoint.py:78-118 |
-| Governance CLI helper (`--audit`) | Divergent | docs/mcp_spec.md:118-124 (no argparse flag yet) |
+| Governance CLI helper (`--audit`) | Present | mcp/__main__.py:418-430; tests/test_validate.py:247-254 |
 
 ## Recommendations
-1. Wire up a `--audit` CLI flag that invokes governance_audit and transport self-checks per spec guidance (docs/mcp_spec.md:118-124; mcp/__main__.py:412-480).
-2. Add tests that simulate missing local schemas to assert httpx fallback/cache behaviour (mcp/validate.py:131-171).
-3. Mirror `LABS_SCHEMA_CACHE_DIR` guidance in docs/mcp_spec.md to match runtime/README expectations (README.md:95-111; docs/mcp_spec.md:32-90).
+1. Wire up a `--audit` CLI flag that invokes governance_audit and transport self-checks per spec guidance (docs/mcp_spec.md:118-124; mcp/__main__.py:413-420). ✅ Implemented
+2. Add tests that simulate missing local schemas to assert httpx fallback/cache behaviour (mcp/validate.py:131-171). ✅ Implemented
+3. Mirror `LABS_SCHEMA_CACHE_DIR` guidance in docs/mcp_spec.md to match runtime/README expectations (README.md:95-111; docs/mcp_spec.md:32-90). ✅ Already present

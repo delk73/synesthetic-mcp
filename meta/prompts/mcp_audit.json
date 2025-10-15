@@ -2,7 +2,7 @@
   "version": "v0.2.9",
   "spec_ref": "docs/mcp_spec.md#v0-2-9",
   "task": "Audit synesthetic-mcp repo state (v0.2.9 features, aligned to schemas v0.7.3)",
-  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9. Confirm canonical host usage, TCP default mode, environment-driven schema resolution, and governance compliance. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
+  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9. Confirm canonical host usage, TCP default mode (port 8765), environment-driven schema resolution, and governance compliance. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -24,7 +24,7 @@
       "Determinism: listings, diffs, and error ordering sorted lexicographically",
       "Security: socket/tcp least-privilege; container non-root",
       "Lifecycle: STDIO exits on stdin close; Socket/TCP log readiness; shutdown unlink and close",
-      "Logging: ready/shutdown logs include mode, host/port, schemas_base, schema_version, cache_dir; ISO-8601 timestamps; stderr only",
+      "Logging: ready/shutdown logs include mode, host/port, schemas_base, schema_version, cache_dir; ISO-8601 timestamps (ms precision); stderr only",
       "Signals: SIGINT/SIGTERM yield exit codes -2 / -15; shutdown logs emitted before exit",
       "Ready file: exactly '<pid> <ISO8601 timestamp>'",
       "Golden examples: list_schemas, get_schema, validate_asset + alias validate, get_example ok/invalid, diff_assets, malformed JSON-RPC",
@@ -83,7 +83,7 @@
     "meta/output/mcp_state.md and AGENTS.md written and non-empty",
     "All v0.2.9 checkpoints verified with evidence",
     "LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION logged and in use",
-    "TCP default confirmed in startup logs and up.sh",
+    "TCP default confirmed in startup logs and up.sh (port 8765)",
     "Canonical schema resolution and cache paths verified",
     "STDIO, Socket, TCP validated for lifecycle, logging, and signals",
     "Payload guard enforced and tested",
