@@ -1,12 +1,129 @@
+# MCP Spec v0.2.9 Audit Report
+
 ## Summary of repo state
-- MCP now defaults to TCP transport via `MCP_MODE` while still honoring legacy `MCP_ENDPOINT`, and docs/scripts were refreshed to match the new default (mcp/__main__.py:114-144; README.md:82-110; docker-compose.yml:18-33).
-- Canonical schema enforcement rides on LABS env wiring, remote/cached resolution, and lifecycle logs that emit base/version/cache_dir across all transports (mcp/validate.py:90-288; mcp/__main__.py:211-240; tests/test_validate.py:200-219; tests/test_entrypoint.py:70-115).
-- Governance coverage now includes canonicalised examples, a `governance_audit` RPC, and golden replay coverage for the new method (libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2; mcp/core.py:206-236; mcp/stdio_main.py:20-44; tests/fixtures/golden.jsonl:10).
+- Version aligned to v0.2.9 (mcp/__init__.py:6)
+- TCP default mode confirmed (mcp/__main__.py:114-144; docker-compose.yml:18-33)
+- Canonical schema host/version enforced (mcp/validate.py:90-288; mcp/core.py:11-44)
+- Governance audit implemented (mcp/core.py:206-236; tests/fixtures/golden.jsonl:10)
+- All transports with 1 MiB guard (mcp/validate.py:21-44; tests/test_*.py)
+- Deterministic ordering in listings/diffs (mcp/core.py:104-158; mcp/diff.py:10-47)
+- Non-root container (Dockerfile:23-31)
+- Signals/log lifecycle correct (mcp/__main__.py:474-480; tests/test_*.py)
 
 ## Top gaps & fixes (3-5 bullets)
-- Expose `mcp --audit` CLI wiring to mirror spec v0.2.9 tooling expectations (docs/mcp_spec.md:118-124) so governance_audit is reachable outside JSON-RPC.
-- Add unit coverage that forces local schema misses to assert httpx/caching fallback paths in `_fetch_canonical_schema` (mcp/validate.py:131-151) and prevent regressions.
-- Extend docs/mcp_spec.md to mention `LABS_SCHEMA_CACHE_DIR`, staying in sync with README/env guidance (README.md:95-111; docs/mcp_spec.md:32-90).
+- Implement `--audit` CLI flag (docs/mcp_spec.md:118-124; mcp/__main__.py:413-420)
+- Add `--schemas` CLI helper (docs/mcp_spec.md:118-124)
+- Update README nc example to port 7000 (README.md:209; docs/mcp_spec.md:95-103)
+- Mirror LABS_SCHEMA_CACHE_DIR guidance in docs (README.md:95-111; docs/mcp_spec.md:32-90)
+
+## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
+| Spec Item | Status | Evidence |
+|-----------|--------|----------|
+| Version metadata updated to v0.2.9 | Present | mcp/__init__.py:6; README.md:2 |
+| Canonical $schema host/version enforced | Present | mcp/validate.py:90-288; tests/test_validate.py:200-206 |
+| Remote schema resolution via LABS env | Present | mcp/validate.py:120-171 |
+| LABS env logged on readiness | Present | mcp/__main__.py:72-240; tests/test_entrypoint.py:70-105 |
+| Governance audit endpoint | Present | mcp/core.py:206-236; mcp/stdio_main.py:20-44; tests/fixtures/golden.jsonl:10 |
+| Default TCP mode (MCP_MODE) | Present | mcp/__main__.py:114-144; docker-compose.yml:18-33 |
+| Lifecycle logs include schema metadata | Present | mcp/__main__.py:211-317; tests/test_socket.py:80-138 |
+| Signal handling exits -2/-15 | Present | mcp/__main__.py:474-480; tests/test_entrypoint.py:108-119 |
+| Transport payload guard 1 MiB | Present | mcp/validate.py:21-44; mcp/transport.py:13-47; tests/test_tcp.py:102-144 |
+| Alias validate→validate_asset with warning | Present | mcp/stdio_main.py:29-35; tests/test_stdio.py:105-152 |
+| Batching honors MCP_MAX_BATCH | Present | mcp/validate.py:314-333; tests/test_validate.py:123-148 |
+| Deterministic listings/diffs | Present | mcp/core.py:104-158; mcp/diff.py:10-47 |
+| Ready file `<pid> <ISO8601>` | Present | mcp/__main__.py:186-208; tests/test_entrypoint.py:78-118 |
+| Governance CLI helper (`--audit`) | Divergent | docs/mcp_spec.md:118-124 (no argparse flag yet) |
+
+## Transports
+- STDIO: JSON-RPC 2.0 loop (mcp/stdio_main.py)
+- Socket: Unix domain, multi-client (mcp/socket_main.py)
+- TCP: Default mode, multi-client (mcp/tcp_main.py)
+- No gRPC/HTTP (absent as required)
+
+## STDIO entrypoint & process model
+- Exits on stdin close (mcp/stdio_main.py:50-65)
+- Ready log on stderr (mcp/__main__.py:211-240)
+
+## Socket server (multi-client handling, perms, unlink, logs)
+- Multi-client via threading (mcp/socket_main.py:30-50)
+- Perms 0600 default (mcp/__main__.py:135-142)
+- Unlink on shutdown (mcp/socket_main.py:70-80)
+- Logs readiness/shutdown (mcp/__main__.py:251-303)
+
+## TCP server (binding, perms, multi-client, shutdown logs)
+- Binds to MCP_HOST:MCP_PORT (mcp/tcp_main.py:10-30)
+- Multi-client via threading (mcp/tcp_main.py:40-60)
+- Logs readiness/shutdown (mcp/__main__.py:304-358)
+
+## Lifecycle signals
+- SIGINT/SIGTERM caught (mcp/__main__.py:75-105)
+- Exit codes -2/-15 (mcp/__main__.py:320, 330)
+
+## Shutdown logging invariant
+- Logs emitted before exit (mcp/__main__.py:325-340)
+- Includes mode, host/port, schema fields (mcp/__main__.py:72-78)
+
+## Ready file format
+- `<pid> <ISO8601 timestamp>` (mcp/__main__.py:186-208)
+- Touched on startup, removed on shutdown
+
+## Golden request/response examples
+- list_schemas, get_schema, validate_asset + alias, get_example ok/invalid, diff_assets, governance_audit, malformed (tests/fixtures/golden.jsonl)
+
+## Payload size guard
+- 1 MiB UTF-8 max (mcp/validate.py:21-44)
+- Enforced before parsing (mcp/transport.py:13-47)
+- Failing tests present (tests/test_*.py:369-377, 172-179, 189, 172)
+
+## Schema validation contract
+- Top-level $schema required (mcp/validate.py:90-120)
+- Rejects 'schema', '$schemaRef' (mcp/validate.py:288-310)
+- Accepts canonical/legacy hosts (mcp/validate.py:75-90)
+
+## Schema resolver (remote/cached, traversal guards)
+- Remote fetch with httpx (mcp/validate.py:131-151)
+- Cache in LABS_SCHEMA_CACHE_DIR (mcp/validate.py:120-130)
+- Rejects traversal (..) (mcp/validate.py:55-70)
+- Disallows non-canonical relative (mcp/validate.py:75-90)
+
+## Batching
+- validate_many honors MCP_MAX_BATCH (mcp/validate.py:314-333)
+- Default 100 (mcp/validate.py:25)
+
+## Determinism & ordering
+- Listings sorted by name/version/path (mcp/core.py:118)
+- Diffs sorted by path/op (mcp/diff.py:47)
+- Errors lexicographically ordered (mcp/validate.py:280-310)
+
+## Logging hygiene (fields, ISO time, stderr separation)
+- Fields: mode, host/port, schemas_base, schema_version, cache_dir (mcp/__main__.py:72-78)
+- ISO-8601 timestamps (mcp/__main__.py:45)
+- Stderr only (mcp/__main__.py:50-60)
+
+## Container & health (non-root, probes)
+- Non-root user (Dockerfile:23-31)
+- Health check via ready file (docker-compose.yml:25-31)
+
+## Environment variables (LABS_SCHEMA_BASE, LABS_SCHEMA_VERSION, MCP_MODE, MCP_HOST/PORT, MCP_MAX_BATCH)
+- LABS_SCHEMA_BASE: https://delk73.github.io/synesthetic-schemas/schema/ (mcp/core.py:11-20)
+- LABS_SCHEMA_VERSION: 0.7.3 (mcp/core.py:22-30)
+- MCP_MODE: tcp default (mcp/__main__.py:114-144)
+- MCP_HOST/PORT: 0.0.0.0/7000 (mcp/__main__.py:146-165)
+- MCP_MAX_BATCH: 100 (mcp/validate.py:25)
+
+## Documentation accuracy (canonical host/version, TCP nc example)
+- Canonical host/version in env table (README.md:75-95)
+- TCP nc example present but port 8765 vs 7000 (README.md:209)
+
+## Detected divergences
+- CLI --audit/--schemas flags missing (docs/mcp_spec.md:118-124)
+- README nc port mismatch (README.md:209 vs docs/mcp_spec.md:95-103)
+
+## Recommendations
+1. Add --audit and --schemas argparse flags to main() (mcp/__main__.py:413-420)
+2. Correct README nc example to port 7000 (README.md:209)
+3. Add LABS_SCHEMA_CACHE_DIR to docs/mcp_spec.md (README.md:95-111)
+4. Test missing local schemas fallback to httpx (mcp/validate.py:131-171)
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec item | Status | Evidence |

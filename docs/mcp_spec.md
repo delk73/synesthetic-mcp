@@ -1,6 +1,6 @@
 ---
 version: v0.2.9
-lastReviewed: 2025-10-12
+lastReviewed: 2025-10-15
 owner: mcp-core
 ---
 
@@ -8,13 +8,13 @@ owner: mcp-core
 
 ## Purpose
 
-The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and **backend populate** as deterministic, stateless tools wired directly to the canonical **Synesthetic Schemas v0.7.3** host.
+The **Synesthetic MCP** adapter exposes **schemas**, **examples**, **validation**, **diff**, and optional **backend population** as deterministic, stateless tools wired directly to the canonical **Synesthetic Schemas v0.7.3** host.
 
-* **Schema base:**  
+* **Canonical schema base:**  
   `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/`
 * **Schema version:**  
-  Derived from environment variable `LABS_SCHEMA_VERSION` (default `0.7.3`).
-* **Specification source:**  
+  Derived from `LABS_SCHEMA_VERSION` (default `0.7.3`).
+* **Source of truth:**  
   [synesthetic-schemas v0.7.3](https://github.com/delk73/synesthetic-schemas)
 
 ---
@@ -23,10 +23,10 @@ The MCP adapter exposes **schemas**, **examples**, **validation**, **diff**, and
 
 | Tool | Purpose | Validation Source |
 |------|----------|-------------------|
-| `validate_asset` | Validate a single asset against its `$schema`. | Remote or cached schema |
+| `validate_asset` | Validate a single asset against its `$schema`. | Local or remote canonical schema |
 | `validate_many` | Batch validation for multiple assets. | Same as above |
-| `diff_assets` | Compute RFC 6902 diff (`add`, `remove`, `replace`). | JSON Patch semantics |
-| `populate_backend` | Convert validated assets to backend-ready JSON. | Deterministic serialization |
+| `diff_assets` | RFC 6902 diff (`add`, `remove`, `replace`). | JSON Patch semantics |
+| `populate_backend` | Convert validated assets for backend ingestion. | Deterministic serialization |
 
 All validation conforms to **JSON Schema Draft 2020-12**.
 
@@ -34,80 +34,81 @@ All validation conforms to **JSON Schema Draft 2020-12**.
 
 ## Transport
 
-* **Ephemeral:** `STDIO` over **JSON-RPC 2.0**.  
-* **Persistent:** `Socket` (Unix Domain Socket) over **JSON-RPC 2.0**.  
-* **TCP:** first-class transport for distributed or containerized execution.  
+* **Ephemeral:** `STDIO` (JSON-RPC 2.0)  
+* **Persistent:** `Socket` (Unix Domain) (JSON-RPC 2.0)  
+* **Distributed:** `TCP` (JSON-RPC 2.0)
 
-**Default mode:**  
-`TCP` for containerized or server deployments (as started by `up.sh`);  
-`STDIO` remains available for local CLI or debugging.  
-If `MCP_MODE` is unset, the adapter defaults to `TCP`.
+**Default:** `TCP` for container or CI environments.  
+`STDIO` remains the fallback for CLI and Codex tests.
 
-**Payload guard:** all transports enforce **1 MiB max payload**.  
-**Schema immutability:** schemas must never be modified in-process.
+**Payload guard:** 1 MiB UTF-8 maximum per request.  
+**Schema immutability:** no in-process mutation or patching.
 
 ---
 
 ## Schema Integration (v0.7.3 Alignment)
 
-* **Canonical host:** `https://delk73.github.io/synesthetic-schemas/schema/`
+* **Canonical host:** `https://delk73.github.io/synesthetic-schemas/schema/`  
 * **Legacy host (accepted):** `https://schemas.synesthetic.dev/`
-* Assets MUST include a top-level `"$schema"` field that resolves to the canonical host.  
-  * Absolute markers using the canonical host are preferred.  
-  * Relative markers are normalized to canonical URLs using `LABS_SCHEMA_BASE` + `LABS_SCHEMA_VERSION`.  
-  * Absolute markers using the legacy host remain supported for backwards compatibility.
-* MCP validation relies exclusively on this field.  
-  * `"$schema"` is mandatory.  
-  * `"schema"` and `"$schemaRef"` are invalid and rejected.
-* The validator automatically fetches or caches the referenced schema.  
-* The schema resolver must support both **remote URL resolution** and **local cache lookup** (`/schemas/0.7.3/`).
-* **Regression guard:** assets validated by MCP MUST contain a top-level `"$schema"` referencing a canonical schema URL (either direct canonical host or a relative marker that normalizes to it).  
-  Schema-repository example conformance is validated within `synesthetic-schemas`, not within MCP.
+
+Rules:
+1. Every asset MUST include `"$schema"` referencing the canonical host.  
+2. Relative markers are normalized via `LABS_SCHEMA_BASE` + `LABS_SCHEMA_VERSION`.  
+3. Legacy absolute markers using the `.dev` host remain accepted for back-compat.  
+4. `"schema"` and `"$schemaRef"` keys are invalid.  
+5. Resolver supports both **remote fetch** and **cache lookup** (`LABS_SCHEMA_CACHE_DIR`).  
+6. Examples under `synesthetic-schemas/examples` are verified upstream and not mutated in MCP.
 
 ---
 
-## Logging and Lifecycle
+## Logging & Lifecycle
 
-* **Ready log:**
+**Ready Log**
 ```
 
-mcp:ready mode=<transport> host=<h> port=<p> schemas_base=[https://delk73.github.io/.../0.7.3](https://delk73.github.io/.../0.7.3) timestamp=<ISO-8601>
+mcp:ready mode=<transport> host=<h> port=<p> 
+schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3) 
+schema_version=0.7.3 cache_dir=~/.cache/synesthetic-schemas timestamp=<ISO8601>
 
 ```
-* **Shutdown log:** identical fields plus `event=shutdown`.  
-* **Signal exits:** `SIGINT` → `-2`; `SIGTERM` → `-15`.  
-* Shutdown logs must always emit before exit; no self-kill pre-emption.
+
+**Shutdown Log**  
+Same fields + `event=shutdown`.
+
+**Signal exits**  
+`SIGINT` → `-2`; `SIGTERM` → `-15` (logged before exit).
 
 ---
 
-## Makefile and Environment Integration
+## Environment Variables
 
-Environment keys:
-```
+| Variable | Default | Description |
+|-----------|----------|-------------|
+| `MCP_MODE` | `tcp` | Primary transport selector (`tcp`, `stdio`, `socket`) |
+| `MCP_HOST` | `0.0.0.0` | TCP bind host |
+| `MCP_PORT` | `7000` | TCP bind port |
+| `MCP_READY_FILE` | `/tmp/mcp.ready` | Written on startup `<pid> <ISO8601>` |
+| `MCP_MAX_BATCH` | `100` | Max batch size for `validate_many` |
+| `LABS_SCHEMA_BASE` | `https://delk73.github.io/synesthetic-schemas/schema` | Canonical schema base URL (no trailing slash required) |
+| `LABS_SCHEMA_VERSION` | `0.7.3` | Canonical schema version |
+| `LABS_SCHEMA_CACHE_DIR` | `~/.cache/synesthetic-schemas` | Cache for downloaded canonical schemas |
+| `SYN_SCHEMAS_DIR` | `libs/synesthetic-schemas/jsonschema` | Local schemas dir override |
+| `SYN_EXAMPLES_DIR` | `libs/synesthetic-schemas/examples` | Local examples dir override |
+| `SYN_BACKEND_URL` | unset | Optional backend endpoint |
+| `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | Backend POST path |
 
-LABS_SCHEMA_VERSION=0.7.3
-LABS_SCHEMA_BASE=[https://delk73.github.io/synesthetic-schemas/schema/](https://delk73.github.io/synesthetic-schemas/schema/)
-MCP_MODE=tcp          # default; override to 'stdio' or 'socket'
-MCP_HOST=0.0.0.0
-MCP_PORT=7000
-
-```
-
-Make targets:
-* `validate` — run local validator using canonical host.  
-* `check-schema-ids` — ensure all loaded schemas match canonical base.  
-* `audit-all` — full governance + transport audit.
+`.env` and `.env.example` must mirror these names exactly.
 
 ---
 
-## Startup (up.sh)
+## Startup (via `up.sh`)
 
-`up.sh` starts the MCP service in **TCP mode by default**, binding to  
-`MCP_HOST`:`MCP_PORT` (default `0.0.0.0:7000`).  
-It logs readiness in the format:
+`up.sh` builds and starts the containerized service in **TCP mode**:  
 ```
 
-mcp:ready mode=tcp host=0.0.0.0 port=7000 schemas_base=[https://delk73.github.io/.../0.7.3](https://delk73.github.io/.../0.7.3) timestamp=<ISO-8601>
+mcp:ready mode=tcp host=0.0.0.0 port=7000 
+schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3) 
+timestamp=<ISO8601>
 
 ```
 
@@ -115,16 +116,11 @@ mcp:ready mode=tcp host=0.0.0.0 port=7000 schemas_base=[https://delk73.github.io
 
 ## v0.2.9 Additions
 
-* **Canonical schema alignment**  
-  * All MCP modules derive schema URLs from `LABS_SCHEMA_BASE`.  
-  * Validation routines enforce canonical host prefix and version match.  
-  * Added on-boot schema resolver logging and cache fingerprinting.
-* **Governance parity**  
-  * MCP verifies that local cache hashes match published schema fingerprints from `version.json`.  
-  * `governance_audit()` endpoint exposes compliance summary.
-* **CLI integration**  
-  * `mcp --audit` → runs governance + transport self-test.  
-  * `mcp --schemas` → lists locally cached schema URLs and versions.
+* **Canonical schema alignment** – all URLs resolved via `LABS_SCHEMA_BASE`.  
+* **Governance parity** – `governance_audit()` RPC validates cache fingerprints.  
+* **CLI integration** – `mcp --audit` and `mcp --schemas` surface RPC results.  
+* **Cache fallback** – `_fetch_canonical_schema()` populates `LABS_SCHEMA_CACHE_DIR`.  
+* **Lifecycle logs** – readiness includes `schemas_base`, `schema_version`, `cache_dir`.
 
 ---
 
@@ -132,26 +128,26 @@ mcp:ready mode=tcp host=0.0.0.0 port=7000 schemas_base=[https://delk73.github.io
 
 | Checkpoint | Requirement |
 |-------------|-------------|
-| **Canonical Host** | All `$schema` fields resolve to `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/...` |
-| **Environment Alignment** | `LABS_SCHEMA_VERSION` = `0.7.3` and `LABS_SCHEMA_BASE` set |
-| **Validation Integrity** | Assets validated exclusively via `$schema` |
-| **Transport Parity** | STDIO, Socket, and TCP enforce identical guards and logging invariants |
-| **Default Mode Defined** | Default transport explicitly set to TCP (aligns with `up.sh`) |
-| **Governance Verification** | `mcp --audit` reports ✅ Global Compliance PASS |
-| **Regression Guard** | MCP validates presence and canonical format of `$schema`; schema-repo examples validated separately |
+| Canonical Host | `$schema` → `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/...` |
+| Env Alignment | `LABS_SCHEMA_VERSION=0.7.3` and `LABS_SCHEMA_BASE` set |
+| Validation Integrity | Validation passes only for canonical/legacy hosts |
+| Transport Parity | STDIO, Socket, TCP identical guardrails + logs |
+| Default Mode | `TCP` default confirmed in startup log |
+| Governance Verification | `mcp --audit` → ✅ PASS |
+| Regression Guard | Non-canonical hosts → `schema_must_use_canonical_host` |
 
 ---
 
 ## Version v0.2.8 (Previous)
 
-* Added strict `"$schema"` enforcement and unified payload guards.  
-* Standardized logging and transport readiness signals.
+* Added `$schema` enforcement and unified 1 MiB payload guard.  
+* Normalized transport logs and signal exits.
 
 ---
 
 ## Backlog (≥ v0.3)
 
-* gRPC transport for typed streaming.  
-* Structured telemetry / metrics.  
+* gRPC transport prototype.  
+* Structured telemetry metrics.  
 * Dynamic schema hot-reload.  
 * Live governance sync against `synesthetic-schemas` HEAD.
