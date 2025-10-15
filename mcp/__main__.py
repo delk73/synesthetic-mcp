@@ -416,9 +416,30 @@ def main(argv: list[str] | None = None) -> None:
         metavar="PATH",
         help="Validate a JSON asset file and print the result",
     )
+    parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Run governance audit and print compliance summary",
+    )
+    parser.add_argument(
+        "--schemas",
+        action="store_true",
+        help="List cached or available schema URLs",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+    if args.audit:
+        from .core import governance_audit
+        result = governance_audit()
+        print(json.dumps(result, indent=2))
+        sys.exit(0)
+    if args.schemas:
+        from .core import list_schemas
+        result = list_schemas()
+        print(json.dumps(result, indent=2))
+        sys.exit(0)
 
     if args.validate:
         code = _run_validation(args.validate)

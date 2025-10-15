@@ -1,58 +1,70 @@
 {
-  "version": "v0.2.9-followup",
+  "version": "v0.2.9-phase1-followup",
   "spec_ref": "docs/mcp_spec.md#v0-2-9",
-  "task": "Restore environment-based schema interpolation and prevent hardcoding in examples",
-  "objective": "Ensure $schema in examples uses LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION dynamically, not fixed URLs. Validator and generator must construct full URLs at runtime only.",
+  "task": "Finalize Phase 1 MCP audit corrections and documentation synchronization",
+  "objective": "Resolve documentation drift, add CLI parity for governance tools, and validate remote schema fallback coverage.",
   "changes": [
     {
-      "id": "revert_hardcoded_schema_urls",
-      "description": "Revert submodule example files to environment-interpolated $schema paths instead of hardcoded version URLs.",
+      "id": "add_cli_audit_schemas_flags",
+      "description": "Add --audit and --schemas flags to MCP CLI for governance parity and schema listing per spec §118–124.",
       "edits": [
         {
-          "file": "libs/synesthetic-schemas/examples/*.json",
-          "pattern": "\"\\$schema\":\\s*\"[^\"]+\"",
-          "multiple": true,
-          "replacement": "\"$schema\": \"${LABS_SCHEMA_BASE}${LABS_SCHEMA_VERSION}/synesthetic-asset.schema.json\""
-        }
-      ]
-    },
-    {
-      "id": "enforce_runtime_schema_resolution",
-      "description": "Modify validator to resolve $schema placeholders using environment at runtime.",
-      "edits": [
-        {
-          "file": "mcp/validate.py",
-          "pattern": "schema_path\\s*=.*",
+          "file": "mcp/__main__.py",
+          "pattern": "if __name__ == ['\"]__main__['\"]:",
           "multiple": false,
-          "replacement": "LABS_SCHEMA_BASE = os.getenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n        LABS_SCHEMA_VERSION = os.getenv('LABS_SCHEMA_VERSION', '0.7.3')\n        schema_field = asset.get('$schema', '')\n        if schema_field.startswith('http'):\n            schema_path = schema_field\n        elif schema_field.startswith('${LABS_SCHEMA_BASE}'):\n            schema_path = schema_field.replace('${LABS_SCHEMA_BASE}', LABS_SCHEMA_BASE).replace('${LABS_SCHEMA_VERSION}', LABS_SCHEMA_VERSION)\n        else:\n            schema_path = f\"{LABS_SCHEMA_BASE}{LABS_SCHEMA_VERSION}/{os.path.basename(schema_field or 'synesthetic-asset.schema.json')}\""
+          "replacement": "parser.add_argument('--audit', action='store_true', help='Run governance audit and print compliance summary')\n    parser.add_argument('--schemas', action='store_true', help='List cached or available schema URLs')\n    args = parser.parse_args()\n\n    if args.audit:\n        from mcp.core import governance_audit\n        result = governance_audit()\n        print(json.dumps(result, indent=2))\n        sys.exit(0)\n    if args.schemas:\n        from mcp.core import list_schemas\n        result = list_schemas()\n        print(json.dumps(result, indent=2))\n        sys.exit(0)\n\n    if __name__ == \"__main__\":"
         }
       ]
     },
     {
-      "id": "add_schema_interpolation_test",
-      "description": "Add regression test to verify schema placeholder resolution and environment override correctness.",
+      "id": "fix_readme_port_example",
+      "description": "Update README TCP nc example to match active MCP_PORT=8765 environment default.",
+      "edits": [
+        {
+          "file": "README.md",
+          "pattern": "nc 127\\.0\\.0\\.1 7000",
+          "multiple": true,
+          "replacement": "nc 127.0.0.1 8765"
+        }
+      ]
+    },
+    {
+      "id": "add_labs_schema_cache_dir_docs",
+      "description": "Add LABS_SCHEMA_CACHE_DIR documentation to spec and environment tables for clarity and consistency.",
+      "edits": [
+        {
+          "file": "docs/mcp_spec.md",
+          "pattern": "LABS_SCHEMA_VERSION=.*",
+          "multiple": false,
+          "replacement": "LABS_SCHEMA_VERSION=0.7.3\nLABS_SCHEMA_CACHE_DIR=~/.cache/synesthetic-schemas  # optional schema cache directory"
+        }
+      ]
+    },
+    {
+      "id": "test_remote_schema_cache_fallback",
+      "description": "Introduce a regression test verifying remote schema retrieval and caching fallback when local file missing.",
       "edits": [
         {
           "file": "tests/test_validate.py",
           "pattern": "\\Z",
           "multiple": false,
-          "replacement": "\n\ndef test_schema_placeholder_resolution(monkeypatch):\n    from mcp import validate\n    monkeypatch.setenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n    monkeypatch.setenv('LABS_SCHEMA_VERSION', '0.7.3')\n    asset = {'$schema': '${LABS_SCHEMA_BASE}${LABS_SCHEMA_VERSION}/synesthetic-asset.schema.json'}\n    schema_path = validate._resolve_schema_path(asset)\n    assert schema_path == 'https://delk73.github.io/synesthetic-schemas/schema/0.7.3/synesthetic-asset.schema.json'"
+          "replacement": "\n\ndef test_remote_schema_cache_fallback(monkeypatch, tmp_path):\n    from mcp import validate\n    monkeypatch.setenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')\n    monkeypatch.setenv('LABS_SCHEMA_VERSION', '0.7.3')\n    test_url = 'https://delk73.github.io/synesthetic-schemas/schema/0.7.3/synesthetic-asset.schema.json'\n    tmp_cache = tmp_path / 'cache'\n    monkeypatch.setenv('LABS_SCHEMA_CACHE_DIR', str(tmp_cache))\n    result = validate._fetch_canonical_schema(test_url, 'synesthetic-asset.schema.json')\n    assert isinstance(result, dict)\n    assert tmp_cache.joinpath('synesthetic-asset.schema.json').exists()"
         }
       ]
     }
   ],
   "constraints": {
     "rules": [
-      "Example files must remain version-agnostic and rely on runtime environment interpolation.",
-      "Validator must expand LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION placeholders deterministically.",
-      "No hardcoded schema URLs in committed examples.",
-      "All tests must pass under both default and overridden LABS_SCHEMA_* environments."
+      "CLI must expose governance and schema listing parity via argparse.",
+      "Documentation must match active environment defaults (MCP_PORT=8765).",
+      "LABS_SCHEMA_CACHE_DIR must be described in both README and mcp_spec.md.",
+      "Remote schema fetch and caching fallback must have passing test coverage."
     ]
   },
   "exit_criteria": [
-    "No examples contain fixed 0.7.x URLs in $schema field",
-    "mcp/validate.py resolves schema URLs using environment variables",
-    "New test passes confirming placeholder resolution",
-    "governance_audit still reports status=ok"
+    "mcp --audit and mcp --schemas return valid JSON outputs",
+    "README and docs/mcp_spec.md ports and env tables consistent with .env.example",
+    "LABS_SCHEMA_CACHE_DIR documented and recognized by runtime",
+    "All tests pass including remote schema cache fallback"
   ]
 }

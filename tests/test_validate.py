@@ -243,3 +243,15 @@ def test_validate_asset_rejects_legacy_keys(payload):
     assert res["ok"] is False
     assert res["reason"] == "validation_failed"
     assert res["errors"][0]["path"] == "/$schema"
+
+
+def test_remote_schema_cache_fallback(monkeypatch, tmp_path):
+    from mcp import validate
+    monkeypatch.setenv('LABS_SCHEMA_BASE', 'https://delk73.github.io/synesthetic-schemas/schema/')
+    monkeypatch.setenv('LABS_SCHEMA_VERSION', '0.7.3')
+    test_url = 'https://delk73.github.io/synesthetic-schemas/schema/0.7.3/synesthetic-asset.schema.json'
+    tmp_cache = tmp_path / 'cache'
+    monkeypatch.setenv('LABS_SCHEMA_CACHE_DIR', str(tmp_cache))
+    result = validate._fetch_canonical_schema(test_url, 'synesthetic-asset.schema.json')
+    assert isinstance(result, dict)
+    assert tmp_cache.joinpath('synesthetic-asset.schema.json').exists()
