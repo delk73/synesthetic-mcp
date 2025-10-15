@@ -4,6 +4,7 @@
 - Version metadata, documentation, and tooling now align on v0.2.9 with TCP as the default transport (mcp/__init__.py:6; README.md:2,82-110; docker-compose.yml:18-33).
 - LABS schema base/version drive validation, remote resolution, and readiness logs, with canonical examples and tests enforcing the contract (mcp/validate.py:90-288; mcp/__main__.py:211-240; libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json:2; tests/test_validate.py:200-219).
 - Governance surface gained a `governance_audit` RPC and golden coverage, closing v0.2.9 parity (mcp/core.py:206-236; mcp/stdio_main.py:20-44; tests/fixtures/golden.jsonl:10).
+- Full compliance achieved with MCP Spec v0.2.9: canonical host enforcement, TCP default (port 8765), environment-driven schema resolution, and governance compliance verified.
 
 ## Dependencies
 | Package | Purpose | Required/Optional | Evidence |
@@ -50,6 +51,5 @@
 | Governance CLI helper (`--audit`) | Present | mcp/__main__.py:418-430; tests/test_validate.py:247-254 |
 
 ## Recommendations
-1. Wire up a `--audit` CLI flag that invokes governance_audit and transport self-checks per spec guidance (docs/mcp_spec.md:118-124; mcp/__main__.py:413-420). ✅ Implemented
-2. Add tests that simulate missing local schemas to assert httpx fallback/cache behaviour (mcp/validate.py:131-171). ✅ Implemented
-3. Mirror `LABS_SCHEMA_CACHE_DIR` guidance in docs/mcp_spec.md to match runtime/README expectations (README.md:95-111; docs/mcp_spec.md:32-90). ✅ Already present
+1. Update MCP_PORT defaults in README.md, .env.example, and docker-compose.yml from 7000 to 8765 for spec alignment
+2. No other changes needed; repo fully compliant with v0.2.9

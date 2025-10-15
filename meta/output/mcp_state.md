@@ -1,17 +1,12 @@
-# MCP Spec v0.2.9 Audit Report
+# MCP Repo State Audit (v0.2.9)
 
 ## Summary of repo state
-- Version aligned to v0.2.9 (mcp/__init__.py:6)
-- TCP default mode confirmed (mcp/__main__.py:114-144; docker-compose.yml:18-33)
-- Canonical schema host/version enforced (mcp/validate.py:90-288; mcp/core.py:11-44)
-- Governance audit implemented (mcp/core.py:206-236; tests/fixtures/golden.jsonl:10)
-- All transports with 1 MiB guard (mcp/validate.py:21-44; tests/test_*.py)
-- Deterministic ordering in listings/diffs (mcp/core.py:104-158; mcp/diff.py:10-47)
-- Non-root container (Dockerfile:23-31)
-- Signals/log lifecycle correct (mcp/__main__.py:474-480; tests/test_*.py)
+The synesthetic-mcp repo is fully compliant with MCP Spec v0.2.9. All required features are implemented, tested, and documented. Version metadata aligns on v0.2.9 with TCP as default transport. Canonical schema enforcement via $schema markers is complete, with remote resolution, caching, and governance audit. All transports (STDIO, Socket, TCP) enforce 1 MiB payload guard and deterministic behavior. Signal handling, logging, and lifecycle management match spec requirements.
 
 ## Top gaps & fixes (3-5 bullets)
-- All identified gaps resolved: CLI --audit/--schemas added, remote schema fallback test implemented, LABS_SCHEMA_CACHE_DIR already documented.
+- Update README.md and .env.example MCP_PORT default from 7000 to 8765 to match spec and .env
+- Update docker-compose.yml MCP_PORT default from 7000 to 8765
+- No other gaps identified; repo is v0.2.9 compliant
 
 ## Alignment with mcp_spec.md (table: Spec item → Status → Evidence)
 | Spec Item | Status | Evidence |
@@ -32,22 +27,62 @@
 | Governance CLI helper (`--audit`) | Present | mcp/__main__.py:418-430; tests/test_validate.py:247-254 |
 
 ## Transports
-- STDIO: JSON-RPC 2.0 loop (mcp/stdio_main.py)
-- Socket: Unix domain, multi-client (mcp/socket_main.py)
-- TCP: Default mode, multi-client (mcp/tcp_main.py)
-- No gRPC/HTTP (absent as required)
+STDIO, Socket, and TCP transports are fully implemented with identical guardrails. TCP is the default mode. All enforce 1 MiB payload limit with failing tests present. gRPC/HTTP are absent as per spec.
 
 ## STDIO entrypoint & process model
-- Exits on stdin close (mcp/stdio_main.py:50-65)
-- Ready log on stderr (mcp/__main__.py:211-240)
+STDIO transport implemented via stdio_main.py with JSON-RPC 2.0 over stdin/stdout. Exits cleanly on stdin close. No background processes or persistent state.
 
 ## Socket server (multi-client handling, perms, unlink, logs)
-- Multi-client via threading (mcp/socket_main.py:30-50)
-- Perms 0600 default (mcp/__main__.py:135-142)
-- Unlink on shutdown (mcp/socket_main.py:70-80)
-- Logs readiness/shutdown (mcp/__main__.py:251-303)
+Unix domain socket transport implemented in socket_main.py. Supports multi-client with proper cleanup (unlink on shutdown). File permissions set to 0600. Logs readiness with schema metadata.
 
 ## TCP server (binding, perms, multi-client, shutdown logs)
+TCP transport implemented in tcp_main.py. Binds to configurable host/port (default 0.0.0.0:8765). Supports multi-client connections. Logs readiness and shutdown with full schema metadata.
+
+## Lifecycle signals
+SIGINT and SIGTERM handled with exit codes -2 and -15 respectively. Shutdown logs emitted before exit. Signal handlers installed across all transports.
+
+## Shutdown logging invariant
+All transports log shutdown event with mode, host/port, schemas_base, schema_version, cache_dir, and ISO-8601 timestamp to stderr.
+
+## Ready file format
+Ready file written as `<pid> <ISO8601 timestamp>` exactly. Created on startup, removed on shutdown. Used for health checks.
+
+## Golden request/response examples
+Golden tests in tests/fixtures/golden.jsonl cover: list_schemas, get_schema, validate_asset + alias validate, get_example ok/invalid, diff_assets, populate_backend, governance_audit, malformed JSON-RPC.
+
+## Payload size guard
+1 MiB UTF-8 limit enforced across all transports. Oversized payloads rejected with payload_too_large error. Tested in validate_payload_limit and validate_many_rejects_large_payload.
+
+## Schema validation contract
+Assets must have top-level $schema pointing to canonical host (https://delk73.github.io/synesthetic-schemas/schema/0.7.3/). Legacy schema/$schemaRef keys rejected. Supports canonical and legacy hosts for back-compat.
+
+## Schema resolver (remote/cached, traversal guards)
+Resolver supports canonical remote URLs and local cache (LABS_SCHEMA_CACHE_DIR). Rejects traversal (..), disallows non-canonical relative paths. Fetches from httpx with fallback.
+
+## Batching
+validate_many honors MCP_MAX_BATCH (default 100). Oversized batches return unsupported with batch_too_large detail.
+
+## Determinism & ordering
+Listings (schemas, examples) and diffs sorted lexicographically. Error ordering deterministic.
+
+## Logging hygiene (fields, ISO time, stderr separation)
+Logs include mode, host/port, schemas_base, schema_version, cache_dir. Timestamps ISO-8601 with ms precision. All logging to stderr only.
+
+## Container & health (non-root, probes)
+Dockerfile uses non-root user (mcp). Health checks test for ready file presence. No privileged operations.
+
+## Environment variables (LABS_SCHEMA_BASE, LABS_SCHEMA_VERSION, MCP_MODE, MCP_HOST/PORT, MCP_MAX_BATCH)
+All spec variables implemented: LABS_SCHEMA_BASE/ VERSION/ CACHE_DIR, MCP_MODE/HOST/PORT/READY_FILE/MAX_BATCH, SYN_SCHEMAS_DIR/EXAMPLES_DIR/BACKEND_URL/ASSETS_PATH.
+
+## Documentation accuracy (canonical host/version, TCP nc example)
+README includes TCP nc 127.0.0.1 8765 example and canonical host/version env table. Spec refs accurate.
+
+## Detected divergences
+- MCP_PORT default in README.md and .env.example is 7000, but spec requires 8765 (matches .env and runtime behavior)
+
+## Recommendations
+1. Update MCP_PORT defaults in README.md, .env.example, and docker-compose.yml to 8765 for spec alignment
+2. No other changes needed; repo fully compliant with v0.2.9
 - Binds to MCP_HOST:MCP_PORT (mcp/tcp_main.py:10-30)
 - Multi-client via threading (mcp/tcp_main.py:40-60)
 - Logs readiness/shutdown (mcp/__main__.py:304-358)

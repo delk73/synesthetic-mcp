@@ -100,7 +100,7 @@ tests/
 | `MCP_SOCKET_PATH` | `/tmp/mcp.sock` | Socket path when `MCP_ENDPOINT=socket`. The server unlinks the file on shutdown. |
 | `MCP_SOCKET_MODE` | `0600` | Octal file mode applied to the socket on startup. Increase only when the socket must be shared. |
 | `MCP_HOST` | `0.0.0.0` | TCP bind address when `MCP_ENDPOINT=tcp`. Use `127.0.0.1` for local development. |
-| `MCP_PORT` | `7000` | TCP port when `MCP_ENDPOINT=tcp`. Set to `0` to request an ephemeral port (logged on startup). |
+| `MCP_PORT` | `8765` | TCP port when `MCP_ENDPOINT=tcp`. Set to `0` to request an ephemeral port (logged on startup). |
 | `LABS_SCHEMA_BASE` | `https://delk73.github.io/synesthetic-schemas/schema/` | Canonical schema host prefix. |
 | `LABS_SCHEMA_VERSION` | `0.7.3` | Canonical schema version folder appended to `LABS_SCHEMA_BASE`. |
 | `LABS_SCHEMA_CACHE_DIR` | `~/.cache/synesthetic-schemas` | Optional on-disk cache for fetched canonical schemas (created per version). |
