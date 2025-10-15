@@ -87,33 +87,63 @@ def _schema_filename_parts(filename: str) -> Tuple[str, str]:
     return filename, ".json"
 
 
+def _legacy_schema_prefix() -> str:
+    version = labs_schema_version().strip().strip("/")
+    if version:
+        return f"https://schemas.synesthetic.dev/{version}/"
+    return "https://schemas.synesthetic.dev/"
+
+
 def _schema_target(marker: str) -> Tuple[str, str, str, str]:
     raw = marker.strip()
     if not raw:
         raise ValueError("empty_marker")
 
     canonical_prefix = labs_schema_prefix()
+    legacy_prefix = _legacy_schema_prefix()
+    allowed_prefixes = (canonical_prefix, legacy_prefix)
+
     without_fragment = raw.split("#", 1)[0].strip()
     parsed = urlparse(without_fragment)
+
+    def _normalize_filename(candidate: str) -> Tuple[str, str, str]:
+        base_name, extension = _schema_filename_parts(candidate)
+        canonical_name = _SCHEMA_ALIASES.get(base_name, base_name)
+        canonical_filename = f"{canonical_name}{extension}"
+        canonical_url = f"{canonical_prefix}{canonical_filename}"
+        return canonical_name, canonical_filename, canonical_url
+
     if not parsed.scheme:
-        raise ValueError("schema_not_canonical")
+        normalized = without_fragment.replace("\\", "/").lstrip("./")
+        if not normalized:
+            raise ValueError("invalid_schema_marker")
+        parts = [p for p in normalized.split("/") if p and p != "."]
+        if any(part == ".." for part in parts):
+            raise PathOutsideConfiguredRoot(normalized)
+        version = labs_schema_version().strip().strip("/")
+        if parts and version and parts[0] == version:
+            parts = parts[1:]
+        if not parts:
+            raise ValueError("invalid_schema_marker")
+        filename = parts[-1]
+        canonical_name, canonical_filename, canonical_url = _normalize_filename(filename)
+        return canonical_name, canonical_filename, canonical_url, canonical_url
+
     if parsed.scheme not in {"http", "https"}:
         raise ValueError("schema_not_canonical")
-    if not without_fragment.startswith(canonical_prefix):
+    if not any(without_fragment.startswith(prefix) for prefix in allowed_prefixes):
         raise ValueError("schema_not_canonical")
 
     path_component = parsed.path or ""
-    if "/../" in path_component or path_component.endswith("/.."):
+    segments = [segment for segment in path_component.split("/") if segment and segment != "."]
+    if any(segment == ".." for segment in segments):
         raise PathOutsideConfiguredRoot(path_component or without_fragment)
 
-    filename = Path(path_component).name
+    filename = segments[-1] if segments else ""
     if not filename:
         raise ValueError("invalid_schema_marker")
 
-    base_name, extension = _schema_filename_parts(filename)
-    canonical_name = _SCHEMA_ALIASES.get(base_name, base_name)
-    canonical_filename = f"{canonical_name}{extension}"
-    canonical_url = f"{canonical_prefix}{canonical_filename}"
+    canonical_name, canonical_filename, canonical_url = _normalize_filename(filename)
     return canonical_name, canonical_filename, without_fragment, canonical_url
 
 

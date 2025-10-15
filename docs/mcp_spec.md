@@ -50,14 +50,18 @@ If `MCP_MODE` is unset, the adapter defaults to `TCP`.
 
 ## Schema Integration (v0.7.3 Alignment)
 
-* All assets MUST include a top-level `"$schema"` field referencing the canonical host:  
-  `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/<schema>.schema.json`
+* **Canonical host:** `https://delk73.github.io/synesthetic-schemas/schema/`
+* **Legacy host (accepted):** `https://schemas.synesthetic.dev/`
+* Assets MUST include a top-level `"$schema"` field that resolves to the canonical host.  
+  * Absolute markers using the canonical host are preferred.  
+  * Relative markers are normalized to canonical URLs using `LABS_SCHEMA_BASE` + `LABS_SCHEMA_VERSION`.  
+  * Absolute markers using the legacy host remain supported for backwards compatibility.
 * MCP validation relies exclusively on this field.  
   * `"$schema"` is mandatory.  
   * `"schema"` and `"$schemaRef"` are invalid and rejected.
 * The validator automatically fetches or caches the referenced schema.  
 * The schema resolver must support both **remote URL resolution** and **local cache lookup** (`/schemas/0.7.3/`).
-* **Regression guard:** assets validated by MCP MUST contain a top-level `"$schema"` referencing a canonical schema URL.  
+* **Regression guard:** assets validated by MCP MUST contain a top-level `"$schema"` referencing a canonical schema URL (either direct canonical host or a relative marker that normalizes to it).  
   Schema-repository example conformance is validated within `synesthetic-schemas`, not within MCP.
 
 ---

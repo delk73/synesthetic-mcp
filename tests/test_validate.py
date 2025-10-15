@@ -196,9 +196,34 @@ def test_validate_asset_rejects_missing_dollar_schema():
     assert res["errors"][0]["path"] == "/$schema"
 
 
-def test_validate_asset_requires_canonical_schema_host():
-    asset = {"$schema": "jsonschema/asset.schema.json", "id": "asset-1"}
+def test_validate_asset_accepts_relative_schema_marker():
+    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    asset["$schema"] = "synesthetic-asset.schema.json"
+
     res = validate_asset(asset)
+
+    assert res["ok"] is True
+    assert res["errors"] == []
+
+
+def test_validate_asset_accepts_legacy_host_marker():
+    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    asset["$schema"] = CANONICAL_SYNESTHETIC_SCHEMA.replace(
+        "https://delk73.github.io/synesthetic-schemas/schema/",
+        "https://schemas.synesthetic.dev/",
+    )
+
+    res = validate_asset(asset)
+
+    assert res["ok"] is True
+    assert res["errors"] == []
+
+
+def test_validate_asset_rejects_unknown_schema_host():
+    asset = {"$schema": "https://example.com/schema/asset.schema.json", "id": "asset-1"}
+
+    res = validate_asset(asset)
+
     assert res["ok"] is False
     assert res["reason"] == "validation_failed"
     assert any(
