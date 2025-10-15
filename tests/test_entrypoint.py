@@ -133,7 +133,9 @@ def test_entrypoint_sigterm_exit_code(tmp_path):
             "SYN_EXAMPLES_DIR": str(examples_dir),
             "PYTHONUNBUFFERED": "1",
             "MCP_READY_FILE": str(ready_file),
-            "MCP_MODE": "stdio",
+            "MCP_MODE": "tcp",
+            "MCP_HOST": "127.0.0.1",
+            "MCP_PORT": "0",
         }
     )
 
