@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 SUBMODULE_SCHEMAS_DIR = "libs/synesthetic-schemas/jsonschema"
-SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/examples"
+SUBMODULE_EXAMPLES_DIR = "libs/synesthetic-schemas/docs/examples"
 
 DEFAULT_LABS_SCHEMA_BASE = "https://delk73.github.io/synesthetic-schemas/schema/"
 DEFAULT_LABS_SCHEMA_VERSION = "0.7.3"
@@ -78,9 +78,13 @@ def _examples_dir() -> Path:
     if env:
         return Path(env)
     # Prefer submodule if present
-    sub = Path(SUBMODULE_EXAMPLES_DIR)
+    sub = Path(SUBMODULE_EXAMPLES_DIR) / labs_schema_version()
     if sub.is_dir():
         return sub
+    # Fallback to unversioned for compatibility
+    sub_unversioned = Path(SUBMODULE_EXAMPLES_DIR)
+    if sub_unversioned.is_dir():
+        return sub_unversioned
     # No local fixture fallback; return as-is for callers to handle
     return sub
 

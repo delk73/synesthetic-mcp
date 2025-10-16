@@ -12,6 +12,10 @@ CANONICAL_SYNESTHETIC_SCHEMA = f"{CANONICAL_PREFIX}synesthetic-asset.schema.json
 
 
 def _load(path: str):
+    # If it's a relative path, resolve it relative to the examples directory
+    if not Path(path).is_absolute():
+        from mcp.core import _examples_dir
+        path = str(_examples_dir() / path)
     return json.loads(Path(path).read_text())
 
 
@@ -27,7 +31,7 @@ def test_get_schema_and_validate_valid():
     assert s["version"] == ""
 
     # Validate a canonical example from the submodule
-    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    asset = _load("SynestheticAsset_Example1.json")
     res = validate_asset(asset)
     assert res["ok"] is True
     assert res["errors"] == []
@@ -197,7 +201,7 @@ def test_validate_asset_rejects_missing_dollar_schema():
 
 
 def test_validate_asset_accepts_relative_schema_marker():
-    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    asset = _load("SynestheticAsset_Example1.json")
     asset["$schema"] = "synesthetic-asset.schema.json"
 
     res = validate_asset(asset)
@@ -207,7 +211,7 @@ def test_validate_asset_accepts_relative_schema_marker():
 
 
 def test_validate_asset_accepts_legacy_host_marker():
-    asset = _load("libs/synesthetic-schemas/examples/SynestheticAsset_Example1.json")
+    asset = _load("SynestheticAsset_Example1.json")
     asset["$schema"] = CANONICAL_SYNESTHETIC_SCHEMA.replace(
         "https://delk73.github.io/synesthetic-schemas/schema/",
         "https://schemas.synesthetic.dev/",

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 from mcp import transport
+from mcp.core import _examples_dir
 
 import pytest
 
@@ -229,13 +230,7 @@ def test_stdio_entrypoint_validate_asset(tmp_path):
         # Ensure the timestamp is valid ISO8601
         datetime.fromisoformat(timestamp)
 
-        asset_path = (
-            repo_root
-            / "libs"
-            / "synesthetic-schemas"
-            / "examples"
-            / "SynestheticAsset_Example1.json"
-        )
+        asset_path = _examples_dir() / "SynestheticAsset_Example1.json"
         example = json.loads(asset_path.read_text())
 
         request = {
