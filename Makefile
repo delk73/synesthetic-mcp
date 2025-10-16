@@ -1,6 +1,39 @@
 SHELL := /bin/bash
 
-.PHONY: update-submodule update-submodule-pin
+.PHONY: update-submodule update-submodule-pin preflight
+
+preflight:
+	@set -euo pipefail; \
+	echo "🧩 MCP Preflight Validation"; \
+	VER="$$(jq -r '.schemaVersion' libs/synesthetic-schemas/version.json)"; \
+	PH="https://schemas.synesthetic.dev/$$VER"; \
+	CAN="https://delk73.github.io/synesthetic-schemas/schema/$$VER"; \
+	echo "🔍 schemaVersion=$$VER"; \
+	\
+	echo "🔍 Checking submodule pin..."; \
+	git -C libs/synesthetic-schemas rev-parse HEAD; \
+	\
+	echo "🔍 Verifying placeholder host in source schemas..."; \
+	grep -q "$$PH" libs/synesthetic-schemas/jsonschema/synesthetic-asset.schema.json && echo "✅ Placeholder host found" || { echo "❌ Missing placeholder host in sources"; exit 1; }; \
+	\
+	echo "🔍 Running schema preflight in submodule..."; \
+	$(MAKE) -C libs/synesthetic-schemas preflight-fix; \
+	\
+	echo "📦 Publishing schemas (placeholder → canonical)..."; \
+	$(MAKE) -C libs/synesthetic-schemas publish-schemas; \
+	\
+	echo "🔍 Checking canonical host in published docs..."; \
+	test -f "libs/synesthetic-schemas/docs/schema/$$VER/synesthetic-asset.schema.json" || { echo "❌ Missing published schema"; exit 1; }; \
+	grep -q "$$CAN" libs/synesthetic-schemas/docs/schema/$$VER/synesthetic-asset.schema.json && echo "✅ Canonical host found in published docs" || { echo "❌ Canonical host missing after publish"; exit 1; }; \
+	\
+	echo "🧩 Validating schemas against canonical base URL..."; \
+	( cd libs/synesthetic-schemas && python scripts/validate_schemas.py "$$CAN/" ); 
+	\
+	echo "🧠 Running MCP test suite..."; \
+	pytest -q --maxfail=1 --disable-warnings; \
+	echo "✅ MCP preflight complete."
+
+
 
 # Update schemas submodule and validate integration
 update-submodule:

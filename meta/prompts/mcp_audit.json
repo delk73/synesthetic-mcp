@@ -2,7 +2,7 @@
   "version": "v0.2.9",
   "spec_ref": "docs/mcp_spec.md#v0-2-9",
   "task": "Audit synesthetic-mcp repo state (v0.2.9 features, aligned to schemas v0.7.3)",
-  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9. Confirm canonical host usage, TCP default mode (port 8765), environment-driven schema resolution, and governance compliance. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
+  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9. Confirm canonical host usage, TCP default mode (port 8765), environment-driven schema resolution, and submodule alignment with synesthetic-schemas@8286df4. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -15,7 +15,8 @@
       "Schema resolver supports canonical remote URLs, local cache, rejects traversal, disallows non-canonical relative paths",
       "Reject legacy schema keys ('schema', '$schemaRef') → validation_failed @ '/$schema'",
       "Env parity: LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION read, logged, and used in resolution",
-      "Governance parity: governance_audit() aligns with canonical URLs and verifies $schema consistency",
+      "Submodule parity: libs/synesthetic-schemas pinned at audited commit (8286df4a4197f2fb45a8bd6c4a805262cba2e934) verified via make preflight",
+      "Schema governance parity achieved through make preflight (normalize → publish → validate canonical schemas)",
       "Transports: STDIO, Socket, TCP implemented; TCP default; 1 MiB guard enforced; gRPC/HTTP absent",
       "Default mode: MCP_MODE defaults to tcp; up.sh starts container in TCP mode when unset",
       "Payload cap: 1 MiB enforced across transports; failing test present",
@@ -34,6 +35,7 @@
       "Summary of repo state",
       "Top gaps & fixes (3-5 bullets)",
       "Alignment with mcp_spec.md (table: Spec item → Status → Evidence)",
+      "Submodule alignment (libs/synesthetic-schemas commit hash, version.json match)",
       "Transports",
       "STDIO entrypoint & process model",
       "Socket server (multi-client handling, perms, unlink, logs)",
@@ -82,6 +84,7 @@
   "exit_criteria": [
     "meta/output/mcp_state.md and AGENTS.md written and non-empty",
     "All v0.2.9 checkpoints verified with evidence",
+    "Submodule commit equals audited hash (8286df4a4197f2fb45a8bd6c4a805262cba2e934)",
     "LABS_SCHEMA_BASE and LABS_SCHEMA_VERSION logged and in use",
     "TCP default confirmed in startup logs and up.sh (port 8765)",
     "Canonical schema resolution and cache paths verified",
