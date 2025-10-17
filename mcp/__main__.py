@@ -27,7 +27,7 @@ from .validate import validate_asset
 DEFAULT_READY_FILE = "/tmp/mcp.ready"
 DEFAULT_SOCKET_PATH = "/tmp/mcp.sock"
 DEFAULT_TCP_HOST = "0.0.0.0"
-DEFAULT_TCP_PORT = 7000
+DEFAULT_TCP_PORT = 8765
 
 
 def _resolve_schemas_dir() -> str:
