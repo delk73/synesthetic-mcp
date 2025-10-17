@@ -133,7 +133,7 @@ Initialize the submodule:
 git submodule update --init --recursive
 ```
 
-Update the submodule to the latest published commit (`0fdc842` as of this audit):
+Update the submodule to the latest published commit (`8286df4a4197f2fb45a8bd6c4a805262cba2e934` as of this audit):
 
 ```
 git -C libs/synesthetic-schemas fetch origin
@@ -141,7 +141,7 @@ git -C libs/synesthetic-schemas checkout 0fdc842
 git add libs/synesthetic-schemas
 ```
 
-After checking out the new commit you can create a commit in the main repository, for example `git commit -m "chore: bump synesthetic-schemas to 0fdc842"`.
+After checking out the new commit you can create a commit in the main repository, for example `git commit -m "chore: bump synesthetic-schemas to 8286df4a4197f2fb45a8bd6c4a805262cba2e934"`.
 
 ### Schema Aliases (Nested Assets)
 
