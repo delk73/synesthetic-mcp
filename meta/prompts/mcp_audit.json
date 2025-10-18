@@ -1,8 +1,8 @@
 {
   "version": "v0.2.9",
   "spec_ref": "docs/mcp_spec.md#v0-2-9",
-  "task": "Audit synesthetic-mcp repo state (v0.2.9 features, aligned to schemas v0.7.3)",
-  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9. Confirm canonical host usage, TCP default mode (port 8765), environment-driven schema resolution, and submodule alignment with synesthetic-schemas@8286df4. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
+  "task": "Audit synesthetic-mcp repo state (v0.2.9 features, aligned to schemas v0.7.3), including 'get_schema' modes.",
+  "objective": "Verify implementation, tests, and documentation match MCP Spec v0.2.9 (including 'get_schema' and its resolution modes). Confirm canonical host usage, TCP default mode (port 8765), environment-driven schema resolution, and submodule alignment with synesthetic-schemas@8286df4. Report Present/Missing/Divergent with explicit file evidence and regenerate AGENTS.md snapshot.",
   "constraints": {
     "style": "deterministic, terse, Markdown headings with bullets/tables",
     "rules": [
@@ -28,6 +28,10 @@
       "Logging: ready/shutdown logs include mode, host/port, schemas_base, schema_version, cache_dir; ISO-8601 timestamps (ms precision); stderr only",
       "Signals: SIGINT/SIGTERM yield exit codes -2 / -15; shutdown logs emitted before exit",
       "Ready file: exactly '<pid> <ISO8601 timestamp>'",
+      "**get_schema functionality: Implemented with 'name', 'version', 'resolution' parameters.**",
+      "**get_schema 'preserve' mode: Returns schema with intact '$ref' links, tested.**",
+      "**get_schema 'inline' mode: Returns self-contained schema with all '$ref's resolved/embedded, tested.**",
+      "**get_schema 'bundled' mode: Returns root schema + referenced schemas as separate objects, tested.**",
       "Golden examples: list_schemas, get_schema, validate_asset + alias validate, get_example ok/invalid, diff_assets, malformed JSON-RPC",
       "Docs include TCP 'nc 127.0.0.1 8765' example and canonical host/version env table"
     ],
@@ -43,6 +47,7 @@
       "Lifecycle signals",
       "Shutdown logging invariant",
       "Ready file format",
+      "**get_schema implementation and modes**",
       "Golden request/response examples",
       "Payload size guard",
       "Schema validation contract",
@@ -91,6 +96,9 @@
     "STDIO, Socket, TCP validated for lifecycle, logging, and signals",
     "Payload guard enforced and tested",
     "Deterministic order confirmed",
-    "Docs reflect canonical host/version and TCP example"
+    "Docs reflect canonical host/version and TCP example",
+    "**get_schema 'preserve' mode verified with test evidence.**",
+    "**get_schema 'inline' mode verified with test evidence.**",
+    "**get_schema 'bundled' mode verified with test evidence.**"
   ]
 }

@@ -1,6 +1,6 @@
 ---
 version: v0.2.9
-lastReviewed: 2025-10-16
+lastReviewed: 2025-10-18 (Merged get_schema functionality)
 owner: mcp-core
 ---
 
@@ -10,12 +10,12 @@ owner: mcp-core
 
 The **Synesthetic MCP** adapter exposes **schemas**, **examples**, **validation**, **diff**, and optional **backend population** as deterministic, stateless tools wired directly to the canonical **Synesthetic Schemas v0.7.3** host.
 
-* **Canonical schema base:**  
-  `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/`
-* **Schema version:**  
-  Derived dynamically from `LABS_SCHEMA_VERSION` (`0.7.3` by default).
-* **Source of truth:**  
-  [synesthetic-schemas @ 8286df4a4197f2fb45a8bd6c4a805262cba2e934](https://github.com/delk73/synesthetic-schemas/commit/8286df4a4197f2fb45a8bd6c4a805262cba2e934)
+*   **Canonical schema base:**
+    `https://delk73.github.io/synesthetic-schemas/schema/0.7.3/`
+*   **Schema version:**
+    Derived dynamically from `LABS_SCHEMA_VERSION` (`0.7.3` by default).
+*   **Source of truth:**
+    [synesthetic-schemas @ 8286df4a4197f2fb45a8bd6c4a805262cba2e934](https://github.com/delk73/synesthetic-schemas/commit/8286df4a4197f2fb45a8bd6c4a805262cba2e934)
 
 ---
 
@@ -23,6 +23,7 @@ The **Synesthetic MCP** adapter exposes **schemas**, **examples**, **validation*
 
 | Tool | Purpose | Validation Source |
 |------|----------|-------------------|
+| `get_schema` | Retrieve schema by name/version with selectable `$ref` resolution. | Canonical schema |
 | `validate_asset` | Validate a single asset against its `$schema`. | Canonical or locally cached schema |
 | `validate_many` | Batch validation for multiple assets. | Same as above |
 | `diff_assets` | Produce RFC 6902 diff (`add`, `remove`, `replace`). | JSON Patch semantics |
@@ -40,52 +41,87 @@ All validation conforms to **JSON Schema Draft 2020-12**.
 | Persistent | Socket | JSON-RPC 2.0 | Unix-domain socket |
 | Distributed | TCP | JSON-RPC 2.0 | Default for container and CI |
 
-**Default:** `TCP`  
-**Payload limit:** 1 MiB UTF-8 per request  
+**Default:** `TCP`
+**Payload limit:** 1 MiB UTF-8 per request
 **Schema immutability:** No in-process patching or mutation.
 
 ---
 
 ## Schema Integration (v0.7.3 Alignment)
 
-* **Canonical host:** `https://delk73.github.io/synesthetic-schemas/schema/`
-* **Placeholder host:** `https://schemas.synesthetic.dev/`
-* **Submodule pin:** `libs/synesthetic-schemas` must resolve to commit `8286df4a4197f2fb45a8bd6c4a805262cba2e934` or a future audited tag.
+*   **Canonical host:** `https://delk73.github.io/synesthetic-schemas/schema/`
+*   **Placeholder host:** `https://schemas.synesthetic.dev/`
+*   **Submodule pin:** `libs/synesthetic-schemas` must resolve to commit `8286df4a4197f2fb45a8bd6c4a805262cba2e934` or a future audited tag.
 
 ### Rules
 
-1. Every asset MUST include a top-level `"$schema"` referencing the canonical host.  
-2. Relative or legacy `.dev` hosts are normalized via `LABS_SCHEMA_BASE` + `LABS_SCHEMA_VERSION`.  
-3. Keys `schema` and `$schemaRef` are **rejected** → `validation_failed @ '/$schema'`.  
-4. Resolver supports both **remote fetch** and **cache lookup** (`LABS_SCHEMA_CACHE_DIR`).  
-5. Examples from the submodule are trusted and never rewritten by MCP.  
-6. The **`make preflight`** target validates the submodule, publishes canonical docs, and re-verifies all schema URLs.
+1.  Every asset MUST include a top-level `"$schema"` referencing the canonical host.
+2.  Relative or legacy `.dev` hosts are normalized via `LABS_SCHEMA_BASE` + `LABS_SCHEMA_VERSION`.
+3.  Keys `schema` and `$schemaRef` are **rejected** → `validation_failed @ '/$schema'`.
+4.  Resolver supports both **remote fetch** and **cache lookup** (`LABS_SCHEMA_CACHE_DIR`).
+5.  Examples from the submodule are trusted and never rewritten by MCP.
+6.  The **`make preflight`** target validates the submodule, publishes canonical docs, and re-verifies all schema URLs.
+
+---
+
+## Schema Resolution Modes
+
+Some downstream systems (e.g. Azure OpenAI strict mode) cannot follow `$ref` links.
+MCP supports three deterministic resolution modes via `get_schema`.
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | string | ✓ | Schema name (e.g. `synesthetic-asset`) |
+| `version` | string | — | Schema version (default `LABS_SCHEMA_VERSION`) |
+| `resolution` | string | — | Resolution mode (`preserve` \| `inline` \| `bundled`) |
+
+### Modes
+
+| Mode | Behavior | Use Case |
+|------|-----------|----------|
+| **preserve** (default) | Return schema exactly as published; all `$ref` links intact. | Schema editors, human review |
+| **inline** | Recursively resolve and embed each `$ref` target; output is one self-contained schema (no `$ref`s). | Azure strict mode, LLMs |
+| **bundled** | Return root schema plus each referenced schema as separate objects (`{root,…, refs:[…]}`). | Offline validation or multi-schema clients |
+
+### Example Request
+
+```json
+{
+  "method": "get_schema",
+  "params": {
+    "name": "synesthetic-asset",
+    "version": "0.7.3",
+    "resolution": "inline"
+  }
+}
+```
 
 ---
 
 ## Logging & Lifecycle
 
 **Startup (ready) log**
-```
 
+```
 mcp:ready mode=<transport> host=<host> port=<port>
 schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3)
 schema_version=0.7.3 cache_dir=~/.cache/synesthetic-schemas timestamp=<ISO8601>
-
 ```
 
 **Shutdown log**
+
 ```
-
 mcp:shutdown mode=<transport> event=shutdown timestamp=<ISO8601>
-
 ```
 
 **Signal handling**
-- `SIGINT` → exit code `-2`
-- `SIGTERM` → exit code `-15`
-- Both emit final `mcp:shutdown` entry before termination.  
-Timestamps use ISO-8601 UTC with ms precision.
+
+*   `SIGINT` → exit code `-2`
+*   `SIGTERM` → exit code `-15`
+*   Both emit final `mcp:shutdown` entry before termination.
+    Timestamps use ISO-8601 UTC with ms precision.
 
 ---
 
@@ -106,7 +142,7 @@ Timestamps use ISO-8601 UTC with ms precision.
 | `SYN_BACKEND_URL` | unset | Optional backend endpoint |
 | `SYN_BACKEND_ASSETS_PATH` | `/synesthetic-assets/` | Backend POST path |
 
-`.env` and `.env.example` must match these exactly.  
+`.env` and `.env.example` must match these exactly.
 `.env` values override container defaults.
 
 ---
@@ -114,34 +150,33 @@ Timestamps use ISO-8601 UTC with ms precision.
 ## Startup Flow
 
 `./up.sh` runs the containerized service in **TCP mode**:
-```
 
+```
 mcp:ready mode=tcp host=0.0.0.0 port=8765
 schemas_base=[https://delk73.github.io/synesthetic-schemas/schema/0.7.3](https://delk73.github.io/synesthetic-schemas/schema/0.7.3)
 timestamp=<ISO8601>
-
 ```
 
 ---
 
 ## v0.2.9 Additions and Enforcement
 
-* Canonical schema alignment and placeholder rewrite validation  
-* Preflight pipeline verifying submodule commit, schema publication, and canonicalization  
-* Environment-driven schema resolution (`LABS_SCHEMA_BASE`, `LABS_SCHEMA_VERSION`)  
-* Deterministic logging and lifecycle parity across all transports  
-* Validation alias: `validate` → `validate_asset` (deprecated warning retained)  
-* Strict 1 MiB payload cap enforced in STDIO, Socket, and TCP handlers  
-* Batch validation limit via `MCP_MAX_BATCH`  
-* Lexicographic determinism in listings, diffs, and error ordering  
-* Non-root container execution and readiness probe support
+*   Canonical schema alignment and placeholder rewrite validation
+*   Preflight pipeline verifying submodule commit, schema publication, and canonicalization
+*   Environment-driven schema resolution (`LABS_SCHEMA_BASE`, `LABS_SCHEMA_VERSION`)
+*   Deterministic logging and lifecycle parity across all transports
+*   Validation alias: `validate` → `validate_asset` (deprecated warning retained)
+*   Strict 1 MiB payload cap enforced in STDIO, Socket, and TCP handlers
+*   Batch validation limit via `MCP_MAX_BATCH`
+*   Lexicographic determinism in listings, diffs, and error ordering
+*   Non-root container execution and readiness probe support
 
 ---
 
 ## Exit Criteria (v0.2.9)
 
 | Checkpoint | Requirement |
-|-------------|-------------|
+|------------|-------------|
 | Canonical host alignment | All `$schema` fields resolve to canonical base + version |
 | Submodule pin | `libs/synesthetic-schemas` commit = audited hash (`8286df4…`) |
 | Env alignment | `LABS_SCHEMA_BASE` / `LABS_SCHEMA_VERSION` exported and logged |
@@ -158,7 +193,7 @@ timestamp=<ISO8601>
 
 ## Future (≥ v0.3)
 
-* gRPC transport prototype  
-* Structured telemetry metrics  
-* Dynamic schema hot-reload  
-* Live governance sync against `synesthetic-schemas` HEAD
+*   gRPC transport prototype
+*   Structured telemetry metrics
+*   Dynamic schema hot-reload
+*   Live governance sync against `synesthetic-schemas` HEAD
