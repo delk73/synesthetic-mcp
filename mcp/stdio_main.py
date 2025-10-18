@@ -21,7 +21,11 @@ def dispatch(method: str, params: Dict[str, Any]) -> Dict[str, Any]:
     if method == "list_schemas":
         return list_schemas()
     if method == "get_schema":
-        return get_schema(params.get("name", ""))
+        name = params.get("name", "")
+        version = params.get("version")
+        if version:
+            logging.info(f"mcp:get_schema name={name} version={version}")
+        return get_schema(name, version)
     if method == "list_examples":
         return list_examples(params.get("component"))
     if method == "get_example":

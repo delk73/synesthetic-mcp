@@ -125,7 +125,17 @@ def list_schemas() -> Dict[str, Any]:
     return {"ok": True, "schemas": items}
 
 
-def get_schema(name: str) -> Dict[str, Any]:
+def get_schema(name: str, version: str | None = None) -> Dict[str, Any]:
+    """
+    Retrieve a schema by name.
+    
+    Args:
+        name: Schema name (e.g., "synesthetic-asset")
+        version: Optional version hint (currently logged but not used for routing)
+    
+    Returns:
+        Dict with ok, schema, name, version, and path fields
+    """
     try:
         p = _schema_file_path(name)
     except PathOutsideConfiguredRoot:
@@ -137,9 +147,29 @@ def get_schema(name: str) -> Dict[str, Any]:
 
     if not p.exists():
         return {"ok": False, "reason": "not_found"}
+    
     data = json.loads(p.read_text())
-    version = str(data.get("version", ""))
-    return {"ok": True, "schema": data, "version": version}
+    
+    # Extract version from schema's version field or $id URL
+    schema_version = str(data.get("version", ""))
+    if not schema_version:
+        # Try to extract from $id (e.g., "https://schemas.synesthetic.dev/0.7.3/...")
+        schema_id = data.get("$id", "")
+        if isinstance(schema_id, str) and schema_id:
+            parts = schema_id.split("/")
+            # Look for semantic version pattern in URL path
+            for part in parts:
+                if part and part[0].isdigit() and "." in part:
+                    schema_version = part
+                    break
+    
+    return {
+        "ok": True,
+        "schema": data,
+        "name": name,
+        "version": schema_version,
+        "path": str(p),
+    }
 
 
 def list_examples(component: str | None = None) -> Dict[str, Any]:

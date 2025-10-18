@@ -27,8 +27,12 @@ def test_get_schema_not_found():
 def test_get_schema_and_validate_valid():
     s = get_schema("synesthetic-asset")
     assert s["ok"] is True
-    # Canonical schema (from submodule) does not define a top-level version
-    assert s["version"] == ""
+    # Version should be extracted from $id URL
+    assert s["version"] == "0.7.3"
+    # Response should include name and path
+    assert s["name"] == "synesthetic-asset"
+    assert "path" in s
+    assert s["schema"] is not None
 
     # Validate a canonical example from the submodule
     asset = _load("SynestheticAsset_Example1.json")
@@ -259,3 +263,20 @@ def test_remote_schema_cache_fallback(monkeypatch, tmp_path):
     result = validate._fetch_canonical_schema(test_url, 'synesthetic-asset.schema.json')
     assert isinstance(result, dict)
     assert tmp_cache.joinpath('synesthetic-asset.schema.json').exists()
+
+
+def test_get_schema_with_version_parameter():
+    """Test that get_schema accepts version parameter and returns complete metadata."""
+    # Test with version parameter (currently informational only)
+    s = get_schema("synesthetic-asset", version="0.7.3")
+    assert s["ok"] is True
+    assert s["name"] == "synesthetic-asset"
+    assert s["version"] == "0.7.3"
+    assert "path" in s
+    assert "schema" in s
+    
+    # Test without version parameter (backward compatibility)
+    s2 = get_schema("synesthetic-asset")
+    assert s2["ok"] is True
+    assert s2["name"] == "synesthetic-asset"
+    assert s2["version"] == "0.7.3"
