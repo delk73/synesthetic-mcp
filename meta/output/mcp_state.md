@@ -96,8 +96,6 @@
 - Present — Spec and README document canonical LABS host/version, TCP defaults, and the `nc 127.0.0.1 8765` quick check (`docs/mcp_spec.md:96-123`, `README.md:95-226`).
 
 ## Detected divergences
-- README still references submodule commit `0fdc842` rather than the pinned `8286df4a4197f2fb45a8bd6c4a805262cba2e934` (`README.md:136-142`, `.git/modules/libs/synesthetic-schemas/HEAD:1`).
-- `.env` omits the trailing slash for `LABS_SCHEMA_BASE`, diverging from documented defaults (`.env:9`, `docs/mcp_spec.md:96-108`).
 
 ## Recommendations
 1. Update README to reflect the current submodule commit and avoid confusion during audits (`README.md:136-142`, `.git/modules/libs/synesthetic-schemas/HEAD:1`).
